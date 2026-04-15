@@ -1,0 +1,238 @@
+# ~/.zshrc
+source ~/.config/zsh/fzf.zsh
+source ~/.config/zsh/my_alias.zsh
+export EDITOR=nvim
+export VISUAL=nvim
+export FZF_DEFAULT_COMMAND='rg --files'
+export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
+export FZF_CTRL_R_OPTS="
+  --preview 'echo {}'
+  --preview-window down:3:hidden:wrap
+"
+export BAT_THEME="Coldark-Dark"
+
+# Esc x2で入力取止
+bindkey '\e\e' kill-whole-line
+
+# 単語移動 Ctrl + ←,→
+bindkey '^[[1;5D' backward-word
+bindkey '^[[1;5C' forward-word
+
+# Home / End
+bindkey '^[[H' beginning-of-line
+bindkey '^[[F' end-of-line
+
+# 単語削除 Ctrl + BackSpace,Delete
+bindkey '^H' backward-kill-word
+bindkey '^[[3;5~' kill-word
+
+setopt prompt_subst
+
+# Load configuration
+__load_config() {
+  local config_file
+
+  # Search for config.sh in standard locations
+  for config_file in \
+    "${HOME}/.config/zsh/config.sh" \
+    "${0%/*}/config.sh"; do
+    if [[ -f "$config_file" ]]; then
+      source "$config_file"
+      return 0
+    fi
+  done
+
+  # Fallback if config not found
+  if [[ ! -f "$config_file" ]]; then
+    echo "Warning: config.sh not found. Please create it." >&2
+    return 1
+  fi
+}
+
+# Initialize configuration
+__load_config
+
+# Other prompt variables
+typeset -g FACE_SEGMENT=''
+typeset -g INPUT_COLOR='10'
+typeset -gi __prompt_cmd_start=0
+typeset -g __prompt_last_cmd=''
+
+__prompt_preexec() {
+  __prompt_last_cmd="$1"
+  __prompt_cmd_start=$SECONDS
+}
+
+__prompt_update() {
+  local last_status=$?
+  local duration=0
+  local cmd_name=''
+  local face_state='default'
+
+  if (( __prompt_cmd_start > 0 )); then
+    duration=$((SECONDS - __prompt_cmd_start))
+  fi
+  cmd_name="${__prompt_last_cmd%% *}"
+
+  if (( last_status != 0 )); then
+    face_state='fail'
+  elif (( duration >= 3 )); then
+    face_state='long'
+  elif [[ "$cmd_name" == "sudo" ]] || [[ "$cmd_name" == "_" ]]; then
+    face_state='sudo'
+  elif [[ "$cmd_name" == l* || "$cmd_name" == pl* || "$cmd_name" == ml* || "$cmd_name" == rl* ]]; then
+    face_state='ls'
+  elif [[ "$cmd_name" == "cd" || "$cmd_name" == "pc" || "$cmd_name" == "mc" || "$cmd_name" == "rc" || "$cmd_name" == cl* || "$cmd_name" == pcl* || "$cmd_name" == mcl* || "$cmd_name" == rcl* ]]; then
+    face_state='cd'
+  fi
+
+  # Load face character and color for current state
+  local face_char_var="FACE_${face_state}_char"
+  local face_color_var="FACE_${face_state}_color"
+  __PROMPT_FACE="${(P)face_char_var}"
+  FACE_COLOR="${(P)face_color_var}"
+
+  # Convert color name to number (using case statement)
+  case "$FACE_COLOR" in
+    red) INPUT_COLOR="$C_RED" ;;
+    dark_red) INPUT_COLOR="$C_DARK_RED" ;;
+    green) INPUT_COLOR="$C_GREEN" ;;
+    dark_green) INPUT_COLOR="$C_DARK_GREEN" ;;
+    blue) INPUT_COLOR="$C_BLUE" ;;
+    dark_blue) INPUT_COLOR="$C_DARK_BLUE" ;;
+    yellow) INPUT_COLOR="$C_YELLOW" ;;
+    cyan) INPUT_COLOR="$C_CYAN" ;;
+    magenta) INPUT_COLOR="$C_MAGENTA" ;;
+    *) INPUT_COLOR="$C_GRAY" ;;
+  esac
+
+  if (( FACE_ENABLED != 0 )); then
+    FACE_SEGMENT="%F{$INPUT_COLOR}${__PROMPT_FACE}%f "
+  else
+    FACE_SEGMENT=''
+  fi
+}
+
+prompt-face-on() {
+  FACE_ENABLED=1
+}
+
+prompt-face-off() {
+  FACE_ENABLED=0
+}
+
+prompt-face-toggle() {
+  if (( FACE_ENABLED != 0 )); then
+    FACE_ENABLED=0
+  else
+    FACE_ENABLED=1
+  fi
+}
+
+prompt-bg-on() {
+  BG_ENABLED=1
+}
+
+prompt-bg-off() {
+  BG_ENABLED=0
+}
+
+prompt-bg-toggle() {
+  if (( BG_ENABLED != 0 )); then
+    BG_ENABLED=0
+  else
+    BG_ENABLED=1
+  fi
+}
+
+__git_branch_segment() {
+  local branch changes segment
+
+  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    # Not in a git repo, but still show the right bracket
+    if (( BG_ENABLED != 0 )); then
+      segment="%F{$BRANCH_BG}${BRANCH_BRACKET_RIGHT}%f"
+      printf '%s' "$segment"
+    fi
+    return 0
+  fi
+
+  branch=$(git symbolic-ref --short HEAD 2>/dev/null || git rev-parse --short HEAD 2>/dev/null)
+  changes=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+
+  if (( BG_ENABLED != 0 )); then
+    # Build segment with bracket styling (text color = BRANCH_FG, background = none)
+    segment="%F{$BRANCH_FG}${BRANCH_BRACKET_LEFT}%f"
+    if [[ -n "$BRANCH_BG" ]]; then
+      segment+="%K{$BRANCH_BG}"
+    fi
+    segment+="%F{$BRANCH_FG} ${BRANCH_ICON}${branch}"
+    if [[ "$changes" != "0" ]]; then
+      segment+="%F{$BRANCH_CHANGE_FG}${BRANCH_CHANGE}%F{$BRANCH_FG}"
+    fi
+    segment+=" "
+    if [[ -n "$BRANCH_BG" ]]; then
+      segment+="%k"
+    fi
+    segment+="%f%F{$BRANCH_BG}${BRANCH_BRACKET_RIGHT}%f"
+  else
+    # No background, no brackets: use BRANCH_FG_NOBG as text color
+    segment=" %F{${BRANCH_FG_NOBG:-$BRANCH_BG}}${BRANCH_ICON}${branch}"
+    if [[ "$changes" != "0" ]]; then
+      segment+="%F{${BRANCH_CHANGE_FG_NOBG:-$BRANCH_CHANGE_FG}}${BRANCH_CHANGE}%F{${BRANCH_FG_NOBG:-$BRANCH_BG}}"
+    fi
+    segment+="%f"
+  fi
+
+  printf '%s' "$segment"
+}
+
+autoload -Uz add-zsh-hook
+add-zsh-hook -D preexec __prompt_preexec 2>/dev/null
+add-zsh-hook -D precmd __prompt_update 2>/dev/null
+add-zsh-hook preexec __prompt_preexec
+add-zsh-hook precmd __prompt_update
+
+__build_prompt_line1() {
+  local time_bracket_left="${TIME_BRACKET_LEFT}"
+  local time_bracket_right="${TIME_BRACKET_RIGHT}"
+  local time_icon="${TIME_ICON}"
+  local path_bracket_left="${PATH_BRACKET_LEFT}"
+  local path_bracket_right="${PATH_BRACKET_RIGHT}"
+  local branch_bracket_left="${BRANCH_BRACKET_LEFT}"
+  local branch_bracket_right="${BRANCH_BRACKET_RIGHT}"
+
+  # Time section: always use background (not affected by BG_ENABLED)
+  printf '%s' "%F{$TIME_BG}${time_bracket_left}%f%k"
+  printf '%s' "%K{$TIME_BG}%F{$TIME_FG}${time_icon}%D{%H:%M:%S}%k%f"
+  if (( BG_ENABLED != 0 )); then
+    printf '%s' "%F{$TIME_BG}%K{${PATH_BG:-0}}${time_bracket_right}%k%f"
+  else
+    printf '%s' "%F{$TIME_BG}${time_bracket_right}%f"
+  fi
+
+  if (( BG_ENABLED != 0 )); then
+    # Path section: bracket text=PATH_FG, bracket bg=BRANCH_BG (next section)
+    printf '%s' "%F{$PATH_FG}%K{${PATH_BG:-0}}${path_bracket_left}%k%f"
+    printf '%s' "%K{$PATH_BG}%F{$PATH_FG} %~ %k%f"
+    printf '%s' "%F{$PATH_BG}%K{${BRANCH_BG:-0}}${path_bracket_right}%k%f"
+  else
+    # No background, no brackets: use PATH_BG as text color
+    local _sep_str=''
+    if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+      _sep_str=" %F{$TIME_FG}on%f"
+    fi
+    printf '%s' " %F{${PATH_FG_NOBG:-$PATH_BG}}%~%f${_sep_str}"
+  fi
+
+  # Branch section
+  printf '%s' "$(__git_branch_segment)"
+}
+
+PROMPT='$(printf "%s\n%s" "$(__build_prompt_line1)" "${FACE_SEGMENT}%F{$INPUT_COLOR}${INPUT_SYMBOL}%f")'
+
+export PATH="$HOME/.local/bin:$PATH"
+
+eval "$(sheldon source)"
+eval "$(zoxide init zsh)"
+eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv zsh)"
