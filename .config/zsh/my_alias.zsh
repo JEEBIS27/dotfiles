@@ -189,7 +189,12 @@ alias ...='cd ../..'
 alias ....='cd ../../..'
 
 # dir
-alias md='mkdir -p'
+unalias md 2>/dev/null
+md() {
+  [ $# -gt 0 ] || return 1
+  local target="${@: -1}"
+  mkdir -p -- "$@" && \cd -- "$target"
+}
 alias rd='rmdir'
 
 # git
@@ -215,6 +220,7 @@ alias q='exit'
 alias chat='copilot'
 alias nv='nvim'
 alias memo='nb'
+alias latexmk='latexmk -r ~/.config/tex/.latexmkrc -pvc'
 
 # --------------------------------------
 # Google search from terminal
