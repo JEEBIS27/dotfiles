@@ -70,8 +70,8 @@ vim.g.maplocalleader = ' '
 -- -----------------------------------
 -- タブ・インデント設定
 -- -----------------------------------
-vim.opt.tabstop = 4                -- タブ文字の幅
-vim.opt.shiftwidth = 4             -- インデント幅
+vim.opt.tabstop = 2                -- タブ文字の幅
+vim.opt.shiftwidth = 2             -- インデント幅
 vim.opt.expandtab = true           -- タブをスペースに展開
 vim.opt.smartindent = true         -- スマートインデント
 vim.opt.autoindent = true          -- 自動インデント
