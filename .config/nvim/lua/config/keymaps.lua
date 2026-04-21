@@ -19,7 +19,7 @@ vim.keymap.set('v', '<C-n>', '<Esc><cmd>ene | startinsert<CR>', { desc = '新規
 vim.keymap.set('n', '<CR>', 'o<Esc>', { desc = '下に行を挿入' })  -- [ノーマル] 下に行を挿入
 
 -- 単語選択
-vim.keymap.set('v', 'v', 'iw', { desc = 'ひと単語選択' })  -- [ビジュアル] ひと単語選択
+vim.keymap.set('v', 'v', 'V', { desc = '行選択' })  -- [ビジュアル] 行選択
 
 -- oil.nvim でファイルエクスプローラーを開く
 vim.keymap.set("n", "-", "<CMD>Oil<CR>", { desc = "親ディレクトリを開く" })  -- [ノーマル] oil.nvimでカレントディレクトリを開く
