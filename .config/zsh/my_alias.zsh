@@ -171,7 +171,7 @@ for __prefix __cmd in "${(@kv)__PMR_CMDS}"; do
 done
 
 # cd
-alias 'cd'='cls'
+alias 'cd'='z'
 alias '/'='cd /'
 alias '~'='cd ~'
 alias -- '-'='cd -'
