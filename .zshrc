@@ -236,11 +236,11 @@ export PATH="$HOME/.local/bin:$PATH"
 eval "$(sheldon source)"
 eval "$(zoxide init zsh)"
 
-if typeset -f z >/dev/null && ! typeset -f __zoxide_z >/dev/null; then
-  functions -c z __zoxide_z
-  z() {
+if typeset -f __zoxide_z >/dev/null && ! typeset -f __zoxide_z_with_ls >/dev/null; then
+  functions -c __zoxide_z __zoxide_z_with_ls
+  function __zoxide_z {
     local __old_pwd="$PWD"
-    __zoxide_z "$@" || return $?
+    __zoxide_z_with_ls "$@" || return $?
     [[ "$PWD" != "$__old_pwd" ]] && ls
   }
 fi
