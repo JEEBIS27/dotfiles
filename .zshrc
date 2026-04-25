@@ -235,4 +235,14 @@ export PATH="$HOME/.local/bin:$PATH"
 
 eval "$(sheldon source)"
 eval "$(zoxide init zsh)"
+
+if typeset -f z >/dev/null && ! typeset -f __zoxide_z >/dev/null; then
+  functions -c z __zoxide_z
+  z() {
+    local __old_pwd="$PWD"
+    __zoxide_z "$@" || return $?
+    [[ "$PWD" != "$__old_pwd" ]] && ls
+  }
+fi
+
 eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv zsh)"
