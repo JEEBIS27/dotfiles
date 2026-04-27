@@ -8,9 +8,15 @@ vim.keymap.set('n', '<A-S-q>', '<cmd>qa!<CR>', { desc = 'Neovimを終了' })  --
 vim.keymap.set('n', '<Space>', function()
   local ok, suggestion = pcall(require, 'copilot.suggestion')
   if ok then
-    suggestion.next()
+    suggestion.toggle_auto_trigger()
+    local state = vim.b.copilot_suggestion_auto_trigger
+    if state == nil then
+      local ok_config, copilot_config = pcall(require, 'copilot.config')
+      state = ok_config and copilot_config.suggestion.auto_trigger or false
+    end
+    vim.notify((state and 'ON' or 'OFF') .. ' Copilot suggestion auto_trigger', vim.log.levels.INFO)
   end
-end, { desc = 'Copilot提案を表示' })
+end, { desc = 'Copilot提案の自動表示をトグル' })
 vim.keymap.set('n', '<C-s>', '<cmd>update<CR>', { desc = '保存' })  -- [ノーマル] ファイルを保存（変更があれば）
 vim.keymap.set('i', '<C-s>', '<C-o><cmd>update<CR><Esc>', { desc = '保存' })  -- [挿入] ファイルを保存
 vim.keymap.set('v', '<C-s>', '<Esc><cmd>update<CR>gv', { desc = '保存' })  -- [ビジュアル] ファイルを保存して選択を維持
