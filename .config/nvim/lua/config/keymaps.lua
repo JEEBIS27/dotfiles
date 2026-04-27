@@ -5,6 +5,12 @@
 -- 保存と終了
 vim.keymap.set('n', '<A-q>', '<cmd>qa<CR>', { desc = 'Neovimを終了' })  -- [ノーマル] ファイルを終了
 vim.keymap.set('n', '<A-S-q>', '<cmd>qa!<CR>', { desc = 'Neovimを終了' })  -- [ノーマル] ファイルを終了
+vim.keymap.set('n', '<Space>', function()
+  local ok, suggestion = pcall(require, 'copilot.suggestion')
+  if ok then
+    suggestion.next()
+  end
+end, { desc = 'Copilot提案を表示' })
 vim.keymap.set('n', '<C-s>', '<cmd>update<CR>', { desc = '保存' })  -- [ノーマル] ファイルを保存（変更があれば）
 vim.keymap.set('i', '<C-s>', '<C-o><cmd>update<CR><Esc>', { desc = '保存' })  -- [挿入] ファイルを保存
 vim.keymap.set('v', '<C-s>', '<Esc><cmd>update<CR>gv', { desc = '保存' })  -- [ビジュアル] ファイルを保存して選択を維持
@@ -14,9 +20,6 @@ vim.keymap.set('v', '<C-S-s>', '<Esc><cmd>update!<CR>gv', { desc = '保存' })  
 vim.keymap.set('n', '<C-n>', '<cmd>ene | startinsert<CR>', { desc = '新規ファイル作成' })  -- [ノーマル] ファイルを新規作成
 vim.keymap.set('i', '<C-n>', '<Esc><cmd>ene | startinsert<CR>', { desc = '新規ファイル作成' })  -- [挿入] ファイルを新規作成
 vim.keymap.set('v', '<C-n>', '<Esc><cmd>ene | startinsert<CR>', { desc = '新規ファイル作成' })  -- [ビジュアル] ファイルを新規作成
-
--- 行を挿入
-vim.keymap.set('n', '<CR>', 'o<Esc>', { desc = '下に行を挿入' })  -- [ノーマル] 下に行を挿入
 
 -- 単語選択
 vim.keymap.set('v', 'v', 'V', { desc = '行選択' })  -- [ビジュアル] 行選択

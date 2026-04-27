@@ -1,5 +1,63 @@
 return {
   {
+    "zbirenbaum/copilot.lua",
+    cmd = "Copilot",
+    event = "InsertEnter",
+    opts = function()
+      local node_candidates = vim.fn.glob(vim.fn.expand("~/.nvm/versions/node/*/bin/node"), false, true)
+      table.sort(node_candidates)
+      return {
+        copilot_node_command = node_candidates[#node_candidates] or "node",
+        suggestion = {
+          enabled = true,
+          auto_trigger = true,
+          hide_during_completion = false,
+        },
+        panel = { enabled = false },
+      }
+    end,
+  },
+  {
+    "saghen/blink.cmp",
+    build = function()
+      require("blink.cmp").build():wait(60000)
+    end,
+    dependencies = {
+      "saghen/blink.lib",
+      "zbirenbaum/copilot.lua",
+      "giuxtaposition/blink-cmp-copilot",
+    },
+    opts = {
+      keymap = {
+        preset = "default",
+      },
+      completion = {
+        menu = {
+          auto_show = true,
+        },
+        trigger = {
+          show_on_insert = false,
+        },
+        ghost_text = {
+          enabled = false,
+          show_without_selection = true,
+        },
+      },
+      sources = {
+        default = { "lsp", "path", "snippets", "buffer", "copilot" },
+        providers = {
+          copilot = {
+            name = "copilot",
+            module = "blink-cmp-copilot",
+            score_offset = 100,
+            async = true,
+          },
+        },
+      },
+    },
+    opts_extend = { "sources.default" },
+  },
+  {
     "neovim/nvim-lspconfig",
     event = { "BufReadPre", "BufWritePre", "BufNewFile" },
     dependencies = { "saghen/blink.cmp" },
@@ -78,7 +136,6 @@ return {
         "yamlls",
 
         -- Others
-        "copilot",
         "gh_actions_ls",
         "bashls",
         "buf_ls",

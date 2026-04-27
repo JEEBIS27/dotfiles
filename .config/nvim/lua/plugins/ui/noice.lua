@@ -87,22 +87,22 @@ return {
       },
     },
     init = function()
-      local palette = require("utils.colors").palette
-
-      require("utils.highlight").set_highlights("noice_hl", {
-        NoiceCmdline = { fg = palette.text, bg = palette.base },
-        NoiceCmdlinePrompt = { fg = palette.springBlue, bg = palette.base },
-        NoiceCmdlineIcon = { fg = palette.springBlue, bg = palette.base },
-        NoiceCmdlineIconCmdline = { fg = palette.springBlue, bg = palette.base },
-        NoiceCmdlineIconSearch = { fg = palette.peach, bg = palette.base },
-        NoiceCmdlineIconFilter = { fg = palette.peach, bg = palette.base },
-        NoiceCmdlineIconLua = { fg = palette.dragonViolet, bg = palette.base },
-        NoiceCmdlineIconHelp = { fg = palette.dragonBlue2, bg = palette.base },
-        NoiceCmdlinePopupNormal = { fg = palette.text, bg = palette.base },
-        NoiceCmdlinePopupBorder = { fg = palette.sky, bg = palette.base },
-        NoiceCmdlinePopupmenuNormal = { fg = palette.text, bg = palette.base },
-        NoiceCmdlinePopupmenuBorder = { fg = palette.sky, bg = palette.base },
-      })
+      require("utils.highlight").force_set_highlights("noice_hl", function()
+        return {
+          NoiceCmdline = { link = "NormalFloat" },
+          NoiceCmdlinePrompt = { link = "Title" },
+          NoiceCmdlineIcon = { link = "Special" },
+          NoiceCmdlineIconCmdline = { link = "Special" },
+          NoiceCmdlineIconSearch = { link = "Search" },
+          NoiceCmdlineIconFilter = { link = "Search" },
+          NoiceCmdlineIconLua = { link = "Type" },
+          NoiceCmdlineIconHelp = { link = "Directory" },
+          NoiceCmdlinePopupNormal = { link = "NormalFloat" },
+          NoiceCmdlinePopupBorder = { link = "FloatBorder" },
+          NoiceCmdlinePopupmenuNormal = { link = "Pmenu" },
+          NoiceCmdlinePopupmenuBorder = { link = "FloatBorder" },
+        }
+      end)
     end,
   },
 }
