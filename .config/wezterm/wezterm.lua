@@ -1,5 +1,6 @@
 local wezterm = require("wezterm")
 local config = wezterm.config_builder()
+local theme = require("theme")
 
 -- 透過度と背景装置の状態管理（グローバル）
 OPACITY_STATES = {
@@ -18,8 +19,8 @@ config.window_background_opacity = 1.0
 -- 背景画像を有効化
 -- config.background = background
 config.win32_system_backdrop = "Tabbed"
-config.color_scheme = 'Kanagawa Dragon (Gogh)'
-local kanagawa = wezterm.color.get_builtin_schemes()["Kanagawa Dragon (Gogh)"] or {}
+local initial_theme = theme.load_initial()
+theme.apply_to_config(config, initial_theme)
 -- 保持する行数
 config.scrollback_lines = 3500
 
@@ -50,9 +51,6 @@ config.window_frame = {
   active_titlebar_bg = "none",
 }
 -- タブバーを背景色に合わせる
-config.window_background_gradient = {
-  colors = { kanagawa.background or "#181616" },
-}
 
 -- タブの追加ボタンを非表示
 config.show_new_tab_button_in_tab_bar = false
@@ -74,7 +72,8 @@ local SOLID_LEFT_ARROW = wezterm.nerdfonts.ple_lower_right_triangle
 local SOLID_RIGHT_ARROW = wezterm.nerdfonts.ple_upper_left_triangle
 
 wezterm.on("format-tab-title", function(tab, tabs, panes, config, hover, max_width)
-  local tab_bar = kanagawa.tab_bar or {}
+  local current_colors = theme.colors_for_config(config)
+  local tab_bar = current_colors.tab_bar or {}
   local inactive_tab = tab_bar.inactive_tab or {}
   local active_tab = tab_bar.active_tab or {}
   local active_bg = "#F4A259"
@@ -83,7 +82,7 @@ wezterm.on("format-tab-title", function(tab, tabs, panes, config, hover, max_wid
   local edge_background = "none"
   if tab.is_active then
     background = active_bg
-    foreground = active_tab.fg_color or kanagawa.background
+    foreground = active_tab.fg_color or current_colors.background or "#181616"
   end
   local edge_foreground = background
   local title = "          "
@@ -98,6 +97,16 @@ wezterm.on("format-tab-title", function(tab, tabs, panes, config, hover, max_wid
     { Foreground = { Color = edge_foreground } },
     { Text = SOLID_RIGHT_ARROW },
   }
+end)
+
+wezterm.on("theme-toggle", function(window, pane)
+  local next_theme = theme.next(theme.current(window))
+  local applied_theme = theme.apply_to_window(window, next_theme)
+  window:toast_notification("WezTerm Theme", "Theme: " .. applied_theme, nil, 2500)
+end)
+
+wezterm.on("theme-show", function(window, pane)
+  window:toast_notification("WezTerm Theme", "Current theme: " .. theme.current(window), nil, 2500)
 end)
 
 ----------------------------------------------------

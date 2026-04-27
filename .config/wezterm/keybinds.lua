@@ -139,6 +139,10 @@ return {
         })
       end),
     },
+    -- テーマ切り替え Alt+t
+    { key = "t", mods = "ALT", action = act.EmitEvent("theme-toggle") },
+    -- 現在テーマ表示 Alt+Shift+t
+    { key = "t", mods = "ALT|SHIFT", action = act.EmitEvent("theme-show") },
 
     -- タブ切替 Alt + 数字
     { key = "1", mods = "ALT", action = act.ActivateTab(0) },
