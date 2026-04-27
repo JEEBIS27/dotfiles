@@ -48,7 +48,7 @@ end
 apply_stealth_statusline()
 vim.api.nvim_create_autocmd("ColorScheme", {
   callback = apply_stealth_statusline,
-  desc = "Kanagawa背景にStatusLineを馴染ませる",
+  desc = "現在テーマの背景にStatusLineを馴染ませる",
 })
 
 -- フォント設定（GUI版Neovim用: Neovide, GoneVim等）

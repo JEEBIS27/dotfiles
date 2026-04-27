@@ -1,8 +1,12 @@
 return {
-  -- Kanagawa カラースキーム
   {
-    "rebelot/kanagawa.nvim",
+    "folke/tokyonight.nvim",
     priority = 1000,
+    lazy = false,
+    dependencies = {
+      "rebelot/kanagawa.nvim",
+      "catppuccin/nvim",
+    },
     config = function()
       require('kanagawa').setup({
         compile = false,
@@ -35,7 +39,22 @@ return {
           light = "lotus"
         },
       })
-      vim.cmd("colorscheme kanagawa")
+
+      require("tokyonight").setup({
+        style = "moon",
+        transparent = true,
+        styles = {
+          sidebars = "transparent",
+          floats = "transparent",
+        },
+      })
+
+      require("catppuccin").setup({
+        flavour = "mocha",
+        transparent_background = true,
+      })
+
+      require("config.theme").setup()
     end,
   },
 }
