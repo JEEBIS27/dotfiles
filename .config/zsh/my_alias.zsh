@@ -217,6 +217,7 @@ alias _=sudo
 alias h='history'
 alias x='clear'
 alias q='exit'
+alias cat='bat'
 alias chat='copilot'
 alias nv='nvim'
 alias memo='nb'
