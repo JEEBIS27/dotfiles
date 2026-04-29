@@ -30,6 +30,10 @@ vim.keymap.set('v', '<C-n>', '<Esc><cmd>ene | startinsert<CR>', { desc = '新規
 -- 単語選択
 vim.keymap.set('v', 'v', 'V', { desc = '行選択' })  -- [ビジュアル] 行選択
 
+-- 削除はブラックホールレジスタを使い、ペースト用レジスタを汚さない
+vim.keymap.set({ 'n', 'v' }, 'x', '"_x', { desc = '削除（レジスタに保存しない）' })
+vim.keymap.set({ 'n', 'v' }, '<Del>', '"_x', { desc = '削除（レジスタに保存しない）' })
+
 -- oil.nvim でファイルエクスプローラーを開く
 vim.keymap.set("n", "-", "<CMD>Oil<CR>", { desc = "親ディレクトリを開く" })  -- [ノーマル] oil.nvimでカレントディレクトリを開く
 
