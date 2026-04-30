@@ -234,7 +234,6 @@ PROMPT='$(printf "%s\n%s" "$(__build_prompt_line1)" "${FACE_SEGMENT}%F{$INPUT_CO
 export PATH="$HOME/.local/bin:$PATH"
 
 eval "$(sheldon source)"
-eval "$(zoxide init zsh)"
 
 if typeset -f __zoxide_z >/dev/null && ! typeset -f __zoxide_z_with_ls >/dev/null; then
   functions -c __zoxide_z __zoxide_z_with_ls
