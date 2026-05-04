@@ -9,7 +9,7 @@ vim.cmd('syntax on')               -- シンタックスハイライトを有効
 vim.opt.number = true              -- 行番号を表示
 vim.opt.relativenumber = true      -- 相対行番号を表示
 vim.opt.signcolumn = 'no'          -- サインカラムは statuscolumn の %s で管理
-vim.opt.mouse = 'a'                -- マウスサポートを有効化
+vim.opt.mouse = ''                 -- マウスサポートを無効化
 vim.opt.ignorecase = true          -- 検索時に大文字小文字を区別しない
 vim.opt.smartcase = true           -- 大文字が含まれる場合は区別する
 vim.opt.hlsearch = true            -- 検索結果をハイライト

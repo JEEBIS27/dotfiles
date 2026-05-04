@@ -11,6 +11,9 @@ OPACITY_STATES = {
 CURRENT_OPACITY_INDEX = 1
 STATE_BEFORE_FULL_TRANSPARENT = 1  -- 完全透明に入る前の状態
 
+-- マウスを無効化
+config.disable_default_mouse_bindings = true
+
 config.automatically_reload_config = true
 config.font = wezterm.font("HackGen35 Console NF")
 config.font_size = 14.0
@@ -26,6 +29,7 @@ config.scrollback_lines = 3500
 
 -- スクロールを有効化
 config.enable_scroll_bar = true
+config.mouse_wheel_scrolls_tabs = true
 config.window_close_confirmation = "NeverPrompt"
 config.default_domain = 'WSL:Ubuntu'
 local mux = wezterm.mux
