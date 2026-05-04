@@ -1,5 +1,8 @@
 #!/usr/bin/env perl
 
+use File::Spec;
+use File::Basename qw(dirname);
+
 # LaTeX
 $lualatex = 'lualatex -synctex=1 --shell-escape -halt-on-error -file-line-error %O %S';
 $max_repeat = 5;
@@ -11,11 +14,60 @@ $biber = 'biber --bblencoding=utf8 -u -U --output_safechars %O %S';
 # index
 $makeindex = 'mendex %O -o %D %S';
 
+my $main_tex = '';
+for my $arg (@ARGV) {
+    next if $arg =~ /^-/;
+    if ($arg !~ m{/} && $arg !~ /\./ && !-f $arg && !-f "$arg.tex" && -f "$arg/$arg.tex") {
+        $arg = "$arg/$arg.tex";
+    }
+    if ($arg =~ /\.tex$/ && -f $arg) {
+        $main_tex = $arg;
+        last;
+    }
+    if (-f "$arg.tex") {
+        $main_tex = "$arg.tex";
+        last;
+    }
+}
+
+my $source_dir = '.';
+if ($main_tex ne '') {
+    $source_dir = dirname($main_tex);
+    $source_dir = '.' if !defined($source_dir) || $source_dir eq '';
+}
+my $build_dir = ($source_dir eq '.') ? '.build' : "$source_dir/.build";
+
 # Build artifacts
-$aux_dir = '.build';
-$out_dir = '.';
-$emulate_aux = 1;
-$pdf_mode = 4;
+$aux_dir = $build_dir;
+$out_dir = $build_dir;
+$emulate_aux = 0;
+
+my $use_platex = 0;
+if ($main_tex ne '') {
+    my $main_path = File::Spec->rel2abs($main_tex);
+    if (open(my $fh, '<', $main_path)) {
+        while (my $line = <$fh>) {
+            next if $line =~ /^\s*%/;
+            if ($line =~ /\\documentclass(?:\[[^\]]*\])?\{([^}]+)\}/) {
+                my $docclass = $1;
+                $docclass =~ s/\s+//g;
+                if ($docclass eq 'jreport' || $docclass eq 'jlreq') {
+                    $use_platex = 1;
+                }
+                last;
+            }
+        }
+        close($fh);
+    }
+}
+
+if ($use_platex) {
+    $latex = 'platex -synctex=1 -halt-on-error -file-line-error %O %S';
+    $dvipdf = 'dvipdfmx %O -o %D %S';
+    $pdf_mode = 3;
+} else {
+    $pdf_mode = 4;
+}
 
 # sed
 $pdf_update_method = 4;
@@ -48,8 +100,8 @@ if ($^O eq 'linux') {
     $pdf_previewer = '"C:\Program Files\SumatraPDF\SumatraPDF.exe" -reuse-instance %O %S';
 }
 
-# Keep only .pdf and .tex in the source directory.
-$success_cmd = 'if [ -f "%R.synctex.gz" ]; then mv -f "%R.synctex.gz" ".build/"; fi; if [ -f "%R.synctex" ]; then mv -f "%R.synctex" ".build/"; fi';
+# Keep only .tex and .pdf in the source directory.
+$success_cmd = "mkdir -p \"$build_dir\"; [ -f \"$build_dir/%R.pdf\" ] && cp -f \"$build_dir/%R.pdf\" \"$source_dir/%R.pdf\"; (cd \"$source_dir\" && for f in %R.*; do [ -e \"\$f\" ] || continue; case \"\$f\" in %R.tex|%R.pdf) ;; *) mv -f \"\$f\" .build/;; esac; done)";
 
 # clean up
 $clean_full_ext = "%R.synctex.gz";
