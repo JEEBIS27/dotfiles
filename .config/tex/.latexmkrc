@@ -46,18 +46,30 @@ my $use_platex = 0;
 if ($main_tex ne '') {
     my $main_path = File::Spec->rel2abs($main_tex);
     if (open(my $fh, '<', $main_path)) {
-        while (my $line = <$fh>) {
-            next if $line =~ /^\s*%/;
-            if ($line =~ /\\documentclass(?:\[[^\]]*\])?\{([^}]+)\}/) {
-                my $docclass = $1;
-                $docclass =~ s/\s+//g;
-                if ($docclass eq 'jreport' || $docclass eq 'jlreq') {
-                    $use_platex = 1;
-                }
-                last;
+        local $/;
+        my $content = <$fh>;
+        close($fh);
+
+        # Ignore comments so multiline \documentclass can be parsed safely.
+        $content =~ s/^\s*%.*$//mg;
+        $content =~ s/(?<!\\)%.*$//mg;
+
+        if ($content =~ /\\documentclass\s*(?:\[(.*?)\])?\s*\{([^}]+)\}/s) {
+            my $raw_opts = defined($1) ? $1 : '';
+            my $docclass = $2;
+            $docclass =~ s/\s+//g;
+
+            my %opt = map { my $k = lc($_); $k =~ s/\s+//g; $k => 1 }
+                      grep { $_ ne '' }
+                      split(/\s*,\s*/, $raw_opts);
+
+            if ($docclass eq 'jreport') {
+                $use_platex = 1;
+            } elsif ($docclass eq 'jlreq') {
+                # jlreq supports multiple engines; prefer LuaLaTeX when requested.
+                $use_platex = $opt{'luatex'} ? 0 : 1;
             }
         }
-        close($fh);
     }
 }
 
