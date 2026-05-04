@@ -219,7 +219,6 @@ alias q='exit'
 alias cat='bat'
 alias chat='copilot'
 alias nv='nvim'
-alias memo='nb'
 alias latexmk='latexmk -r ~/.config/tex/.latexmkrc -pvc'
 
 # Leading "|" command: run normally and copy stdout to clipboard
