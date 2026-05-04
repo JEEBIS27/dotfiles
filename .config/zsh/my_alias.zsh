@@ -214,7 +214,7 @@ alias gst='git stash'
 # other
 alias _=sudo
 alias h='history'
-alias x='clear'
+alias x='clear && ls'
 alias q='exit'
 alias cat='bat'
 alias chat='copilot'
