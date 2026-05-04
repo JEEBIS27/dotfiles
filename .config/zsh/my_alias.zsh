@@ -2,7 +2,7 @@
 function d() {
   local dir
   dir=$(zoxide query -l | eval fzf $FZF_DIR_PREVIEW)
-  [ -n "$dir" ] && cls "$dir"
+  [ -n "$dir" ] && \cd "$dir"
 }
 
 # ファイル検索
