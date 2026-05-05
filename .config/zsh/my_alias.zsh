@@ -2,7 +2,7 @@
 function d() {
   local dir
   dir=$(zoxide query -l | eval fzf $FZF_DIR_PREVIEW)
-  [ -n "$dir" ] && cls "$dir"
+  [ -n "$dir" ] && \cd "$dir"
 }
 
 # ファイル検索
@@ -171,7 +171,6 @@ for __prefix __cmd in "${(@kv)__PMR_CMDS}"; do
 done
 
 # cd
-alias 'cd'='z'
 alias '/'='cd /'
 alias '~'='cd ~'
 alias -- '-'='cd -'
@@ -215,13 +214,50 @@ alias gst='git stash'
 # other
 alias _=sudo
 alias h='history'
-alias x='clear'
+alias x='clear && ls'
 alias q='exit'
 alias cat='bat'
 alias chat='copilot'
 alias nv='nvim'
-alias memo='nb'
 alias latexmk='latexmk -r ~/.config/tex/.latexmkrc -pvc'
+
+# Leading "|" command: run normally and copy stdout to clipboard
+if [[ -o interactive ]]; then
+  if command -v wl-copy >/dev/null 2>&1; then
+    typeset -g __CLIP_CMD='wl-copy'
+  elif command -v pbcopy >/dev/null 2>&1; then
+    typeset -g __CLIP_CMD='pbcopy'
+  elif command -v xclip >/dev/null 2>&1; then
+    typeset -g __CLIP_CMD='xclip -selection clipboard'
+  elif command -v xsel >/dev/null 2>&1; then
+    typeset -g __CLIP_CMD='xsel --clipboard --input'
+  fi
+
+  __accept_line_with_clip_prefix() {
+    emulate -L zsh
+
+    if [[ $BUFFER == \|* ]]; then
+      local cmd="${BUFFER#\|}"
+      cmd="${cmd#"${cmd%%[![:space:]]*}"}"
+
+      if [[ -z $cmd ]]; then
+        zle -M "コマンドを入力してください"
+        return 0
+      fi
+
+      if [[ -z $__CLIP_CMD ]]; then
+        zle -M "wl-copy / pbcopy / xclip / xsel が見つかりません"
+        BUFFER="$cmd"
+      else
+        BUFFER="$cmd | tee >( ${=__CLIP_CMD} )"
+      fi
+    fi
+
+    zle .accept-line
+  }
+
+  zle -N accept-line __accept_line_with_clip_prefix
+fi
 
 # --------------------------------------
 # Google search from terminal

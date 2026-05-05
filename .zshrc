@@ -193,6 +193,13 @@ add-zsh-hook -D precmd __prompt_update 2>/dev/null
 add-zsh-hook preexec __prompt_preexec
 add-zsh-hook precmd __prompt_update
 
+__auto_ls_on_chpwd() {
+  emulate -L zsh
+  eza --icons=always
+}
+add-zsh-hook -D chpwd __auto_ls_on_chpwd 2>/dev/null
+add-zsh-hook chpwd __auto_ls_on_chpwd
+
 __build_prompt_line1() {
   local time_bracket_left="${TIME_BRACKET_LEFT}"
   local time_bracket_right="${TIME_BRACKET_RIGHT}"
@@ -234,16 +241,6 @@ PROMPT='$(printf "%s\n%s" "$(__build_prompt_line1)" "${FACE_SEGMENT}%F{$INPUT_CO
 export PATH="$HOME/.local/bin:$PATH"
 
 eval "$(sheldon source)"
-eval "$(zoxide init zsh)"
-
-if typeset -f __zoxide_z >/dev/null && ! typeset -f __zoxide_z_with_ls >/dev/null; then
-  functions -c __zoxide_z __zoxide_z_with_ls
-  function __zoxide_z {
-    local __old_pwd="$PWD"
-    __zoxide_z_with_ls "$@" || return $?
-    [[ "$PWD" != "$__old_pwd" ]] && ls
-  }
-fi
 
 eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv zsh)"
 

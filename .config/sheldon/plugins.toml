@@ -35,7 +35,7 @@ inline = '''
 
 [plugins.zoxide]
 inline = '''
-eval "$(zoxide init zsh)"
+eval "$(zoxide init --cmd cd zsh)"
 '''
 
 [plugins.fzf-tab]
