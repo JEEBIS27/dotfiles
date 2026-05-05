@@ -7,6 +7,25 @@ return {
     config = function()
       local parser_install_dir = vim.fn.stdpath("data") .. "/treesitter"
       vim.opt.runtimepath:prepend(parser_install_dir)
+      local directive_opts = vim.fn.has("nvim-0.10") == 1 and { force = true, all = false } or true
+
+      vim.treesitter.query.add_directive("downcase!", function(match, _, bufnr, pred, metadata)
+        local capture_id = pred[2]
+        local node = match[capture_id]
+        if not node or not metadata then
+          return
+        end
+
+        local ok, text = pcall(vim.treesitter.get_node_text, node, bufnr, {
+          metadata = metadata[capture_id],
+        })
+        if not ok then
+          return
+        end
+
+        metadata[capture_id] = metadata[capture_id] or {}
+        metadata[capture_id].text = string.lower(text or "")
+      end, directive_opts)
 
       require("nvim-treesitter.configs").setup({
         parser_install_dir = parser_install_dir,
