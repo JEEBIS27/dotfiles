@@ -205,11 +205,14 @@ alias gA='git add -A'
 alias gc='git commit'
 alias gm='git commit -m'
 alias gp='git push'
-alias gpl='git pull'
-alias gl='git log --oneline -15'
+alias gpl='git pull --rebase'
+alias gl='git log --oneline -20'
 alias gb='git branch'
 alias gco='git checkout'
 alias gst='git stash'
+alias gr='git restore'
+alias gns='git restore --staged'
+alias gn='git reset --soft HEAD~1'
 
 # other
 alias _=sudo
