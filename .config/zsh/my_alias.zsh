@@ -9,7 +9,7 @@ function d() {
 function f() {
   local file
   file=$(eval fzf $FZF_FILE_PREVIEW)
-  [ -n "$file" ] && ${EDITOR:-vim} "$file"
+  [ -n "$file" ] && ${EDITOR:-nvim} "$file"
 }
 
 # 文字列一致検索
