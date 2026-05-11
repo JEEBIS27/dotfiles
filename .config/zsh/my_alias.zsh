@@ -1,14 +1,41 @@
 # ディレクトリ検索
 function d() {
+  local initial_query="${*:-}"
   local dir
-  dir=$(zoxide query -l | eval fzf $FZF_DIR_PREVIEW)
+  local -a fzf_opts
+
+  fzf_opts=(
+    --border-label ' Directory '
+    --preview 'eza --icons=always --color=always --tree --level=2 {}'
+    --preview-window 'right:60%:nowrap'
+    --query "$initial_query"
+  )
+
+  dir=$(zoxide query -l | fzf "${fzf_opts[@]}")
   [ -n "$dir" ] && \cd "$dir"
 }
 
 # ファイル検索
 function f() {
+  local initial_query="${*:-}"
   local file
-  file=$(eval fzf $FZF_FILE_PREVIEW)
+  local -a fzf_opts
+
+  fzf_opts=(
+    --header-label ' File Type '
+    --border-label ' File '
+    --preview 'bat --color=always {}'
+    --bind 'focus:+transform-header:file --brief {} || echo "No file selected"'
+    --query "$initial_query"
+  )
+
+  if command -v fd >/dev/null 2>&1; then
+    file=$(fd --type f --hidden --exclude .git 2>/dev/null | \
+           fzf "${fzf_opts[@]}")
+  else
+    file=$(rg --files --hidden --glob '!.git/*' 2>/dev/null | \
+           fzf "${fzf_opts[@]}")
+  fi
   [ -n "$file" ] && ${EDITOR:-nvim} "$file"
 }
 
@@ -16,12 +43,23 @@ function f() {
 function g() {
   local initial_query="${1:-}"
   local result
+  local -a fzf_opts
 
-  result=$(rg --line-number --color=always "${initial_query}" 2>/dev/null | \
-           eval fzf $FZF_STRING_PREVIEW \
-           --query \"\$initial_query\" \
-           --bind \'change:reload:sleep 0.1\; rg --line-number --color=always {q} \|\| true\' \
-           --bind \'start:reload:rg --line-number --color=always {q} \|\| true\')
+  fzf_opts=(
+    --ansi
+    --disabled
+    --delimiter ':'
+    --border-label ' String '
+    --bind 'focus:+transform-header:echo {} | sed "s/\x1b\[[0-9;]*m//g" | cut -d: -f1 | xargs file --brief 2>/dev/null || echo "No file selected"'
+    --preview 'f=$(echo {} | sed "s/\x1b\[[0-9;]*m//g" | cut -d: -f1); l=$(echo {} | sed "s/\x1b\[[0-9;]*m//g" | cut -d: -f2); [[ -n "$l" && "$l" =~ ^[0-9]+$ ]] && bat --style=numbers --color=always --highlight-line "$l" --line-range "$((l>5 ? l-5 : 1)):" "$f" 2>/dev/null || bat --style=numbers --color=always "$f" 2>/dev/null'
+    --preview-window 'right:60%:nowrap'
+    --query "$initial_query"
+    --bind "change:reload:sleep 0.1; rg --line-number --color=always --hidden --glob '!.git/*' {q} || true"
+    --bind "start:reload:rg --line-number --color=always --hidden --glob '!.git/*' {q} || true"
+  )
+
+  result=$(rg --line-number --color=always --hidden --glob '!.git/*' "${initial_query}" 2>/dev/null | \
+           fzf "${fzf_opts[@]}")
 
   if [ -n "$result" ]; then
     local clean_result=$(echo "$result" | sed 's/\x1b\[[0-9;]*m//g')
@@ -36,12 +74,15 @@ alias ls="eza --icons=always"
 alias ll="ls -l"
 alias la="ls -a"
 alias lA="ll -a"
+alias lt="ls --tree --level=2"
+alias lta="la --tree --level=2"
 alias lT="ls --tree"
-alias lt="lT --level=2"
 alias lTa="la --tree"
-alias lta="lTa --level=2"
-alias l.="la | grep '^\.'"
-alias lg="ll --git"
+alias ld="ls -D"
+alias lda="la -D"
+alias lf="ls -F"
+alias lfa="la -F"
+alias l.="ls .*"
 
 __ls_variant() {
   local variant="$1"
@@ -50,12 +91,15 @@ __ls_variant() {
     ll) ll ${list_target:+"$list_target"} ;;
     la) la ${list_target:+"$list_target"} ;;
     lA) lA ${list_target:+"$list_target"} ;;
-    lT) lT ${list_target:+"$list_target"} ;;
     lt) lt ${list_target:+"$list_target"} ;;
+    lta) lta ${list_target:+"$list_target"} ;;
     lT) lT ${list_target:+"$list_target"} ;;
-    lt) lt ${list_target:+"$list_target"} ;;
-    l.) l. ${list_target:+"$list_target"} | grep '^\.' ;;
-    lg) lg ${list_target:+"$list_target"} ;;
+    lTa) lTa ${list_target:+"$list_target"} ;;
+    ld) ld ${list_target:+"$list_target"} ;;
+    lda) lda ${list_target:+"$list_target"} ;;
+    lf) lf ${list_target:+"$list_target"} ;;
+    lfa) lfa ${list_target:+"$list_target"} ;;
+    l.) l. ${list_target:+"$list_target"} ;;
     *)  ls ${list_target:+"$list_target"} ;;
   esac
 }
@@ -128,7 +172,7 @@ __cl_dispatch() {
   __ls_variant "$variant"
 }
 
-typeset -a __LS_SUFFIXES=(s ll la lA lT lt lT lt l. lg)
+typeset -a __LS_SUFFIXES=(s ll la lA lt lta lT lTa ld lda lf lfa l.)
 
 for __suffix in "${__LS_SUFFIXES[@]}"; do
   if [ "$__suffix" = "s" ]; then
@@ -199,6 +243,7 @@ alias rd='rmdir'
 # git
 alias gcl='git clone'
 alias gs='git status'
+alias lg='gs'
 alias gd='git diff'
 alias ga='git add'
 alias gA='git add -A'
