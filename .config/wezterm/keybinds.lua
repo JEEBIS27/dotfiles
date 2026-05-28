@@ -56,7 +56,7 @@ return {
     -- Tab新規作成
     { key = "t", mods = "CTRL", action = act.SpawnCommandInNewTab({ domain = "CurrentPaneDomain", cwd = "~" }) },
     -- Tabを閉じる
-    { key = "w", mods = "CTRL|SHIFT", action = act({ CloseCurrentTab = { confirm = false } }) },
+    { key = "w", mods = "CTRL|SHIFT", action = act({ CloseCurrentTab = { confirm = true } }) },
 
     -- コピーモード
     { key = 'x', mods = 'CTRL|SHIFT', action = act.ActivateKeyTable{ name = 'copy_mode', one_shot =false }, },
@@ -72,7 +72,7 @@ return {
     -- AI Chat を開始する Ctrl+Shift+i
     { key = "i", mods = "CTRL|SHIFT", action = act.SplitPane({ direction = "Right", size = { Percent = 33 }, command = { args = { "zsh", "-i", "-c", "chat" }, domain = "CurrentPaneDomain", cwd = "~" } }) },
     -- Paneを閉じる leader + x
-    { key = "w", mods = "CTRL", action = act({ CloseCurrentPane = { confirm = false } }) },
+    { key = "w", mods = "CTRL", action = act({ CloseCurrentPane = { confirm = true } }) },
     -- Pane移動 leader + hlkj
     { key = "LeftArrow", mods = "CTRL|ALT", action = act.ActivatePaneDirection("Left") },
     { key = "RightArrow", mods = "CTRL|ALT", action = act.ActivatePaneDirection("Right") },
