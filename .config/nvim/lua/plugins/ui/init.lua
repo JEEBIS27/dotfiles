@@ -35,6 +35,7 @@ return {
           enable = true,
           notify = false,
           use_treesitter = false,
+          exclude_filetypes = { toggleterm = true },
           chars = {
             horizontal_line = "─",
             vertical_line = "│",
@@ -52,6 +53,7 @@ return {
         indent = {
           enable = true,
           use_treesitter = false,
+          exclude_filetypes = { toggleterm = true },
           chars = {
             "│",
           },
