@@ -65,6 +65,10 @@ if ($main_tex ne '') {
 
             if ($docclass eq 'jreport') {
                 $use_platex = 1;
+            } elsif ($docclass eq 'jarticle') {
+                $use_platex = 1;
+            } elsif ($docclass eq 'jsarticle') {
+                $use_platex = 1;
             } elsif ($docclass eq 'jlreq') {
                 # jlreq supports multiple engines; prefer LuaLaTeX when requested.
                 $use_platex = $opt{'luatex'} ? 0 : 1;
