@@ -24,7 +24,7 @@ function f() {
   fzf_opts=(
     --header-label ' File Type '
     --border-label ' File '
-    --preview 'bat --color=always {}'
+    --preview 'batcat --color=always {}'
     --bind 'focus:+transform-header:file --brief {} || echo "No file selected"'
     --query "$initial_query"
   )
@@ -51,7 +51,7 @@ function g() {
     --delimiter ':'
     --border-label ' String '
     --bind 'focus:+transform-header:echo {} | sed "s/\x1b\[[0-9;]*m//g" | cut -d: -f1 | xargs file --brief 2>/dev/null || echo "No file selected"'
-    --preview 'f=$(echo {} | sed "s/\x1b\[[0-9;]*m//g" | cut -d: -f1); l=$(echo {} | sed "s/\x1b\[[0-9;]*m//g" | cut -d: -f2); [[ -n "$l" && "$l" =~ ^[0-9]+$ ]] && bat --style=numbers --color=always --highlight-line "$l" --line-range "$((l>5 ? l-5 : 1)):" "$f" 2>/dev/null || bat --style=numbers --color=always "$f" 2>/dev/null'
+    --preview 'f=$(echo {} | sed "s/\x1b\[[0-9;]*m//g" | cut -d: -f1); l=$(echo {} | sed "s/\x1b\[[0-9;]*m//g" | cut -d: -f2); [[ -n "$l" && "$l" =~ ^[0-9]+$ ]] && batcat --style=numbers --color=always --highlight-line "$l" --line-range "$((l>5 ? l-5 : 1)):" "$f" 2>/dev/null || batcat --style=numbers --color=always "$f" 2>/dev/null'
     --preview-window 'right:60%:nowrap'
     --query "$initial_query"
     --bind "change:reload:sleep 0.1; rg --line-number --color=always --hidden --glob '!.git/*' {q} || true"
@@ -264,7 +264,8 @@ alias _=sudo
 alias h='history'
 alias x='clear && ls'
 alias q='exit'
-alias cat='bat'
+alias bat='batcat'
+alias cat='batcat'
 alias chat='copilot'
 alias nv='nvim'
 alias latexmk='latexmk -r ~/.config/tex/.latexmkrc -pvc'

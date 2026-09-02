@@ -238,7 +238,7 @@ __build_prompt_line1() {
 
 PROMPT='$(printf "%s\n%s" "$(__build_prompt_line1)" "${FACE_SEGMENT}%F{$INPUT_COLOR}${INPUT_SYMBOL}%f")'
 
-export PATH="$HOME/.local/bin:$PATH"
+export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
 
 eval "$(sheldon source)"
 

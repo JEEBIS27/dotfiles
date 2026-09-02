@@ -20,12 +20,14 @@ return {
   {
     "saghen/blink.cmp",
     build = function()
-      require("blink.cmp").build():wait(60000)
+      require("blink.cmp").build():pwait()
     end,
+
     dependencies = {
       "saghen/blink.lib",
       "zbirenbaum/copilot.lua",
       "giuxtaposition/blink-cmp-copilot",
+      "rafamadriz/friendly-snippets",
     },
     opts = {
       keymap = {

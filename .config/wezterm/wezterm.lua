@@ -12,7 +12,7 @@ CURRENT_OPACITY_INDEX = 1
 STATE_BEFORE_FULL_TRANSPARENT = 1  -- 完全透明に入る前の状態
 
 -- マウスを無効化
-config.disable_default_mouse_bindings = true
+config.disable_default_mouse_bindings = false
 
 config.automatically_reload_config = true
 config.font = wezterm.font("HackGen35 Console NF")
