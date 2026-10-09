@@ -1,0 +1,30 @@
+return {
+  -- lang
+  {
+    "vuki656/package-info.nvim",
+    dependencies = { "nui.nvim" },
+    event = { "BufEnter package.json" },
+    init = function()
+      require("utils.highlight").force_set_highlights("package-info_hl", {
+        PackageInfoOutdatedVersion = { link = "DiagnosticHint" },
+        PackageInfoUpToDateVersion = { link = "DiagnosticHint" },
+      })
+    end,
+    config = function()
+      require("package-info").setup({
+        autostart = true,
+        hide_up_to_date = true,
+        hide_unstable_version = true,
+      })
+      require("package-info").show()
+    end,
+  },
+  -- Syntax Highlighting
+  {
+    "jxnblk/vim-mdx-js",
+  },
+  {
+    "direnv/direnv.vim",
+    ft = "direnv",
+  },
+}
