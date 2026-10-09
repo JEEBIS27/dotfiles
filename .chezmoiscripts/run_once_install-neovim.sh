@@ -4,7 +4,7 @@ set -euo pipefail
 INSTALL_DIR="$HOME/.local"
 mkdir -p "$INSTALL_DIR"
 
-echo "=== Installing Neovim (Latest tar.gz) ==="
+echo "=== 4. Installing Neovim (Latest tar.gz) ==="
 
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
@@ -19,11 +19,12 @@ else
     exit 1
 fi
 
-curl -s https://api.github.com/repos/neovim/neovim/releases/latest \
+DOWNLOAD_URL=$(curl -s https://api.github.com/repos/neovim/neovim/releases/latest \
   | grep "browser_download_url.*$NVIM_TAR" \
   | cut -d : -f 2,3 \
-  | tr -d \" \
-  | wget -qi - -O "$TMP_DIR/$NVIM_TAR"
+  | tr -d \" | tr -d ' ')
+
+curl -fsSL "$DOWNLOAD_URL" -o "$TMP_DIR/$NVIM_TAR"
 
 tar -C "$TMP_DIR" -xzf "$TMP_DIR/$NVIM_TAR"
 cp -r $TMP_DIR/nvim-linux*/* "$INSTALL_DIR/"
