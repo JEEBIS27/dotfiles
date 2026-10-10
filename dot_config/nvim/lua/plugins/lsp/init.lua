@@ -19,10 +19,7 @@ return {
   },
   {
     "saghen/blink.cmp",
-    build = function()
-      require("blink.cmp").build():pwait()
-    end,
-
+    build = 'cargo build --release',
     dependencies = {
       "saghen/blink.lib",
       "zbirenbaum/copilot.lua",
