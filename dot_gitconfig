@@ -13,7 +13,7 @@
 [delta]
   features = tokyonight-night
   syntax-theme = tokyonight_night
-  keep-plus-minus-markers = true
+  keep-plus-minus-markers = false
   side-by-side = true
   line-numbers = true
   navigate = true
