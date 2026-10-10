@@ -46,5 +46,7 @@ sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply JEEBIS27
 以下のコマンドで最新の設定を取り込めます。
 ```
 chezmoi update
+brew bundle --global
+chezmoi apply --force
 ```
 
