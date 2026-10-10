@@ -1,14 +1,21 @@
 #!/bin/bash
 set -euo pipefail
 
-echo "=== 1. Checking and Installing Base Tools (wget, curl, git) ==="
-if command -v apt-get &> /dev/null; then
+echo "=== 1. Checking and Installing Base Tools & System Packages ==="
+if command -v pacman &> /dev/null; then
+    sudo pacman -Sy --noconfirm --needed wget curl git base-devel fcitx5-im fcitx5-configtool
+    
+    # yay (AUR helper) を使った追加パッケージの導入
+    if command -v yay &> /dev/null; then
+        yay -S --noconfirm --needed helium-browser-bin mozkey-ibg-bin
+    else
+        echo "Warning: 'yay' is not installed. Skipping AUR packages (helium, mozkey)."
+    fi
+elif command -v apt-get &> /dev/null; then
     sudo apt-get update -y
     sudo apt-get install -y wget curl git build-essential
 elif command -v dnf &> /dev/null; then
     sudo dnf install -y wget curl git groupinstall "Development Tools"
-elif command -v pacman &> /dev/null; then
-    sudo pacman -Sy --noconfirm --needed wget curl git base-devel
 fi
 
 echo "=== 2. Checking and Installing Homebrew ==="
@@ -26,7 +33,6 @@ fi
 echo "=== 3. Installing Brewfile Packages ==="
 if command -v brew &> /dev/null; then
     if [ -f "$HOME/.Brewfile" ]; then
-        # エラーがあってもスクリプトを中断させない処理
         brew bundle --global || true
     fi
 fi
