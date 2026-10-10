@@ -1,29 +1,50 @@
 # Dotfiles
 
-このリポジトリは、Linux（Arch Linux系）環境のセットアップを `chezmoi` を軸に完全自動化するためのドットファイル管理構成です。
+Linux (Arch Linux系) 環境のセットアップをchezmoiを軸に完全自動化するためのドットファイルです。
 
-## 含まれる主なツール・アプリ
+## インストールするツール・アプリ
 
-### 1. OS 基本ツール
-* **`git`, `curl`, `wget`**: 通信・バージョン管理
-* **`base-devel`**: 開発・コンパイル用基本パッケージ
+### OS基本ツール
+- git
+- curl
+- wget
+- base-devel
 
-### 2. Homebrew パッケージ（Brewfile）
-* **ターミナル便利ツール**: `bat`, `eza`, `git-delta`, `dust`, `fzf`, `zoxide`, `ripgrep`, `fd`
-* **シェル・管理**: `zsh`, `sheldon`, `stow`, `chezmoi`
-* **ファイルマネージャー**: `yazi` (および依存する `ffmpeg`, `sevenzip`, `jq`, `poppler`, `imagemagick`)
-* **言語処理系**: `rustup-init` (`rustc`, `cargo`)
+### Homebrewパッケージ
+- bat
+- eza
+- git-delta
+- dust
+- fzf
+- zoxide
+- ripgrep
+- fd
+- zsh
+- sheldon
+- stow
+- chezmoi
+- yazi
+- ffmpeg
+- sevenzip
+- jq
+- poppler
+- imagemagick
+- rustup-init
 
-### 3. 個別バイナリインストール
-* **Neovim (`nvim`)**: GitHub Releases から最新版バイナリを自動配置
-* **1Password CLI (`op`)**: 公式アーカイブから自動インストール
-
----
+### その他
+- neovim
+- 1password cli
 
 ## 新しい環境でのセットアップ手順
 
-新しい（またはクリーンな）Linux 環境で以下の 1 コマンドを実行するだけで、すべてのツール導入・設定の適用・デフォルトシェルの変更までが全自動で行われます。
-
+新しい環境では以下のコマンドを実行して設定を適用します。
 ```
 sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply JEEBIS27
 ```
+
+## アップデート方法
+以下のコマンドで最新の設定を取り込めます。
+```
+chezmoi update
+```
+
