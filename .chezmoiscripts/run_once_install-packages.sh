@@ -4,10 +4,10 @@ set -euo pipefail
 echo "=== 1. Checking and Installing Base Tools & System Packages ==="
 if command -v pacman &> /dev/null; then
     sudo pacman -Sy --noconfirm --needed wget curl git base-devel fcitx5-im fcitx5-configtool
-    
+
     # yay (AUR helper) を使った追加パッケージの導入
     if command -v yay &> /dev/null; then
-        yay -S --noconfirm --needed helium-browser-bin ghostty mozkey-ibg-bin
+        yay -S --noconfirm --needed ghostty mozkey-ibg-bin
     else
         echo "Warning: 'yay' is not installed. Skipping AUR packages."
     fi
