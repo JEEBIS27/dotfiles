@@ -240,9 +240,9 @@ PROMPT='$(printf "%s\n%s" "$(__build_prompt_line1)" "${FACE_SEGMENT}%F{$INPUT_CO
 
 export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
 
-eval "$(sheldon source)"
-
 eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv zsh)"
+
+eval "$(sheldon source)"
 
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
