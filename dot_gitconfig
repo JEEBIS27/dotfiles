@@ -1,0 +1,20 @@
+[user]
+	name = JEEBIS27
+	email = jeebis.iox@gmail.com
+[credential]
+	helper = store
+[pager]
+  diff = delta
+  log = delta
+  reflog = delta
+  show = delta
+[delta]
+  plus-style = "syntax #012800"
+  minus-style = "syntax #340001"
+  syntax-theme = TokyoNight
+  keep-plus-minus-markers = true
+  side-by-side = true
+  line-numbers = true
+  navigate = true
+[interactive]
+  diffFilter = delta --color-only
