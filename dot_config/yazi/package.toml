@@ -5,3 +5,8 @@ deps = []
 use = "kalidyasin/yazi-flavors:tokyonight-night"
 rev = "bfd1b37"
 hash = "f9d70de81ed3b4ed309411f65b7c6f25"
+
+[[flavor.deps]]
+use = "dangooddd/kanagawa"
+rev = "04985d1"
+hash = "c69a63981e254a3a06a11c2bf0e6af1d"
