@@ -11,9 +11,8 @@
 [include]
   path = ~/.config/delta/themes.gitconfig
 [delta]
-  plus-style = "syntax #012800"
-  minus-style = "syntax #340001"
-  syntax-theme = tokyonight-night
+  features = tokyonight-night
+  syntax-theme = tokyonight_night
   keep-plus-minus-markers = true
   side-by-side = true
   line-numbers = true
