@@ -7,9 +7,9 @@ if command -v pacman &> /dev/null; then
     
     # yay (AUR helper) を使った追加パッケージの導入
     if command -v yay &> /dev/null; then
-        yay -S --noconfirm --needed helium-browser-bin mozkey-ibg-bin
+        yay -S --noconfirm --needed helium-browser-bin ghostty mozkey-ibg-bin
     else
-        echo "Warning: 'yay' is not installed. Skipping AUR packages (helium, mozkey)."
+        echo "Warning: 'yay' is not installed. Skipping AUR packages."
     fi
 elif command -v apt-get &> /dev/null; then
     sudo apt-get update -y
