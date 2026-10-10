@@ -10,6 +10,12 @@ Linux (Arch Linux系) 環境のセットアップをchezmoiを軸に完全自動
 - wget
 - base-devel
 
+### アプリケーション
+- helium-browser-bin
+- ghostty
+- neovim
+- 1password cli
+
 ### Homebrewパッケージ
 - bat
 - eza
@@ -31,9 +37,10 @@ Linux (Arch Linux系) 環境のセットアップをchezmoiを軸に完全自動
 - imagemagick
 - rustup-init
 
-### その他
-- neovim
-- 1password cli
+### IME関連
+- fcitx5-im
+- fcitx5-configtool
+- mozkey-ibg-bin
 
 ## 新しい環境でのセットアップ手順
 
