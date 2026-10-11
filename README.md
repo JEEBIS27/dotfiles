@@ -11,10 +11,8 @@ Linux (Arch Linux系) 環境のセットアップをchezmoiを軸に完全自動
 - base-devel
 
 ### アプリケーション
-- helium-browser-bin
 - ghostty
 - neovim
-- 1password cli
 
 ### Homebrewパッケージ
 - bat
