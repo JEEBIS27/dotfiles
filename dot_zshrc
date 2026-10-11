@@ -193,6 +193,8 @@ add-zsh-hook -D precmd __prompt_update 2>/dev/null
 add-zsh-hook preexec __prompt_preexec
 add-zsh-hook precmd __prompt_update
 
+autoload -U compinit && compinit
+
 __auto_ls_on_chpwd() {
   emulate -L zsh
   eza --icons=always
