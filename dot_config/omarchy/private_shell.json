@@ -1,0 +1,46 @@
+{
+  "bar": {
+    "centerAnchor": "jeebis.workspaces",
+    "layout": {
+      "left": [
+        {
+          "id": "omarchy.monitor"
+        },
+        {
+          "id": "omarchy.network"
+        },
+        {
+          "id": "omarchy.bluetooth"
+        },
+        {
+          "id": "omarchy.audio"
+        },
+        {
+          "id": "jeebis.power",
+          "showPercentage": true
+        }
+      ],
+      "center": [
+        {
+          "id": "jeebis.workspaces"
+        }
+      ],
+      "right": [
+        {
+          "id": "jeebis.clock",
+          "format": "yy/MM/dd HH:mm",
+          "formatAlt": "d MMM yyyy"
+        }
+      ]
+    },
+    "position": "top",
+    "transparent": false,
+    "id": "jeebis.bar"
+  },
+  "idle": {
+    "lock": 300,
+    "screensaver": 150
+  },
+  "plugins": [],
+  "version": 1
+}

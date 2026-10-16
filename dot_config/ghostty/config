@@ -4,7 +4,7 @@ config-file = ?"~/.local/state/omarchy/current/theme/ghostty.conf"
 # Font
 font-family = "HackGen35 Console NF"
 font-style = Bold
-font-size = 18
+font-size = 14
 
 # Window
 window-theme = ghostty
@@ -15,7 +15,7 @@ resize-overlay = never
 gtk-toolbar-style = flat
 
 # 背景の不透明度とぼかし
-background-opacity = 0.88
+background-opacity = 0.9
 background-blur-radius = 20
 
 # Clipboard

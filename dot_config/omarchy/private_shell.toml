@@ -1,0 +1,8 @@
+[font]
+base-size = 10
+
+[bar]
+size-horizontal = 34
+icon-size = 14
+icon-slot = 30
+status-slot = 24

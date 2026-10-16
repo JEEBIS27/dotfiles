@@ -7,15 +7,20 @@ vim.keymap.set('n', '<A-q>', '<cmd>qa<CR>', { desc = 'Neovimを終了' })  -- [�
 vim.keymap.set('n', '<A-S-q>', '<cmd>qa!<CR>', { desc = 'Neovimを終了' })  -- [ノーマル] ファイルを終了
 vim.keymap.set('n', '<Space>', function()
   local ok, suggestion = pcall(require, 'copilot.suggestion')
-  if ok then
-    suggestion.toggle_auto_trigger()
-    local state = vim.b.copilot_suggestion_auto_trigger
-    if state == nil then
-      local ok_config, copilot_config = pcall(require, 'copilot.config')
-      state = ok_config and copilot_config.suggestion.auto_trigger or false
+  if not ok then return end
+
+  suggestion.toggle_auto_trigger()
+  local enabled = require('utils.copilot').auto_trigger_enabled()
+  local cmp_ok, cmp = pcall(require, 'blink.cmp')
+  if cmp_ok then
+    if enabled then
+      cmp.reload('copilot')
+    else
+      cmp.hide()
+      cmp.reload('copilot')
     end
-    vim.notify((state and 'ON' or 'OFF') .. ' Copilot suggestion auto_trigger', vim.log.levels.INFO)
   end
+  vim.notify((enabled and 'ON' or 'OFF') .. ' Copilot suggestion auto_trigger', vim.log.levels.INFO)
 end, { desc = 'Copilot提案の自動表示をトグル' })
 vim.keymap.set('n', '<C-s>', '<cmd>update<CR>', { desc = '保存' })  -- [ノーマル] ファイルを保存（変更があれば）
 vim.keymap.set('i', '<C-s>', '<C-o><cmd>update<CR><Esc>', { desc = '保存' })  -- [挿入] ファイルを保存
@@ -39,8 +44,8 @@ vim.keymap.set('n', '<S-BS>', '"_d0', { desc = '行頭まで削除（レジス�
 vim.keymap.set('n', '<S-Del>', '"_D', { desc = '行末まで削除（レジスタに保存しない）' })
 vim.keymap.set('n', 'X', '"_D', { desc = '行末まで削除（レジスタに保存しない）' })
 
--- oil.nvim でファイルエクスプローラーを開く
-vim.keymap.set("n", "-", "<CMD>Oil<CR>", { desc = "親ディレクトリを開く" })  -- [ノーマル] oil.nvimでカレントディレクトリを開く
+-- Yaziでカレントファイルのディレクトリを開く
+vim.keymap.set("n", "-", "<CMD>Yazi<CR>", { desc = "Yaziでファイル一覧を開く" })
 
 -- テーマ切り替え
 vim.keymap.set("n", "<leader>tt", "<cmd>ThemeToggle<CR>", { desc = "テーマを順番に切り替え" })

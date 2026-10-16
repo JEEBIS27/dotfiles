@@ -29,8 +29,40 @@ return {
     opts = {
       keymap = {
         preset = "default",
+        ["<Tab>"] = {
+          function(cmp)
+            if not require("utils.copilot").auto_trigger_enabled() then return false end
+
+            local ok, suggestion = pcall(require, "copilot.suggestion")
+            if ok and suggestion.is_visible() ~= nil then
+              suggestion.accept()
+              return true
+            end
+
+            if cmp.is_menu_visible() then
+              for index, item in ipairs(cmp.get_items()) do
+                if item.source_id == "copilot" then
+                  return cmp.accept({ index = index })
+                end
+              end
+            end
+            return false
+          end,
+          "select_next",
+          "snippet_forward",
+          "fallback",
+        },
+        ["<S-Tab>"] = { "select_prev", "snippet_backward", "fallback" },
       },
       completion = {
+        list = {
+          selection = {
+            preselect = false,
+          },
+          cycle = {
+            from_top = true,
+          },
+        },
         menu = {
           auto_show = true,
         },
@@ -50,6 +82,9 @@ return {
             module = "blink-cmp-copilot",
             score_offset = 100,
             async = true,
+            enabled = function()
+              return require("utils.copilot").auto_trigger_enabled()
+            end,
           },
         },
       },

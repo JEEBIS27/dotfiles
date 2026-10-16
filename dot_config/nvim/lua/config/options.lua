@@ -30,19 +30,17 @@ vim.opt.sidescrolloff = 8          -- 横スクロール時の余白
 -- 見た目の設定
 -- -----------------------------------
 vim.opt.showmode = false           -- モード表示を非表示（ステータスラインで表示される場合）
-vim.opt.showcmd = true             -- コマンドを表示
-vim.opt.cmdheight = 1              -- コマンドラインの高さ
-vim.opt.laststatus = 2
-vim.opt.statusline = " "
-vim.opt.fillchars:append({ stl = " ", stlnc = " " })
+vim.opt.showcmd = false            -- コマンド入力中の表示を無効化
+vim.opt.cmdheight = 0              -- コマンドライン領域を隠す
+vim.opt.laststatus = 0             -- 空のステータスラインを隠す
 local function apply_stealth_statusline()
   local p = require("utils.colors").palette
   local bg = p.base
   vim.api.nvim_set_hl(0, "StatusLine", { fg = bg, bg = bg })
   vim.api.nvim_set_hl(0, "StatusLineNC", { fg = bg, bg = bg })
-  vim.api.nvim_set_hl(0, "SignColumn", { bg = bg })
-  vim.api.nvim_set_hl(0, "LineNr", { fg = p.sumiInk5, bg = bg })
-  vim.api.nvim_set_hl(0, "CursorLineNr", { fg = p.blue, bg = bg })
+  vim.api.nvim_set_hl(0, "SignColumn", { bg = "none" })
+  vim.api.nvim_set_hl(0, "LineNr", { fg = "#626879", bg = "none" })
+  vim.api.nvim_set_hl(0, "CursorLineNr", { fg = p.blue, bg = "none" })
 end
 
 apply_stealth_statusline()
@@ -51,8 +49,7 @@ vim.api.nvim_create_autocmd("ColorScheme", {
   desc = "現在テーマの背景にStatusLineを馴染ませる",
 })
 
--- フォント設定（GUI版Neovim用: Neovide, GoneVim等）
-vim.opt.guifont = "HackGen35 Console NF:h14"  -- HackGen35ConsoleNF-Bold 14pt
+-- NeovimのTUIは端末のフォントを継承する。Ghostty側でHackGen35 Console NFを指定。
 
 -- -----------------------------------
 -- 文字コード・改行コード
@@ -166,18 +163,10 @@ end
 vim.opt.rtp:prepend(lazypath)
 
 -- 行番号: 絶対番号を左揃え・相対番号を右揃えで別列に表示
-vim.opt.numberwidth = 5
-_G._my_statuscolumn = function()
-  local lnum   = vim.v.lnum
-  local relnum = vim.v.relnum
-  local w = math.max(#tostring(vim.fn.line('$')), vim.o.numberwidth - 1)
-  if relnum == 0 then
-    return string.format('%' .. w .. 'd ', lnum)       -- 絶対: 右詰め + 後ろ1文字
-  else
-    return string.format('%' .. (w + 1) .. 'd', relnum) -- 相対: 1文字右にずらして右詰め
-  end
-end
-vim.opt.statuscolumn = '%s%{v:lua._my_statuscolumn()}'
+vim.opt.numberwidth = 4
+
+-- statuscol.nvimがNumber Lineを描画する。
+
 
 -- ファイル保存時に末尾の空白を削除
 vim.api.nvim_create_autocmd('BufWritePre', {
