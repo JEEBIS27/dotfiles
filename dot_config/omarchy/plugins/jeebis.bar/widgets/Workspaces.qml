@@ -73,7 +73,7 @@ BarWidget {
 
         Rectangle {
           anchors.centerIn: parent
-          width: focused ? Style.space(8) : Style.space(6)
+          width: focused ? Style.space(12) : Style.space(8)
           height: width
           radius: width / 2
           color: focused

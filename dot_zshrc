@@ -56,9 +56,11 @@ __load_config
 typeset -g FACE_SEGMENT=''
 typeset -g INPUT_COLOR='10'
 typeset -gi __prompt_cmd_start=0
+typeset -gi __prompt_has_command=0
 typeset -g __prompt_last_cmd=''
 
 __prompt_preexec() {
+  __prompt_has_command=1
   __prompt_last_cmd="$1"
   __prompt_cmd_start=$SECONDS
 }
@@ -74,7 +76,7 @@ __prompt_update() {
   fi
   cmd_name="${__prompt_last_cmd%% *}"
 
-  if (( last_status != 0 )); then
+  if (( __prompt_has_command && last_status != 0 )); then
     face_state='fail'
   elif (( duration >= 3 )); then
     face_state='long'

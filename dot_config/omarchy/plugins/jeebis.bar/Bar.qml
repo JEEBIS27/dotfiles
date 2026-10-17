@@ -4,9 +4,12 @@ import Quickshell.Io
 import Quickshell.Wayland
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Shapes
 import qs.Commons
 import qs.Ui
 import "BarModel.js" as BarModel
+import "BarActions.js" as BarActions
+import "AgentModel.js" as AgentModel
 
 Item {
   id: root
@@ -621,6 +624,29 @@ Item {
     return Array.isArray(entries) ? entries : []
   }
 
+  // Keep the load widget in its own island beside the system island.
+  function leftIslandEntries() {
+    var entries = root.layoutEntries("left")
+    return entries.filter(function(entry) { return root.entryId(entry) !== "jeebis.load" })
+  }
+
+  function leftLoadEntries() {
+    var entries = root.layoutEntries("left")
+    return entries.filter(function(entry) { return root.entryId(entry) === "jeebis.load" })
+  }
+
+  function rightIslandEntries() {
+    return root.layoutEntries("right").filter(function(entry) {
+      return root.entryId(entry) !== "jeebis.notifications"
+    })
+  }
+
+  function rightNotificationEntries() {
+    return root.layoutEntries("right").filter(function(entry) {
+      return root.entryId(entry) === "jeebis.notifications"
+    })
+  }
+
   // Tab order for the panels in one bar region. Scoped to a single bar surface
   // so tabbing walks the bar the open panel belongs to instead of hopping the
   // panel to another monitor's copy of the same widget.
@@ -844,16 +870,30 @@ Item {
     Util.execDetached(command)
   }
 
-  function toggleTransparency() {
-    var nextTransparent = !(root.requestedTransparent === true)
-    if (root.shell && typeof root.shell.mutateShellConfig === "function") {
-      root.shell.mutateShellConfig(function(config) {
-        if (!Util.isPlainObject(config.bar)) config.bar = {}
-        config.bar.transparent = nextTransparent
-      })
-    } else {
-      root.setRequestedTransparency(nextTransparent)
+  function performModuleDoubleClick(moduleName) {
+    var action = BarActions.actionFor(moduleName)
+    if (!action) return false
+    if (root.activePopout && typeof root.activePopout.close === "function")
+      root.activePopout.close()
+    root.run(Util.shellQuote(root.home + "/.local/bin/jeebis-bar-action") + " " + action)
+    return true
+  }
+
+  function performIslandDoubleClick(area, x, y) {
+    var window = root.targetWindow(area)
+    var point = area.mapToItem(null, x, y)
+    for (var i = 0; i < root.moduleSlots.length; i++) {
+      var slot = root.moduleSlots[i]
+      if (!slot || slot.width <= 0 || slot.height <= 0
+          || !root.sameWindow(window, root.targetWindow(slot))) continue
+      if (!BarActions.actionFor(slot.moduleName)) continue
+      var origin = slot.mapToItem(null, 0, 0)
+      var padding = Style.space(8)
+      if (point.x >= origin.x - padding && point.x <= origin.x + slot.width + padding
+          && point.y >= origin.y - padding && point.y <= origin.y + slot.height + padding)
+        return root.performModuleDoubleClick(slot.moduleName)
     }
+    return false
   }
 
   function rawLayoutSection(config, region) {
@@ -1248,7 +1288,7 @@ Item {
     }
 
     margins {
-      top: root.barHidden && root.position === "top" ? -root.barSize : (root.position === "top" ? 2 : 0)
+      top: root.barHidden && root.position === "top" ? -(root.barSize + 2) : 0
       bottom: root.barHidden && root.position === "bottom" ? -root.barSize : (root.position === "bottom" ? 2 : 0)
       left: root.barHidden && root.position === "left" ? -root.barSize : (root.vertical && root.position === "left" ? 2 : 0)
       right: root.barHidden && root.position === "right" ? -root.barSize : (root.vertical && root.position === "right" ? 2 : 0)
@@ -1262,7 +1302,7 @@ Item {
     }
 
     implicitWidth: root.vertical ? root.barSize : 0
-    implicitHeight: root.vertical ? 0 : root.barSize
+    implicitHeight: root.vertical ? 0 : root.barSize + (root.position === "top" ? 2 : 0)
     color: "transparent"
     surfaceFormat.opaque: false
     WlrLayershell.namespace: "omarchy-bar"
@@ -1270,6 +1310,7 @@ Item {
 
     Loader {
       anchors.fill: parent
+      anchors.topMargin: root.position === "top" ? 2 : 0
       sourceComponent: root.vertical ? verticalBar : horizontalBar
 
       // A child of the loader, not a sibling of the sections: an ancestor stays
@@ -1357,6 +1398,7 @@ Item {
 
         LeftModules {
           id: leftModules
+          entries: root.leftIslandEntries()
           anchors.left: parent.left
           anchors.leftMargin: 10
           anchors.verticalCenter: parent.verticalCenter
@@ -1376,8 +1418,59 @@ Item {
           border.color: Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.22)
         }
 
+        ModuleList {
+          id: leftLoadModules
+          entries: root.leftLoadEntries()
+          region: "left"
+          anchors.left: leftModules.right
+          anchors.leftMargin: Style.space(16)
+          anchors.verticalCenter: parent.verticalCenter
+          z: 1
+        }
+
+        Rectangle {
+          enabled: false
+          z: 0
+          visible: leftLoadModules.width > 0
+          opacity: leftLoadModules.islandRevealProgress
+          x: leftLoadModules.x - Style.space(8) * leftLoadModules.islandRevealProgress
+          y: Math.round((parent.height - height) / 2)
+          width: leftLoadModules.width + Style.space(16) * leftLoadModules.islandRevealProgress
+          height: root.barSize * (0.84 + 0.16 * leftLoadModules.islandRevealProgress)
+          radius: height / 2
+          color: Qt.rgba(root.background.r, root.background.g, root.background.b, 0.94)
+          border.width: 1
+          border.color: Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.22)
+        }
+
+        ModuleList {
+          id: rightNotificationModules
+          entries: root.rightNotificationEntries()
+          region: "right"
+          anchors.right: rightModules.left
+          anchors.rightMargin: Style.space(16)
+          anchors.verticalCenter: parent.verticalCenter
+          z: 1
+        }
+
+        Rectangle {
+          enabled: false
+          z: 0
+          visible: rightNotificationModules.width > 0
+          opacity: rightNotificationModules.islandRevealProgress
+          x: rightNotificationModules.x - Style.space(8) * rightNotificationModules.islandRevealProgress
+          y: Math.round((parent.height - height) / 2)
+          width: rightNotificationModules.width + Style.space(16) * rightNotificationModules.islandRevealProgress
+          height: root.barSize * (0.84 + 0.16 * rightNotificationModules.islandRevealProgress)
+          radius: height / 2
+          color: Qt.rgba(root.background.r, root.background.g, root.background.b, 0.94)
+          border.width: 1
+          border.color: Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.22)
+        }
+
         RightModules {
           id: rightModules
+          entries: root.rightIslandEntries()
           anchors.right: parent.right
           anchors.rightMargin: 10
           anchors.verticalCenter: parent.verticalCenter
@@ -1563,6 +1656,92 @@ Item {
     }
   }
 
+  property int agentHoverCount: 0
+  property int workspaceHoverCount: 0
+  property int appsHoverCount: 0
+  property bool previousAgentPointerHeld: false
+  property bool agentHoverHeld: false
+  property bool agentLaunchPulse: false
+  property bool companionTrackingReady: false
+  property string previousAgentSignature: ""
+
+  readonly property string agentSignature: {
+    var addresses = []
+    var clients = Hyprland.toplevels.values
+    for (var i = 0; i < clients.length; i++)
+      if (AgentModel.kind(clients[i]) !== "") addresses.push(String(clients[i].address))
+    addresses.sort()
+    return addresses.join(",")
+  }
+  readonly property bool agentOnFocusedWorkspace: {
+    var workspace = Hyprland.focusedWorkspace
+    var clients = workspace && workspace.toplevels ? workspace.toplevels.values : []
+    for (var i = 0; i < clients.length; i++)
+      if (AgentModel.kind(clients[i]) !== "") return true
+    return false
+  }
+  readonly property int focusedWorkspaceId: Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : 0
+  onFocusedWorkspaceIdChanged: Qt.callLater(revealAgentForWorkspace)
+  onAgentOnFocusedWorkspaceChanged: Qt.callLater(syncCompanionHover)
+  onAgentHoverCountChanged: Qt.callLater(syncCompanionHover)
+  onWorkspaceHoverCountChanged: Qt.callLater(syncCompanionHover)
+  onAppsHoverCountChanged: Qt.callLater(syncCompanionHover)
+
+  function syncCompanionHover() {
+    var agentHeld = agentHoverCount > 0 || (workspaceHoverCount > 0 && agentOnFocusedWorkspace)
+    if (agentHeld) {
+      agentExitTimer.stop()
+      agentHoverHeld = true
+    } else if (previousAgentPointerHeld) {
+      agentExitTimer.restart()
+    }
+    previousAgentPointerHeld = agentHeld
+    var launchers = root.moduleWidgets("jeebis.agent-launchers")
+    for (var j = 0; j < launchers.length; j++) launchers[j].setExpanded(agentHoverCount > 0)
+    var widgets = root.moduleWidgets("jeebis.apps")
+    for (var i = 0; i < widgets.length; i++)
+      widgets[i].setHoverHeld(workspaceHoverCount > 0 || appsHoverCount > 0)
+  }
+
+  function revealAgent() {
+    agentLaunchPulse = true
+    agentLaunchTimer.restart()
+  }
+  function revealAgentForWorkspace() {
+    if (!companionTrackingReady) return
+    if (agentOnFocusedWorkspace) revealAgent()
+    else {
+      agentLaunchPulse = false
+      agentLaunchTimer.stop()
+    }
+  }
+
+  onAgentSignatureChanged: {
+    var previous = previousAgentSignature.split(",")
+    var current = agentSignature ? agentSignature.split(",") : []
+    var added = current.some(function(address) { return previous.indexOf(address) === -1 })
+    previousAgentSignature = agentSignature
+    if (companionTrackingReady && added) revealAgent()
+  }
+  Connections {
+    target: Hyprland
+    function onRawEvent(event) {
+      if (event && ((event.name === "custom" && String(event.data) === "jeebis.apps.reveal")
+          || event.name === "workspacev2")) Qt.callLater(root.revealAgentForWorkspace)
+    }
+  }
+  Timer {
+    id: agentExitTimer
+    interval: 100
+    onTriggered: {
+      root.agentHoverHeld = false
+      root.agentLaunchPulse = false
+      agentLaunchTimer.stop()
+    }
+  }
+  Timer { id: agentLaunchTimer; interval: 2000; onTriggered: root.agentLaunchPulse = false }
+  Timer { interval: 1; running: true; onTriggered: root.companionTrackingReady = true }
+
   function findCenterAnchorEntry() {
     var entries = root.layoutEntries("center")
     var idx = root.entryIndex(entries, root.centerAnchor)
@@ -1602,11 +1781,28 @@ Item {
         Rectangle {
           enabled: false
           z: -1
-          visible: centerRoot.hasAnchor
-          x: centerAnchorModule.x - centerBeforeModules.width - Style.space(8)
+          visible: centerRoot.hasAnchor && root.position !== "top" && centerAnchorModule.width > 0
+          opacity: centerAnchorModule.islandRevealProgress
+          x: centerAnchorModule.x - Style.space(8) * centerAnchorModule.islandRevealProgress
           y: Math.round((parent.height - height) / 2)
-          width: centerBeforeModules.width + centerAnchorModule.width + centerAfterModules.width + Style.space(16)
-          height: root.barSize
+          width: centerAnchorModule.width + Style.space(16) * centerAnchorModule.islandRevealProgress
+          height: root.barSize * (0.84 + 0.16 * centerAnchorModule.islandRevealProgress)
+          radius: height / 2
+          color: Qt.rgba(root.background.r, root.background.g, root.background.b, 0.94)
+          border.width: 1
+          border.color: Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.22)
+        }
+
+        Rectangle {
+          id: workspaceBump
+          enabled: false
+          z: -1
+          visible: centerRoot.hasAnchor && root.position === "top" && centerAnchorModule.width > 0
+          opacity: centerAnchorModule.islandRevealProgress
+          x: centerAnchorModule.x - Style.space(8) * centerAnchorModule.islandRevealProgress
+          y: Math.round((parent.height - height) / 2)
+          width: centerAnchorModule.width + Style.space(16) * centerAnchorModule.islandRevealProgress
+          height: root.barSize * (0.84 + 0.16 * centerAnchorModule.islandRevealProgress)
           radius: height / 2
           color: Qt.rgba(root.background.r, root.background.g, root.background.b, 0.94)
           border.width: 1
@@ -1630,7 +1826,37 @@ Item {
           entries: root.entriesBefore(centerRoot.entries, root.centerAnchor)
           region: "center"
           anchors.right: centerAnchorModule.left
+          anchors.rightMargin: Style.space(16)
           anchors.verticalCenter: centerAnchorModule.verticalCenter
+        }
+
+        Rectangle {
+          enabled: false
+          z: -1
+          visible: centerRoot.hasAnchor && centerBeforeModules.width > 0
+          opacity: centerBeforeModules.islandRevealProgress
+          x: centerBeforeModules.x - Style.space(8) * centerBeforeModules.islandRevealProgress
+          y: Math.round((parent.height - height) / 2)
+          width: centerBeforeModules.width + Style.space(16) * centerBeforeModules.islandRevealProgress
+          height: root.barSize * (0.84 + 0.16 * centerBeforeModules.islandRevealProgress)
+          radius: height / 2
+          color: Qt.rgba(root.background.r, root.background.g, root.background.b, 0.94)
+          border.width: 1
+          border.color: Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.22)
+        }
+
+        // Keep a hover target at the agent island's final position, even hidden.
+        Item {
+          visible: centerRoot.hasAnchor
+          anchors.right: centerAnchorModule.left
+          anchors.rightMargin: Style.space(8)
+          anchors.verticalCenter: centerAnchorModule.verticalCenter
+          width: Math.max(Style.bar.iconSlot, centerBeforeModules.width) + Style.space(16)
+          height: root.barSize
+          HoverHandler {
+            onHoveredChanged: root.agentHoverCount = Math.max(0, root.agentHoverCount + (hovered ? 1 : -1))
+            Component.onDestruction: if (hovered) root.agentHoverCount = Math.max(0, root.agentHoverCount - 1)
+          }
         }
 
         ModuleSlot {
@@ -1639,6 +1865,17 @@ Item {
           entry: centerRoot.anchorEntry
           region: "center"
           anchors.centerIn: parent
+          Item {
+            anchors.fill: parent
+            anchors.leftMargin: -Style.space(8)
+            anchors.rightMargin: -Style.space(8)
+            HoverHandler {
+              onHoveredChanged: {
+                root.workspaceHoverCount = Math.max(0, root.workspaceHoverCount + (hovered ? 1 : -1))
+              }
+              Component.onDestruction: if (hovered) root.workspaceHoverCount = Math.max(0, root.workspaceHoverCount - 1)
+            }
+          }
         }
 
         ModuleList {
@@ -1647,7 +1884,35 @@ Item {
           entries: root.entriesAfter(centerRoot.entries, root.centerAnchor)
           region: "center"
           anchors.left: centerAnchorModule.right
+          anchors.leftMargin: Style.space(16)
           anchors.verticalCenter: centerAnchorModule.verticalCenter
+        }
+
+        Item {
+          visible: centerRoot.hasAnchor && centerAfterModules.hoverTargetWidth > 0
+          x: centerAfterModules.x - Style.space(8)
+          width: centerAfterModules.hoverTargetWidth + Style.space(16)
+          height: root.barSize
+          anchors.verticalCenter: centerAnchorModule.verticalCenter
+          HoverHandler {
+            onHoveredChanged: root.appsHoverCount = Math.max(0, root.appsHoverCount + (hovered ? 1 : -1))
+            Component.onDestruction: if (hovered) root.appsHoverCount = Math.max(0, root.appsHoverCount - 1)
+          }
+        }
+
+        Rectangle {
+          enabled: false
+          z: -1
+          visible: centerRoot.hasAnchor && centerAfterModules.mainIslandWidth > 0
+          opacity: centerAfterModules.islandRevealProgress
+          x: centerAfterModules.x - Style.space(8) * centerAfterModules.islandRevealProgress
+          y: Math.round((parent.height - height) / 2)
+          width: centerAfterModules.mainIslandWidth + Style.space(16) * centerAfterModules.islandRevealProgress
+          height: root.barSize * (0.84 + 0.16 * centerAfterModules.islandRevealProgress)
+          radius: height / 2
+          color: Qt.rgba(root.background.r, root.background.g, root.background.b, 0.94)
+          border.width: 1
+          border.color: Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.22)
         }
       }
     }
@@ -1701,81 +1966,14 @@ Item {
   component CenterGestureArea: MouseArea {
     id: gestureArea
 
-    property bool dragging: false
-    property bool suppressClick: false
-    property real pressedX: 0
-    property real pressedY: 0
-    readonly property real dragThreshold: Style.space(4)
-
     acceptedButtons: Qt.LeftButton
-    cursorShape: dragging ? Qt.ClosedHandCursor : Qt.ArrowCursor
-    pressAndHoldInterval: 200
+    cursorShape: Qt.ArrowCursor
 
-    function startDrag(x, y) {
-      if (dragging) return
-      dragging = true
-      root.beginBarMove(root.targetWindow(gestureArea))
-      var scenePoint = gestureArea.mapToItem(null, x, y)
-      root.updateBarMove(root.windowScreenPoint(scenePoint, root.barMoveWindow))
-    }
-
-    onPressed: function(mouse) {
-      dragging = false
-      suppressClick = false
-      pressedX = mouse.x
-      pressedY = mouse.y
-    }
-
-    onPressAndHold: function(mouse) {
-      // A widget above us propagates its composed press-and-hold down here without
-      // ever handing over the grab, so we'd get no release or cancel to end the move.
-      if (!gestureArea.pressed) return
-      startDrag(mouse.x, mouse.y)
-    }
-
-    onPositionChanged: function(mouse) {
-      if (!(mouse.buttons & Qt.LeftButton)) return
-
-      if (!dragging) {
-        var distance = Math.abs(mouse.x - pressedX) + Math.abs(mouse.y - pressedY)
-        if (distance < dragThreshold) return
-        startDrag(mouse.x, mouse.y)
-        return
-      }
-
-      var scenePoint = gestureArea.mapToItem(null, mouse.x, mouse.y)
-      root.updateBarMove(root.windowScreenPoint(scenePoint, root.barMoveWindow))
-    }
-
-    onReleased: function(mouse) {
-      if (!dragging) return
-      dragging = false
-      suppressClick = true
-      root.finishBarMove()
-      mouse.accepted = true
-    }
-
-    onCanceled: {
-      dragging = false
-      suppressClick = false
-      root.clearBarMove()
-    }
-
-    onClicked: function(mouse) {
-      if (suppressClick) {
-        suppressClick = false
-        mouse.accepted = true
-      }
-    }
-
+    // Bar placement is fixed. Double-click opens Omarchy's existing preview
+    // picker; presses, long presses, and pointer movement never move the bar.
     onDoubleClicked: function(mouse) {
-      if (suppressClick) {
-        suppressClick = false
-        return
-      }
       if (mouse.button === Qt.LeftButton) {
-        root.toggleTransparency()
-        mouse.accepted = true
+        mouse.accepted = root.performIslandDoubleClick(gestureArea, mouse.x, mouse.y)
       }
     }
   }
@@ -1785,6 +1983,39 @@ Item {
 
     property var entries: []
     property string region: ""
+    readonly property real mainIslandWidth: {
+      var width = 0
+      var slots = root.moduleSlots
+      for (var i = 0; i < slots.length; i++) {
+        var slot = slots[i]
+        if (!slot || slot.parent !== moduleListRoot.item || !slot.activeItem) continue
+        width += "mainIslandWidth" in slot.activeItem ? slot.activeItem.mainIslandWidth : slot.width
+      }
+      return width
+    }
+    readonly property real hoverTargetWidth: {
+      var width = 0
+      var slots = root.moduleSlots
+      for (var i = 0; i < slots.length; i++) {
+        var slot = slots[i]
+        if (!slot || slot.parent !== moduleListRoot.item || !slot.activeItem) continue
+        width += "hoverTargetWidth" in slot.activeItem ? slot.activeItem.hoverTargetWidth : slot.width
+      }
+      return width
+    }
+    // Widgets with transient islands expose their animated progress so the
+    // surrounding background and its padding follow the same timeline.
+    readonly property real islandRevealProgress: {
+      var slots = root.moduleSlots
+      var progress = 0
+      for (var i = 0; i < slots.length; i++) {
+        var slot = slots[i]
+        if (!slot || slot.parent !== moduleListRoot.item || !slot.activeItem) continue
+        var value = slot.islandRevealProgress
+        progress = Math.max(progress, value)
+      }
+      return progress
+    }
 
     visible: entries.length > 0
     // A hidden list must not build its modules. The center section declares
@@ -1865,6 +2096,25 @@ Item {
       if (qmlCustom) return qmlLoader.item
       return componentLoader.item
     }
+    readonly property bool companionAgent: moduleName === "omarchy.agents" && region === "center"
+    // A popup temporarily owns pointer input, hiding the bar's hover state.
+    // Keep the capsule alive while its close returns input to the bar.
+    property bool agentPanelGrace: false
+    onPanelOpenChanged: {
+      if (!companionAgent) return
+      if (panelOpen) {
+        panelGraceTimer.stop()
+        agentPanelGrace = true
+      } else if (agentPanelGrace) panelGraceTimer.restart()
+    }
+    Timer { id: panelGraceTimer; interval: 100; onTriggered: slot.agentPanelGrace = false }
+    readonly property bool agentRequested: root.agentHoverHeld || panelOpen || agentPanelGrace || root.agentLaunchPulse
+    property real agentProgress: agentRequested ? 1 : 0
+    Behavior on agentProgress { NumberAnimation { duration: 240; easing.type: Easing.InOutCubic } }
+    clip: companionAgent
+    opacity: companionAgent ? agentProgress : 1
+    readonly property real islandRevealProgress: companionAgent ? agentProgress : activeItem
+      ? ("islandRevealProgress" in activeItem ? activeItem.islandRevealProgress : (activeItem.visible ? 1 : 0)) : 0
     readonly property bool hovered: moduleHover.hovered
     readonly property bool dragSource: root.barDragSource === slot
     readonly property bool panelOpen: root.activePopout === slot.activeItem
@@ -1876,10 +2126,19 @@ Item {
       var key = root.vertical ? "openPanelIndicatorHeight" : "openPanelIndicatorWidth"
       var hint = activeItem && key in activeItem ? activeItem[key] : undefined
       if (hint !== undefined && hint !== null && hint > 0) return Math.round(hint)
-      return Math.max(Style.space(10), Math.round((root.vertical ? slot.height : slot.width) * 0.55))
+      return Math.max(Style.space(10), Math.round((root.vertical ? slot.height : slot.contentWidth) * 0.55))
     }
+    readonly property real panelIndicatorCenterX: {
+      var hint = activeItem && "openPanelIndicatorCenterX" in activeItem
+        ? activeItem.openPanelIndicatorCenterX : undefined
+      return hint !== undefined && hint !== null && isFinite(Number(hint))
+        ? Number(hint) : slot.contentWidth / 2
+    }
+    // Separator space belongs to the slot, not the button's painted area.
+    readonly property real contentInset: showSeparator && region === "left" && !root.vertical ? Style.space(8) : 0
+    readonly property real contentWidth: Math.max(0, slot.width - contentInset)
     implicitWidth: activeItem && activeItem.visible
-      ? (root.vertical ? root.barSize : activeItem.implicitWidth + (showSeparator ? Style.space(8) : 0))
+      ? (root.vertical ? root.barSize : (activeItem.implicitWidth + (showSeparator ? Style.space(8) : 0)) * (companionAgent ? agentProgress : 1))
       : 0
     implicitHeight: activeItem && activeItem.visible ? activeItem.implicitHeight : 0
     width: implicitWidth
@@ -1970,7 +2229,7 @@ Item {
       // panel that opens on that side.
       x: root.vertical
         ? (root.position === "left" ? parent.width - width - inset : inset)
-        : Math.round((parent.width - width) / 2)
+        : Math.round(slot.contentInset + slot.panelIndicatorCenterX - width / 2)
       y: root.vertical
         ? Math.round((parent.height - height) / 2)
         : (root.position === "top" ? parent.height - height - inset : inset)
@@ -1988,7 +2247,7 @@ Item {
       property bool suppressClick: false
       property real pressedX: 0
       property real pressedY: 0
-      readonly property bool canReorder: root.shell && typeof root.shell.mutateShellConfig === "function"
+      readonly property bool canReorder: false
       readonly property real dragThreshold: Style.space(4)
 
       anchors.fill: parent
@@ -1996,6 +2255,18 @@ Item {
       enabled: slot.visible && slot.width > 0 && slot.height > 0
       propagateComposedEvents: true
       cursorShape: root.moduleClickTargetAt(slot, mouseX, mouseY) ? Qt.PointingHandCursor : Qt.ArrowCursor
+      readonly property string doubleClickAction: BarActions.actionFor(slot.moduleName)
+      property int pendingButton: Qt.LeftButton
+      property real pendingX: 0
+      property real pendingY: 0
+
+      Timer {
+        id: singleClickTimer
+        interval: Math.max(1, Qt.styleHints.mouseDoubleClickInterval)
+        onTriggered: root.pressModuleClickTarget(slot, modulePointer.pendingButton,
+          modulePointer.pendingX, modulePointer.pendingY)
+      }
+
       // Do not assign drag.target here: ModuleSlot is owned by Row/Column
       // positioners, and mutating slot.x/slot.y can leave stale offsets that
       // make neighboring modules overlap after a small aborted drag.
@@ -2064,6 +2335,15 @@ Item {
         root.clearBarDrag()
       }
 
+      onDoubleClicked: function(mouse) {
+        if (mouse.button === Qt.LeftButton) {
+          suppressClick = true
+          singleClickTimer.stop()
+          root.performModuleDoubleClick(slot.moduleName)
+          mouse.accepted = true
+        }
+      }
+
       onClicked: function(mouse) {
         if (suppressClick) {
           suppressClick = false
@@ -2071,7 +2351,17 @@ Item {
           return
         }
 
-        if (!root.pressModuleClickTarget(slot, mouse.button, mouse.x, mouse.y)) mouse.accepted = false
+        if (doubleClickAction) {
+          // Wait for the system's double-click interval so a single-click
+          // panel cannot grab the pointer before the secondary action.
+          pendingButton = mouse.button
+          pendingX = mouse.x
+          pendingY = mouse.y
+          singleClickTimer.restart()
+          mouse.accepted = true
+        } else if (!root.pressModuleClickTarget(slot, mouse.button, mouse.x, mouse.y)) {
+          mouse.accepted = false
+        }
       }
     }
 

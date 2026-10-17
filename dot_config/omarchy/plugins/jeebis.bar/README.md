@@ -181,3 +181,73 @@ declaring `kinds: ["bar-widget"]` and a `barWidget` entry point. See
 [../../README.md](../../README.md) for the manifest schema. Rescan, enable,
 and place third-party plugins with `omarchy-shell shell rescanPlugins`,
 `omarchy plugin enable`, and `omarchy bar move`.
+
+
+## Custom bar interactions
+
+Bar edge dragging and widget reordering are disabled.
+
+| Control | Click | Double-click |
+| --- | --- | --- |
+| Theme (leftmost) | Omarchy theme picker | Aether |
+| Agent | Agent usage panel | ChatGPT |
+| Workspace island | Focus workspace | Workspace overview with live previews |
+| Clock island | Calendar popup | Google Calendar web app |
+
+Secondary actions run through `~/.local/bin/jeebis-bar-action`. For these four
+controls a normal click waits for the system double-click interval, preventing
+the normal popup from intercepting the second click. Unassigned controls keep
+their original click behavior. Blank bar space has no global double-click action.
+
+Aether requires the official binary at `~/.local/bin/aether` and the Arch
+`webkit2gtk-4.1` package. Overview uses the adapted `jeebis.overview` plugin.
+
+## Transient companion islands
+
+The app capsule remains visible while the workspace capsule or app capsule is
+hovered. Leaving both starts a 100 ms grace period, followed by the existing
+closing animation. Returning during the grace period cancels it. Automatic
+workspace/window reveals still last two seconds without pointer interaction.
+
+Agent occupies a separate capsule left of the workspace capsule. It is held by
+its own hover, or workspace hover when ChatGPT or CLI Codex is on the current workspace.
+Hover exit uses the same 100 ms grace period. Automatic Agent reveals occur for
+a new ChatGPT or CLI Codex window, or workspace selection (including same-workspace commands)
+when the selected workspace contains ChatGPT or CLI Codex. Generic app opening/closing no
+longer triggers Agent. The native usage panel holds the capsule open; a 100 ms
+close grace bridges the handoff from the popup's pointer surface back to the bar,
+preventing the icon from disappearing and immediately returning.
+
+Notification hover expands only the clear button. Opening the notification panel
+also expands its history button; both changes animate independently.
+
+### Tuning hover delays
+
+Edit `interval` (milliseconds) under these timer IDs:
+- `jeebis.apps/BarWidget.qml`: `hoverExitTimer` — application island hover exit.
+- `jeebis.bar/Bar.qml`: `agentExitTimer` — Agent island hover exit.
+- `jeebis.bar/Bar.qml`: `panelGraceTimer` — Agent panel-close pointer handoff.
+
+All three currently use 100 ms (0.1 s). The separate 2000 ms timers control
+automatic reveals. Plugin files hot-reload after saving. Run `chezmoi add` on
+any modified file to save the revised value in your dotfiles source.
+
+The notification widget supplies `openPanelIndicatorCenterX` and
+`openPanelIndicatorWidth` so unread/history selection points to its own button.
+
+### Agent launch buttons
+
+ChatGPT (`chatgpt`) and CLI Codex (`org.omarchy.codex`) share Agent behavior.
+`AgentModel.js` centralizes exact application-ID matching for the bar, launchers,
+and app-island exclusion; normal terminal windows are unaffected.
+`jeebis.agent-launchers` expands ChatGPT/Codex text buttons to the left of the
+Agent icon while its island is hovered. Moving across the expanded island holds
+it open. Each button focuses an existing window across workspaces or launches
+the app if absent. Kanagawa white means running and gray means not running.
+Button expansion animates and its exit delay is 100 ms.
+Codex starts with `omarchy-launch-tui --app-id=org.omarchy.codex codex`, matching
+the user's existing TUI keybinding without altering Codex permissions.
+
+The application section now reads mainIslandWidth and hoverTargetWidth hints.
+This preserves a hover target while hidden and keeps new-app arrival backgrounds
+separate from the main capsule until their merge completes.

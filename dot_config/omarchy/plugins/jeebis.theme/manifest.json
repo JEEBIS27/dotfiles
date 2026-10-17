@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "jeebis.theme",
+  "name": "Theme",
+  "version": "1.0.0",
+  "author": "Jeebis",
+  "description": "Theme selector with an Aether double-click action",
+  "kinds": ["bar-widget"],
+  "entryPoints": {"barWidget": "BarWidget.qml"},
+  "barWidget": {
+    "displayName": "Theme",
+    "description": "Click to select an Omarchy theme; double-click to open Aether",
+    "category": "Appearance",
+    "allowMultiple": false
+  }
+}

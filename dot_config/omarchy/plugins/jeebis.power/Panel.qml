@@ -281,7 +281,7 @@ Panel {
     labelVisible: false
     hasVisualContent: root.batteryPresent
     fixedWidth: vertical ? -1 : batteryRow.implicitWidth + scaledHorizontalMargin * 2
-    fixedHeight: Style.bar.iconSlot
+    fixedHeight: button.barSize
     horizontalMargin: 3
     verticalPadding: 0
     fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
@@ -291,7 +291,6 @@ Panel {
     Row {
       id: batteryRow
       anchors.centerIn: parent
-      anchors.verticalCenterOffset: Style.space(2)
       height: Style.bar.iconCanvas
       spacing: Style.space(3)
 

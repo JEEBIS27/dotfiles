@@ -4,6 +4,9 @@
     "layout": {
       "left": [
         {
+          "id": "jeebis.theme"
+        },
+        {
           "id": "omarchy.monitor"
         },
         {
@@ -18,14 +21,29 @@
         {
           "id": "jeebis.power",
           "showPercentage": true
+        },
+        {
+          "id": "jeebis.load"
         }
       ],
       "center": [
         {
+          "id": "jeebis.agent-launchers"
+        },
+        {
+          "id": "omarchy.agents"
+        },
+        {
           "id": "jeebis.workspaces"
+        },
+        {
+          "id": "jeebis.apps"
         }
       ],
       "right": [
+        {
+          "id": "jeebis.notifications"
+        },
         {
           "id": "jeebis.clock",
           "format": "yy/MM/dd HH:mm",
@@ -41,6 +59,14 @@
     "lock": 300,
     "screensaver": 150
   },
-  "plugins": [],
+  "plugins": [
+    {
+      "id": "jeebis.overview",
+      "layout": "grid",
+      "searchEnabled": false,
+      "showIcons": true,
+      "hideEmptyRows": true
+    }
+  ],
   "version": 1
 }
