@@ -1,0 +1,17 @@
+[
+  {
+    "name": "tokyonight",
+    "palette": "tokyonight",
+    "wallpaper": "tokyonight.jpg"
+  },
+  {
+    "name": "kanagawa",
+    "palette": "kanagawa",
+    "wallpaper": "kanagawa-cup.jpg"
+  },
+  {
+    "name": "catppuccin",
+    "palette": "catppuccin",
+    "wallpaper": "catppuccin.png"
+  }
+]

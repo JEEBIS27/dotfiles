@@ -1,0 +1,51 @@
+{
+  "apps": {
+    "label": "Apps",
+    "provider": "apps"
+  },
+  "style": {
+    "label": "Style"
+  },
+  "style.theme": {
+    "label": "Theme",
+    "action": "jeebis-desktop theme menu"
+  },
+  "system": {
+    "label": "System"
+  },
+  "system.lock": {
+    "label": "Lock",
+    "action": "jeebis-desktop shell shell lock"
+  },
+  "system.suspend": {
+    "label": "Suspend",
+    "action": "systemctl suspend"
+  },
+  "system.logout": {
+    "label": "Logout",
+    "action": "uwsm stop"
+  },
+  "system.reboot": {
+    "label": "Reboot",
+    "action": "systemctl reboot"
+  },
+  "system.shutdown": {
+    "label": "Shutdown",
+    "action": "systemctl poweroff"
+  },
+  "hardware": {
+    "label": "Hardware"
+  },
+  "hardware.audio": {
+    "label": "Audio",
+    "action": "jeebis-desktop shell shell toggle omarchy.audio '{}'"
+  },
+  "hardware.network": {
+    "label": "Network",
+    "action": "jeebis-desktop shell shell toggle omarchy.network '{}'"
+  },
+  "learn": {
+    "label": "Keybindings",
+    "action": "jeebis-desktop legacy omarchy-menu-keybindings"
+  }
+}

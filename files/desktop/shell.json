@@ -1,0 +1,72 @@
+{
+  "bar": {
+    "centerAnchor": "jeebis.workspaces",
+    "layout": {
+      "left": [
+        {
+          "id": "jeebis.theme"
+        },
+        {
+          "id": "omarchy.monitor"
+        },
+        {
+          "id": "omarchy.network"
+        },
+        {
+          "id": "omarchy.bluetooth"
+        },
+        {
+          "id": "omarchy.audio"
+        },
+        {
+          "id": "jeebis.power",
+          "showPercentage": true
+        },
+        {
+          "id": "jeebis.load"
+        }
+      ],
+      "center": [
+        {
+          "id": "jeebis.agent-launchers"
+        },
+        {
+          "id": "omarchy.agents"
+        },
+        {
+          "id": "jeebis.workspaces"
+        },
+        {
+          "id": "jeebis.apps"
+        }
+      ],
+      "right": [
+        {
+          "id": "jeebis.notifications"
+        },
+        {
+          "id": "jeebis.clock",
+          "format": "yy/MM/dd HH:mm",
+          "formatAlt": "d MMM yyyy"
+        }
+      ]
+    },
+    "position": "top",
+    "transparent": false,
+    "id": "jeebis.bar"
+  },
+  "idle": {
+    "lock": 300,
+    "screensaver": 150
+  },
+  "plugins": [
+    {
+      "id": "jeebis.overview",
+      "layout": "grid",
+      "searchEnabled": false,
+      "showIcons": true,
+      "hideEmptyRows": true
+    }
+  ],
+  "version": 1
+}

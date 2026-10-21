@@ -1,0 +1,16 @@
+# Backport: https://github.com/quickshell-mirror/quickshell/commit/18c95fae4aec2f9da465c5f42d7ae13fe65f2aba
+diff --git a/src/wayland/session_lock.cpp b/src/wayland/session_lock.cpp
+index 43d80e2b0..4ced84490 100644
+--- a/src/wayland/session_lock.cpp
++++ b/src/wayland/session_lock.cpp
+@@ -179,8 +179,9 @@ void WlSessionLock::unlock() {
+ 
+ 	this->surfaces.clear();
+ 
++	auto wasLocked = this->isLocked();
+ 	if (this->manager) this->manager->unlock();
+-	if (this->isLocked()) emit this->lockStateChanged();
++	if (wasLocked) emit this->lockStateChanged();
+ }
+ 
+ void WlSessionLock::onScreensChanged() {

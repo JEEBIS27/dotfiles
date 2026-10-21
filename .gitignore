@@ -1,0 +1,7 @@
+# Build outputs and machine-local material do not belong in the shared configuration.
+/result
+/result-*
+/.direnv/
+/.env
+/secrets/
+/local/

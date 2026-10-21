@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "jeebis.theme",
+  "name": "Theme",
+  "version": "1.0.0",
+  "author": "Jeebis",
+  "description": "Shared palette and wallpaper presets",
+  "kinds": ["bar-widget"],
+  "entryPoints": {"barWidget": "BarWidget.qml"},
+  "barWidget": {
+    "displayName": "Theme",
+    "description": "Click to select a preset; double-click to cycle presets",
+    "category": "Appearance",
+    "allowMultiple": false
+  }
+}
