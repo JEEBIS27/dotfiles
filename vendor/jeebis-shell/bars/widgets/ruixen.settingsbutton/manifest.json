@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "ruixen.settingsbutton",
+  "name": "Ruixen Settings Button",
+  "version": "1.0.0",
+  "author": "ruixen",
+  "license": "MIT",
+  "description": "Toggles ruixen.launcher's own Settings extension.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "SettingsButton.qml"
+  },
+  "barWidget": {
+    "displayName": "Ruixen Settings Button",
+    "description": "Toggle the Ruixen Settings panel.",
+    "category": "Compositor",
+    "allowMultiple": false
+  }
+}

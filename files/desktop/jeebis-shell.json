@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "idle": {
+    "lock": 600,
+    "screensaver": 300
+  },
+  "bar": {
+    "id": "ruixen.bar",
+    "position": "top",
+    "transparent": false,
+    "centerAnchor": "omarchy.clock",
+    "layout": {
+      "left": [
+        {
+          "id": "ruixen.workspaces"
+        },
+        {
+          "id": "ruixen.apps"
+        }
+      ],
+      "center": [],
+      "right": [
+        {
+          "id": "ruixen.load"
+        },
+        {
+          "id": "omarchy.agents"
+        },
+        {
+          "id": "ruixen.date"
+        }
+      ]
+    },
+    "docked": false
+  },
+  "plugins": [
+    {
+      "id": "ruixen.wallpaper"
+    },
+    {
+      "id": "ruixen.media"
+    },
+    {
+      "id": "ruixen.launcher"
+    },
+    {
+      "id": "ruixen.cava"
+    },
+    {
+      "id": "ruixen.notch"
+    },
+    {
+      "id": "ruixen.shelf"
+    }
+  ]
+}

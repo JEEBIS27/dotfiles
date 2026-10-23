@@ -1,0 +1,611 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/uninstall-failures.sh
+source "$script_dir/lib/uninstall-failures.sh"
+
+fail() {
+  printf 'ruixen-shell uninstall: %s\n' "$*" >&2
+  exit 1
+}
+
+command -v omarchy >/dev/null 2>&1 || fail "Omarchy is required (command 'omarchy' not found)"
+command -v jq >/dev/null 2>&1 || fail "jq is required (command 'jq' not found)"
+
+# Issue #90: reject unknown options up front, like install.sh -- this
+# script used to compare "$1" against "--dry-run" only, so a typo like
+# --dryrun (or --help) performed a full, irreversible uninstall.
+dry_run=false
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run)
+      dry_run=true
+      ;;
+    # Consumed later by check_lifecycle_journal_or_refuse
+    # (lib/lifecycle-journal.sh); accepted here so it doesn't hit the
+    # unknown-option rejection below.
+    --acknowledge-interrupted)
+      ;;
+    -h|--help)
+      cat <<'EOF'
+Usage:
+  ./uninstall.sh [--dry-run] [--acknowledge-interrupted]
+
+Options:
+  --dry-run                   Preview the uninstall without changing files.
+  --acknowledge-interrupted   Proceed despite a previous run's own journal
+                               showing it was interrupted before finishing
+                               (see lib/lifecycle-journal.sh).
+EOF
+      exit 0
+      ;;
+    *)
+      fail "unknown option: $arg (see --help)"
+      ;;
+  esac
+done
+
+# Issue #31: a completely separate, early code path -- not a
+# conditional threaded through the real mutation logic below. That
+# keeps the safety guarantee simple to verify (dry-run exits before
+# ever reaching a single mutating command, including the lock/backup
+# machinery: this is read-only, nothing here needs to block a
+# concurrent operation) rather than trusting that every future edit to
+# the real path also remembers to check a flag. Reuses
+# lib/merge-uninstall-bar.sh AS-IS, the exact same pure function the
+# real run below calls -- the preview and the real operation cannot
+# drift apart on what counts as "Ruixen-owned" vs "foreign", since
+# they are calling the identical code with the identical inputs.
+if [[ "$dry_run" == true ]]; then
+  pristine_shell_json="$HOME/.local/state/ruixen/shell.json.pre-ruixen"
+  shell_json="$HOME/.config/omarchy/shell.json"
+  plugins_dir="$HOME/.config/omarchy/plugins"
+  canon="$(cat "$script_dir/lib/ruixen-bar-canonical.json")"
+
+  printf '=== Ruixen Uninstall -- dry run, nothing will be changed ===\n\n'
+
+  if pristine_bar="$("$script_dir/lib/pick-pristine-bar.sh" "$pristine_shell_json" 2>/dev/null)"; then
+    current_bar="$(jq -c '.bar // {}' "$shell_json" 2>/dev/null || echo '{}')"
+    if restored_bar="$("$script_dir/lib/merge-uninstall-bar.sh" "$pristine_bar" "$current_bar" "$canon" 2>/dev/null)"; then
+      printf 'Restore bar: %s\n\n' "$(jq -r '.id' <<<"$restored_bar")"
+      foreign_ids="$(jq -r --argjson canon "$canon" '
+        [($canon.layout.left // []) + ($canon.layout.center // []) + ($canon.layout.right // []) | .[].id] as $owned
+        | [(.layout.left // []) + (.layout.center // []) + (.layout.right // []) | .[].id]
+        | map(select((. as $id | $owned | index($id)) == null)) | .[]
+      ' <<<"$restored_bar")"
+      if [[ -n "$foreign_ids" ]]; then
+        printf 'Preserve user/third-party widgets:\n'
+        while IFS= read -r id; do [[ -n "$id" ]] && printf '  %s\n' "$id"; done <<<"$foreign_ids"
+      else
+        printf 'Preserve user/third-party widgets:\n  (none found)\n'
+      fi
+    else
+      printf 'Restore bar: could not compute (merge-uninstall-bar.sh failed) -- would fall back to your exact pre-Ruixen bar without foreign-widget preservation\n'
+    fi
+  else
+    printf 'Restore bar: no usable pre-Ruixen snapshot found -- would fall back to the built-in Omarchy default bar\n'
+  fi
+
+  printf '\nRemove Ruixen-managed entries (plugin files):\n'
+  if plugin_list_json="$(omarchy plugin list --json 2>/dev/null)"; then
+    ruixen_ids="$(jq -r '.[] | select(.id | startswith("ruixen.")) | .id' <<<"$plugin_list_json")"
+    if [[ -n "$ruixen_ids" ]]; then
+      while IFS= read -r id; do [[ -n "$id" ]] && printf '  %s\n' "$id"; done <<<"$ruixen_ids"
+    else
+      printf '  (none installed)\n'
+    fi
+  else
+    printf '  (could not list installed plugins -- omarchy plugin list --json failed)\n'
+  fi
+
+  # A plugin removal can leave its id sitting in shell.json's top-level
+  # plugins[] array even after the real removal above (confirmed live:
+  # a clone-flagged plugin like ruixen.media routes through
+  # PluginRegistry's own clone-restore path instead of a plain splice)
+  # -- the real run also sweeps plugins[] directly as a defensive
+  # second step, so preview that here too rather than only the
+  # plugin-manager's own view of things.
+  stale_plugin_ids="$(jq -r '(.plugins // []) | .[] | select(.id | startswith("ruixen.")) | .id' "$shell_json" 2>/dev/null)"
+  if [[ -n "$stale_plugin_ids" ]]; then
+    printf '\nSweep leftover entries from shell.json plugins[]:\n'
+    while IFS= read -r id; do [[ -n "$id" ]] && printf '  %s\n' "$id"; done <<<"$stale_plugin_ids"
+  fi
+
+  # A clone-flagged plugin (ruixen.bar/media/tray/weather, each
+  # declaring omarchy.clonedFrom) also leaves entries in
+  # cloneSourceRestores/disabledPlugins that a plain removal doesn't
+  # clean up -- see the real run's own comment on this step for the
+  # full story (found live: omarchy.media stuck disabled forever with
+  # nothing left to re-enable it).
+  clone_restore_ids="$(jq -r '(.cloneSourceRestores // []) | .[] | select(startswith("ruixen."))' "$shell_json" 2>/dev/null)"
+  if [[ -n "$clone_restore_ids" ]]; then
+    printf '\nRestore stock originals disabled for a now-removed clone:\n'
+    while IFS= read -r id; do
+      [[ -n "$id" ]] || continue
+      cf="$(jq -r --arg id "$id" '(.omarchy.clonedFrom // empty)' "$plugins_dir/$id/manifest.json" 2>/dev/null)"
+      [[ -n "$cf" ]] && printf '  %s (currently disabled for %s)\n' "$cf" "$id"
+    done <<<"$clone_restore_ids"
+  fi
+
+  # install.sh's own rollback-safety backups (issue #20/#10) and the
+  # stray timestamped .bak.* files it leaves in the user's real config
+  # dirs have no reason to survive once nothing is installed -- see the
+  # real run's own comment on this exact step for the full story.
+  state_backups_dir="$HOME/.local/state/ruixen/backups"
+  stray_backup_count=0
+  if [[ -d "$state_backups_dir" ]]; then
+    stray_backup_count=$(find "$state_backups_dir" -mindepth 1 -maxdepth 2 2>/dev/null | wc -l)
+  fi
+  for stray_backup_pattern in \
+    "$HOME/.config/hypr/looknfeel.lua.bak."'*' \
+    "$HOME/.config/omarchy/shell.json.bak."'*'
+  do
+    for stray_backup in $stray_backup_pattern; do
+      # A backup of a looknfeel.lua that was itself a symlink is a
+      # symlink too (apply-looknfeel.sh moves the symlink, doesn't
+      # follow it) -- `-e` alone is false for one whose target has
+      # since been removed (e.g. the stable-deployed-assets dir this
+      # same uninstall also cleans up), silently hiding it from this
+      # count. `-L` catches it regardless of whether the target is
+      # still there.
+      [[ -e "$stray_backup" || -L "$stray_backup" ]] && stray_backup_count=$((stray_backup_count + 1))
+    done
+  done
+  if [[ "$stray_backup_count" -gt 0 ]]; then
+    printf '\nDelete leftover install/update backups: %s items under %s and stray looknfeel.lua.bak.*/shell.json.bak.* files\n' \
+      "$stray_backup_count" "$state_backups_dir"
+  fi
+
+  printf '\nRestore Hyprland window look:\n'
+  looknfeel_pristine_dir="$HOME/.local/state/ruixen/looknfeel-pristine"
+  if [[ -e "$looknfeel_pristine_dir/target" ]]; then
+    printf '  restore your own looknfeel.lua symlink -> %s\n' "$(cat "$looknfeel_pristine_dir/target")"
+  elif [[ -e "$looknfeel_pristine_dir/looknfeel.lua" ]]; then
+    printf '  restore your own looknfeel.lua (a real file, not a symlink)\n'
+  elif [[ -e "$looknfeel_pristine_dir/absent" ]]; then
+    printf "  nothing existed before Ruixen -- would install Omarchy's own default looknfeel.lua\n"
+  else
+    printf '  no pristine record found -- would fall back to the newest looknfeel.lua.bak.* (best guess), or leave it alone if not a Ruixen-managed symlink\n'
+  fi
+
+  printf '\nState retained: most of ~/.local/state/ruixen/ (launcher favorites, etc) -- only the pristine-baseline snapshot is cleared, so a future reinstall captures a fresh one.\n'
+  printf 'This checkout: left untouched either way -- delete it yourself afterward if you do not want it around.\n'
+  printf '\nNo files changed.\n'
+  exit 0
+fi
+
+# Same lock install.sh takes, and for the same reason ("Add an
+# install/update/uninstall lock and collision-safe run identifiers",
+# #16) -- an uninstall racing a concurrent install/update could
+# interleave with it (remove a plugin install.sh is mid-writing, race
+# the bar restore against a live shell.json rewrite, etc). One shared
+# lock file means install and uninstall can never run at the same time
+# either, not just two installs. Released automatically the instant
+# this process exits, same as install.sh's own copy of this comment
+# explains in full.
+state_dir="$HOME/.local/state/ruixen"
+mkdir -p "$state_dir"
+lock_file="$state_dir/install.lock"
+exec {lock_fd}>"$lock_file"
+flock -n "$lock_fd" \
+  || fail "another Ruixen install/update/uninstall appears to be running (lock: $lock_file) -- wait for it to finish and try again"
+
+# Issue #32 (see lib/lifecycle-journal.sh's own header comment for the
+# full "why", and install.sh's matching copy of this same hookup).
+# Checked here, under the lock, before any real mutation below. Every
+# step in this script actually mutates something (unlike install.sh,
+# there's no read-only validation phase first here), so the journal is
+# written right away rather than deferred past an early step.
+# shellcheck source=lib/lifecycle-journal.sh
+source "$script_dir/lib/lifecycle-journal.sh"
+check_lifecycle_journal_or_refuse "$state_dir" "$@" || exit 1
+write_lifecycle_journal "$state_dir" uninstall
+
+# Direct review finding ("Make full uninstall best-effort and report
+# partial cleanup failures", #19): every step below used to be a bare
+# statement under set -Eeuo pipefail -- one failed plugin removal, or a
+# single failed restore, aborted the WHOLE script immediately, leaving
+# whatever hadn't run yet (later plugins, looknfeel restore, the shell
+# restart) never even attempted. Every independently-recoverable action
+# below is now wrapped in an if/|| that calls record_failure (see
+# lib/uninstall-failures.sh) instead of letting set -e abort the
+# script, so a full uninstall makes a best effort at every phase
+# regardless of what already failed, and reports exactly what didn't
+# work at the end. set -e is still on and still catches genuinely
+# unexpected bugs elsewhere in this script -- it's only these specific,
+# already-anticipated failure points that are deliberately shielded
+# from it.
+bar_restored=0
+looknfeel_restored=0
+
+printf '\n[1/4] Restoring your pre-Ruixen shell configuration\n'
+# ruixen.bar reports canDisable: false while it's the ACTIVE bar (confirmed
+# via `omarchy plugin list --json`) -- it can't be removed until something
+# else is active, so something has to take over the bar slot before step
+# [2/4] can remove it either way.
+#
+# Direct review finding ("Make full uninstall restore the user's
+# pre-Ruixen shell configuration"): unconditional `omarchy bar reset` +
+# `omarchy bar defaults` always landed on Omarchy's own stock default
+# bar, discarding whatever the user had actually customized -- their
+# own bar choice, widget layout, position, transparency -- if any of
+# that existed before Ruixen was ever installed. Now restores from
+# install.sh's own pristine snapshot instead
+# (~/.local/state/ruixen/shell.json.pre-ruixen, #1) when a usable one
+# exists: the EXACT bar object recorded the first time Ruixen ever
+# touched shell.json.
+#
+# Written via `commit`, the exact same atomic-write-then-live-reload
+# primitive Omarchy's own bar reset/defaults/use commands use
+# internally (confirmed by reading omarchy-bar + omarchy-shell-config
+# directly) -- not a second, competing way of mutating shell.json.
+# That's what actually resolves the original concern this script used
+# to have about hand-editing the file racing the shell's own in-memory
+# state: `commit` IS the safe, first-party way to do that edit, we
+# were just avoiding it out of caution before knowing it existed.
+pristine_shell_json="$HOME/.local/state/ruixen/shell.json.pre-ruixen"
+if pristine_bar="$("$script_dir/lib/pick-pristine-bar.sh" "$pristine_shell_json")"; then
+  # Direct review finding ("Preserve third-party bar widgets added
+  # while Ruixen is installed during uninstall", #26): restoring
+  # $pristine_bar verbatim (the old behavior) is a full replace -- any
+  # widget a user added, or moved to a different region, while Ruixen
+  # owned the bar slot vanished from the layout the instant they
+  # uninstalled, even though that plugin's own files were untouched.
+  # Read here, BEFORE commit below overwrites it, so it reflects
+  # exactly what the desktop looks like right now -- see
+  # lib/merge-uninstall-bar.sh's own comment for the full merge
+  # algorithm and how it avoids mistaking a Ruixen-injected omarchy.*
+  # entry for a foreign one.
+  current_bar="$(jq -c '.bar // {}' "$HOME/.config/omarchy/shell.json" 2>/dev/null || echo '{}')"
+  if restored_bar="$("$script_dir/lib/merge-uninstall-bar.sh" "$pristine_bar" "$current_bar" \
+      "$(cat "$script_dir/lib/ruixen-bar-canonical.json")" 2>/dev/null)"; then
+    :
+  else
+    record_failure "merging third-party bar widgets into the restored bar failed -- falling back to your exact pre-Ruixen bar without them"
+    restored_bar="$pristine_bar"
+  fi
+  # shellcheck disable=SC1091
+  if source omarchy-shell-config \
+    && commit "$NORMALIZE | .bar = \$pristineBar" --argjson pristineBar "$restored_bar"; then
+    printf '  restored your pre-Ruixen bar (%s)\n' "$(jq -r '.id' <<<"$restored_bar")"
+    bar_restored=1
+  else
+    record_failure "restoring your pre-Ruixen bar failed -- shell.json's bar may still be ruixen.bar"
+  fi
+else
+  # No usable pristine bar -- a fresh install with nothing before
+  # Ruixen, a missing/corrupt snapshot (this install predates #1's
+  # fix, say), or the recorded bar was somehow already ruixen.bar.
+  # Falls back to Omarchy's own real stock default exactly like
+  # before, rather than failing the whole uninstall over it.
+  if omarchy bar reset && omarchy bar defaults; then
+    printf '  no usable pre-Ruixen bar found -- restored the built-in Omarchy bar instead\n'
+    bar_restored=1
+  else
+    record_failure "no usable pre-Ruixen bar found, and falling back to Omarchy's stock bar also failed -- shell.json's bar may still be ruixen.bar"
+  fi
+fi
+
+update_lifecycle_journal_phase "$state_dir" "2/4 removing Ruixen Shell plugins"
+printf '\n[2/4] Removing Ruixen Shell plugins\n'
+# Curated to "ruixen." ids only, same scoping the Plugins settings page
+# itself uses -- this script has no business touching anyone else's
+# plugins. `omarchy plugin remove --yes` already calls setPluginEnabled
+# false first for anything still enabled (confirmed by reading
+# omarchy-plugin-remove directly), which is the same live IPC path
+# `omarchy plugin disable` uses -- so this alone correctly clears both
+# bar-widget entries and the top-level "plugins" overlay array (ruixen.
+# notch/frame-widget/settings) without this script hand-editing
+# shell.json itself, which would risk racing the shell's own in-memory
+# state (the exact reason omarchy-bar's own cmd_defaults gives for
+# keeping bar resets to one atomic mutation).
+#
+# omarchy-plugin-remove itself doesn't delete a cp -r'd plugin outright
+# though -- it mv's it to a hidden .{id}.bak.<timestamp> folder next to
+# the live ones (confirmed by reading it directly). Fine for a one-off
+# `omarchy plugin remove`, but direct follow-up: "i think people want
+# like a full uninstall" -- an "uninstall everything" action leaving a
+# dozen hidden multi-MB backup folders behind forever, undiscoverable
+# unless you already know the naming scheme, isn't a real uninstall.
+# Deleted explicitly below once every plugin's own remove has run.
+plugins_dir="$HOME/.config/omarchy/plugins"
+# id -> omarchy.clonedFrom, captured from each manifest.json BEFORE
+# removal -- ruixen.bar/media/tray/weather all declare this (so
+# Settings can offer them as drop-in replacements for the stock
+# widget). Feeds the cloneSourceRestores/disabledPlugins cleanup below
+# once the loop is done; read here since the manifest is gone once
+# `omarchy plugin remove` has moved/deleted the folder.
+declare -A ruixen_clone_sources=()
+if plugin_list_json="$(omarchy plugin list --json 2>&1)"; then
+  plugin_ids="$(jq -r '.[] | select(.id | startswith("ruixen.")) | .id' <<<"$plugin_list_json")"
+  if [[ -z "$plugin_ids" ]]; then
+    printf '  no ruixen.* plugins installed\n'
+  else
+    # Each plugin's removal is independent of every other's -- one
+    # failing (locked file, a plugin already half-removed by hand,
+    # whatever) must not stop the rest from being attempted (#19).
+    while IFS= read -r id; do
+      [[ -n "$id" ]] || continue
+      cloned_from="$(jq -r '.omarchy.clonedFrom // empty' "$plugins_dir/$id/manifest.json" 2>/dev/null)"
+      [[ -n "$cloned_from" ]] && ruixen_clone_sources["$id"]="$cloned_from"
+      if omarchy plugin remove "$id" --yes; then
+        printf '  removed %s\n' "$id"
+      else
+        record_failure "removing plugin $id failed -- it may still be installed"
+      fi
+    done <<<"$plugin_ids"
+  fi
+else
+  record_failure "could not list installed plugins (omarchy plugin list --json failed) -- no ruixen.* plugins were removed"
+fi
+
+for backup in "$plugins_dir"/.ruixen.*.bak.*; do
+  [[ -e "$backup" ]] || continue
+  if rm -rf "$backup"; then
+    printf '  deleted backup %s\n' "$(basename "$backup")"
+  else
+    record_failure "deleting plugin backup $(basename "$backup") failed"
+  fi
+done
+
+# Defensive cleanup, found live on this dev machine: `omarchy plugin
+# remove <id>` above disables a plugin via PluginRegistry's own
+# setPluginEnabled(id, false) first. Reading that function directly
+# confirms it should also splice the id out of shell.json's top-level
+# plugins[] array -- but ruixen.media declares `omarchy.clonedFrom:
+# "omarchy.media"` (so Settings can offer it as a drop-in replacement
+# for the stock widget), which routes setPluginEnabled through
+# PluginRegistry's separate clone-restore code path instead of the
+# plain removal path. That path is supposed to cover this case too,
+# yet the entry was still found sitting in plugins[] after a
+# "successful" uninstall right here. Rather than trust that internal
+# behavior further, sweep any surviving ruixen.* id out directly --
+# cheap, idempotent (a no-op if the loop above already handled it),
+# and doesn't depend on a first-party registry's own edge cases around
+# cloned plugins.
+# PluginRegistry also tracks two bookkeeping arrays alongside plugins[]
+# for any clone-flagged plugin (ruixen.bar/media/tray/weather, each
+# declaring omarchy.clonedFrom): cloneSourceRestores (which clone owes
+# its stock original a re-enable once removed) and disabledPlugins
+# (the stock original itself, disabled while the clone stood in for
+# it). Found live, alongside the plugins[] leak above: after a
+# "successful" uninstall, shell.json still had cloneSourceRestores:
+# ["ruixen.media"] and disabledPlugins: ["omarchy.media"] -- meaning
+# Omarchy's own stock media widget was left permanently disabled with
+# nothing left that would ever re-enable it, since the clone that
+# would have triggered that (per PluginRegistry's own
+# restoreCloneSource, called only through setEnabled/setPluginEnabled)
+# was already gone. clone_map_json (id -> clonedFrom, captured above
+# from each manifest.json before removal) makes the same "only
+# un-disable a source if its clone was the one that put it in
+# cloneSourceRestores" check restoreCloneSource itself makes, so an
+# unrelated widget the user disabled on their own for their own
+# reasons is never touched.
+clone_map_json="{}"
+if [[ ${#ruixen_clone_sources[@]} -gt 0 ]]; then
+  clone_map_json="$(
+    for id in "${!ruixen_clone_sources[@]}"; do
+      printf '%s\t%s\n' "$id" "${ruixen_clone_sources[$id]}"
+    done | jq -R -s 'split("\n") | map(select(length > 0) | split("\t") | {(.[0]): .[1]}) | add // {}'
+  )"
+fi
+
+# shellcheck disable=SC1091
+if source omarchy-shell-config \
+  && commit "$NORMALIZE
+    | .plugins |= map(select((.id // \"\") | startswith(\"ruixen.\") | not))
+    | ((.cloneSourceRestores // []) | array_or_empty) as \$restores
+    | (\$cloneMap | with_entries(select(.key as \$k | \$restores | index(\$k) != null)) | [.[]] | unique) as \$undisable
+    | .cloneSourceRestores = (\$restores | map(select(startswith(\"ruixen.\") | not)))
+    | (if (.cloneSourceRestores | length) == 0 then del(.cloneSourceRestores) else . end)
+    | .disabledPlugins = ((.disabledPlugins // []) | array_or_empty | map(select((. as \$x | \$undisable | index(\$x)) == null)))
+    | (if (.disabledPlugins | length) == 0 then del(.disabledPlugins) else . end)
+  " --argjson cloneMap "$clone_map_json"; then
+  :
+else
+  record_failure "sweeping leftover ruixen.* entries out of shell.json (plugins[]/cloneSourceRestores/disabledPlugins) failed -- a removed plugin, or its stock original's disabled state, may still be listed there"
+fi
+
+# Direct real-world finding, asked about live: "can you check the file
+# system to see if any trace or spam or leftover?" -- install.sh's own
+# rollback-safety backups (issue #20/#10: bounded to the last 5 runs,
+# kept so a FAILED install/update can undo itself) have no reason to
+# exist once nothing is installed at all, and until now nothing ever
+# deleted them. Found live: five install cycles left ~75 backup
+# folders sitting under $state_dir/backups/ alone, invisible unless you
+# already knew that path existed, plus timestamped
+# looknfeel.lua.bak.*/shell.json.bak.* files sitting directly in the
+# user's REAL config directories (~/.config/hypr, ~/.config/omarchy) --
+# arguably worse clutter than a hidden state dir, since it shows up in
+# a plain `ls` of config the user actually looks at. Same philosophy
+# already applied to the plugin-directory backups above ("an 'uninstall
+# everything' action leaving a dozen hidden ... backup folders behind
+# forever ... isn't a real uninstall") -- applied consistently here
+# too, now that nothing remains for any of these to roll back to.
+state_backups_dir="$state_dir/backups"
+if [[ -d "$state_backups_dir" ]]; then
+  if rm -rf "$state_backups_dir"; then
+    printf '  deleted install/update rollback backups (%s)\n' "$state_backups_dir"
+  else
+    record_failure "deleting $state_backups_dir failed -- old plugin/looknfeel rollback backups may still be present"
+  fi
+fi
+
+for stray_backup_pattern in \
+  "$HOME/.config/hypr/looknfeel.lua.bak."'*' \
+  "$HOME/.config/omarchy/shell.json.bak."'*'
+do
+  for stray_backup in $stray_backup_pattern; do
+    # Real bug, found live: `-e` alone is false for a dangling symlink
+    # (a backed-up looknfeel.lua.bak.* that was itself a symlink,
+    # pointing at the stable-deployed-assets path this same uninstall
+    # removes) -- silently skipped 4 of 5 real leftover backups on this
+    # dev machine before this fix. `-L` catches it either way, same
+    # guard apply-looknfeel.sh already uses for the live target.
+    [[ -e "$stray_backup" || -L "$stray_backup" ]] || continue
+    if rm -f "$stray_backup"; then
+      printf '  deleted stray backup %s\n' "$stray_backup"
+    else
+      record_failure "deleting stray backup $stray_backup failed"
+    fi
+  done
+done
+
+update_lifecycle_journal_phase "$state_dir" "3/4 restoring Hyprland window look"
+printf '\n[3/4] Restoring Hyprland window look\n'
+# Not a bare `rm -f` on the symlink -- confirmed by reading hyprland.lua
+# and bootstrap.lua directly: `require("hypr.looknfeel")` has no fallback
+# if ~/.config/hypr/looknfeel.lua is simply missing (Lua's package.path
+# only searches ~/.local/state, ~/.config, and $OMARCHY_PATH -- none of
+# which have a bare hypr/looknfeel.lua outside the user's own config), so
+# deleting it with nothing in its place would break every future Hyprland
+# reload.
+#
+# Restores from lib/apply-looknfeel.sh's own pristine record (absent /
+# regular file / symlink + exact target) rather than guessing from the
+# newest looknfeel.lua.bak.* -- direct review finding ("uninstall
+# restores the exact original state... symlink target is restored as
+# a symlink, not copied as a regular file"): once install.sh has run
+# more than once, the "newest" .bak.* is Ruixen's OWN prior symlink,
+# not the user's real original, so picking it blindly would restore
+# the wrong thing. The old newest-.bak.* scan is kept as a fallback
+# ONLY for a machine whose Ruixen install predates this record.
+looknfeel_target="$HOME/.config/hypr/looknfeel.lua"
+looknfeel_pristine_dir="$HOME/.local/state/ruixen/looknfeel-pristine"
+omarchy_default="${OMARCHY_PATH:-/usr/share/omarchy}/default/hypr/looknfeel.lua"
+if restore_result="$("$script_dir/lib/restore-looknfeel.sh" "$looknfeel_target" "$looknfeel_pristine_dir" "$omarchy_default")"; then
+  case "$restore_result" in
+    symlink:*)
+      printf '  restored your own looknfeel.lua symlink -> %s\n' "${restore_result#symlink:}"
+      looknfeel_restored=1
+      hyprctl reload >/dev/null 2>&1 \
+        || record_failure "hyprctl reload after restoring looknfeel.lua failed -- reload manually to pick it up"
+      ;;
+    file)
+      printf '  restored your own looknfeel.lua\n'
+      looknfeel_restored=1
+      hyprctl reload >/dev/null 2>&1 \
+        || record_failure "hyprctl reload after restoring looknfeel.lua failed -- reload manually to pick it up"
+      ;;
+    omarchy-default)
+      printf "  restored Omarchy's own default looknfeel.lua (nothing existed before Ruixen)\n"
+      looknfeel_restored=1
+      hyprctl reload >/dev/null 2>&1 \
+        || record_failure "hyprctl reload after restoring looknfeel.lua failed -- reload manually to pick it up"
+      ;;
+    self-referential-record)
+      # Real bug, found live: this machine's own recorded "pristine"
+      # target pointed at a Ruixen-managed path itself (the checkout,
+      # or the stable deployed copy) -- not a real pre-Ruixen state,
+      # so restoring it would just put Ruixen's own rounded-corners/
+      # blur look right back instead of actually reverting anything.
+      printf "  the recorded pre-Ruixen looknfeel pointed at Ruixen's own file (stale from an earlier install on this machine) -- restored Omarchy's own default instead, since that record could not be trusted\n"
+      looknfeel_restored=1
+      hyprctl reload >/dev/null 2>&1 \
+        || record_failure "hyprctl reload after restoring looknfeel.lua failed -- reload manually to pick it up"
+      ;;
+    no-default-available)
+      record_failure "nothing existed before Ruixen, and no Omarchy default was found at $omarchy_default -- looknfeel.lua left unset, Hyprland reload will error until you restore one manually"
+      ;;
+    no-pristine-record)
+      # Pre-dates this record -- fall back to the old newest-.bak.*
+      # heuristic rather than leaving looknfeel.lua gone with nothing in
+      # its place.
+      latest_backup=""
+      for f in "$HOME"/.config/hypr/looknfeel.lua.bak.*; do
+        [[ -e "$f" ]] || continue
+        if [[ -z "$latest_backup" || "$f" -nt "$latest_backup" ]]; then
+          latest_backup="$f"
+        fi
+      done
+      if [[ -n "$latest_backup" ]]; then
+        if mv "$latest_backup" "$looknfeel_target"; then
+          printf '  restored looknfeel.lua from %s (no pristine record found -- best guess)\n' "$latest_backup"
+          looknfeel_restored=1
+        else
+          record_failure "restoring looknfeel.lua from backup $latest_backup failed"
+        fi
+      elif [[ -f "$omarchy_default" ]]; then
+        if cp "$omarchy_default" "$looknfeel_target"; then
+          printf "  restored Omarchy's own default looknfeel.lua (no backup or pristine record found)\n"
+          looknfeel_restored=1
+        else
+          record_failure "copying Omarchy's default looknfeel.lua failed"
+        fi
+      else
+        record_failure "no backup and no Omarchy default found at $omarchy_default -- looknfeel.lua left unset, Hyprland reload will error until you restore one manually"
+      fi
+      if [[ "$looknfeel_restored" -eq 1 ]]; then
+        hyprctl reload >/dev/null 2>&1 \
+          || record_failure "hyprctl reload after restoring looknfeel.lua failed -- reload manually to pick it up"
+      fi
+      ;;
+    not-a-symlink)
+      printf '  looknfeel.lua is not a Ruixen symlink -- leaving it alone\n'
+      looknfeel_restored=1
+      ;;
+  esac
+else
+  record_failure "restoring looknfeel.lua failed (lib/restore-looknfeel.sh did not complete)"
+fi
+
+# Direct review finding ("Decouple deployed Hyprland looknfeel from the
+# git checkout path", #15): install.sh deploys both looknfeel variants
+# to this Ruixen-owned data dir, used for nothing else -- by the time
+# the case above has run, whatever looknfeel.lua now points at (the
+# restored original, or left alone entirely for the not-a-symlink
+# case) no longer depends on it, so a full uninstall removing it too is
+# the same "don't leave Ruixen's own files behind" cleanup [2/4] above
+# already does for plugin backups, just for this data dir instead.
+if [[ -e "$HOME/.local/share/ruixen-shell" ]]; then
+  rm -rf "$HOME/.local/share/ruixen-shell" \
+    || record_failure "deleting the deployed looknfeel data dir (~/.local/share/ruixen-shell) failed"
+fi
+
+update_lifecycle_journal_phase "$state_dir" "4/4 restarting Omarchy shell"
+printf '\n[4/4] Restarting Omarchy shell\n'
+omarchy restart shell \
+  || record_failure "restarting the Omarchy shell failed -- run 'omarchy restart shell' manually to pick up the changes above"
+
+# Only ever consumes the piece of pristine baseline metadata whose OWN
+# restoration actually succeeded (#13, #19) -- "restore succeeded, so
+# the record it depended on is safe to retire" is a per-step guarantee,
+# not an all-or-nothing one, now that either step can independently
+# fail. A retry (running uninstall.sh again) still has whatever record
+# it needs for the piece that didn't succeed this time.
+if [[ "$bar_restored" -eq 1 && "$looknfeel_restored" -eq 1 ]]; then
+  "$script_dir/lib/reset-pristine-baseline.sh" "$HOME/.local/state/ruixen" both \
+    || record_failure "clearing the pristine baseline metadata failed (harmless -- just means a future reinstall may see a stale baseline)"
+elif [[ "$bar_restored" -eq 1 ]]; then
+  "$script_dir/lib/reset-pristine-baseline.sh" "$HOME/.local/state/ruixen" bar \
+    || record_failure "clearing the pristine bar snapshot failed (harmless -- just means a future reinstall may see a stale baseline)"
+elif [[ "$looknfeel_restored" -eq 1 ]]; then
+  "$script_dir/lib/reset-pristine-baseline.sh" "$HOME/.local/state/ruixen" looknfeel \
+    || record_failure "clearing the pristine looknfeel snapshot failed (harmless -- just means a future reinstall may see a stale baseline)"
+fi
+
+# Issue #32: reached the actual end of the script either way (best-
+# effort failures, if any, are already recorded and about to be
+# reported below) -- only a genuine interruption that skips this point
+# entirely should leave the journal for the next run to find.
+clear_lifecycle_journal "$state_dir"
+
+if print_failure_summary; then
+  cat <<EOF
+
+Ruixen Shell has been uninstalled -- back to the built-in Omarchy bar and
+look, every plugin's files actually removed (not left behind as a hidden
+backup folder).
+
+This checkout ($script_dir) is untouched -- delete it yourself if you don't
+want it around anymore. Most state files under ~/.local/state/ruixen/ (like
+launcher favorites) are also left in place in case you reinstall later; the
+repo path marker there just won't resolve to anything until you do. The
+pre-Ruixen baseline snapshot has been cleared, though, so a future
+reinstall captures a fresh one instead of reusing this one.
+
+EOF
+else
+  exit 1
+fi

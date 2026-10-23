@@ -23,6 +23,9 @@ require("hypr.monitors")
 require("hypr.input")
 require("hypr.bindings")
 require("hypr.looknfeel")
+-- Personal geometry and pre-Ruixen window motion take precedence.
+require("jeebis.curvature")
+require("hypr.window-animations")
 require("hypr.autostart")
 
 -- Toggle config flags dynamically.

@@ -1,0 +1,33 @@
+{
+    "id": "ruixen.bar",
+    "position": "top",
+    "transparent": true,
+    "centerAnchor": "omarchy.clock",
+    "layout": {
+        "left": [
+            { "id": "ruixen.applauncher" },
+            { "id": "ruixen.workspaces" },
+            { "id": "ruixen.pinnedapps" }
+        ],
+        "center": [
+            { "id": "ruixen.weather" },
+            {
+                "id": "omarchy.clock",
+                "format": "HH:mm",
+                "formatAlt": "d MMMM 'W'ww yyyy",
+                "verticalFormat": "HH\n—\nmm"
+            }
+        ],
+        "right": [
+            { "id": "ruixen.tray", "hidden": [] },
+            { "id": "ruixen.stayawake" },
+            { "id": "omarchy.agents" },
+            { "id": "ruixen.pluginpins" },
+            { "id": "omarchy.system-update" },
+            { "id": "ruixen.power" },
+            { "id": "ruixen.quickactions" },
+            { "id": "ruixen.settingsbutton" },
+            { "id": "ruixen.launcherbutton" }
+        ]
+    }
+}

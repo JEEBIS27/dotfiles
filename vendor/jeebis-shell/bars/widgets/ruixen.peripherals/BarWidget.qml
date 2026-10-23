@@ -1,0 +1,358 @@
+import "../../../ShellConfig.js" as ShellConfig
+import QtQuick
+import QtQuick.Layouts
+import Quickshell
+import Quickshell.Io
+import qs.Commons
+import qs.Ui
+
+// Battery percentage for wireless peripherals (mice/keyboards/headsets/
+// controllers) -- one bar icon, showing a real battery-state glyph for
+// whichever single device is selected, same interaction language as
+// Omarchy's own omarchy.power (its own laptop-battery bar icon: always a
+// battery glyph, right-click toggles the percentage, click opens a
+// panel). Direct follow-up after shipping a first pass with multi-device
+// pin badges + a generic plug trigger: "the pin ability kinda sucks,
+// doesnt look good... does omarchy power just show the battery level,
+// can we collapse it into this so the main icon shows the battery icon
+// always." omarchy.power itself is a stock /usr/share/omarchy file (we
+// never edit those) and only ever shows the laptop's own single battery
+// -- can't literally merge into it, so this file adopts its pattern
+// instead, single-selection (not omarchy.power's own multi-badge idea)
+// per direct confirmation: "one icon only, pick a single device."
+//
+// Detection (Service.qml + helper/status.py) is ported from
+// github.com/xgborgeso/omarchy-peripheral-batteries (MIT) -- see
+// helper/status.py's own header for why (Quickshell.Bluetooth's own
+// battery property and Quickshell.Services.UPower both have real, live-
+// confirmed coverage gaps that reading /sys directly doesn't have).
+BarWidget {
+  id: root
+  moduleName: "ruixen.peripherals"
+
+  readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
+
+  // See ThemeColors.qml's own comment -- direct request, following the
+  // primary/accent-on-every-icon discussion: static decorative icons
+  // (Arch logo, plugins, settings, info) stay plain foreground, but
+  // battery level is real state, the one place a semantic color
+  // genuinely earns its keep ("the exception of battery being the
+  // colortheme we use for green yellow and red"). Uses this theme's OWN
+  // red/yellow/green (not fixed hex values) so a critically-low reading
+  // still looks like THIS theme's red, not a hardcoded clash.
+  ThemeColors { id: themeColors }
+
+  // Reads Service.qml's own state file directly instead of
+  // bar.shell.firstPartyServiceFor("ruixen.peripherals") -- ruixen-shell
+  // issue #40/#38: Omarchy v4.0.3 restricts that call to a fixed 4-item
+  // allowlist of Omarchy's own services, which "ruixen.peripherals" was
+  // never going to be in regardless of caller. This widget is a
+  // separate QML instance from Service.qml (only ever handed whatever
+  // ruixen.bar's own ModuleSlot chooses to inject via `bar`, never a
+  // shell property of its own), so the two now share state through a
+  // plain file instead of an in-process object reference.
+  readonly property string stateHome: Quickshell.env("HOME")
+  readonly property string statePath: stateHome + "/.local/state/ruixen/peripherals-state.json"
+  property var devices: []
+  property string lastError: ""
+
+  FileView {
+    id: stateFile
+    path: root.statePath
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.applyState(text())
+    onLoadFailed: root.applyState("")
+  }
+
+  function applyState(raw) {
+    var parsed
+    try {
+      parsed = JSON.parse(String(raw || "").trim() || "{}")
+    } catch (e) {
+      parsed = {}
+    }
+    root.devices = Array.isArray(parsed.devices) ? parsed.devices : []
+    root.lastError = typeof parsed.lastError === "string" ? parsed.lastError : ""
+  }
+
+  // Direct sibling keys on this widget's OWN shell.json layout entry
+  // (id excluded) become `settings` -- see ruixen.bar/BarModel.js's own
+  // entrySettings(), same convention omarchy.clock's format/formatAlt
+  // already use. No new state file needed.
+  readonly property string selectedId: root.setting("selectedId", "")
+  readonly property var selectedDevice: root.deviceById(root.selectedId)
+
+  function deviceById(id) {
+    if (!id) return null
+    for (var i = 0; i < root.devices.length; i++) {
+      if (root.devices[i].id === id) return root.devices[i]
+    }
+    return null
+  }
+
+  // Same read-modify-persist primitive ruixen.pluginpins' own setPinSide
+  // uses, but writing a single selectedId string on THIS widget's own
+  // layout entry instead of moving entries between bar sections.
+  // Clicking the already-selected row clears the selection (empty
+  // string), same toggle feel as a real radio choice you can turn off.
+  function selectDevice(id) {
+    if (!bar || !bar.shell || typeof bar.shell.mutateShellConfig !== "function") return
+    bar.shell.mutateShellConfig(function(config) {
+      if (!config.bar || !config.bar.layout) return
+      var sections = ["left", "center", "right"]
+      for (var i = 0; i < sections.length; i++) {
+        var arr = config.bar.layout[sections[i]]
+        if (!Array.isArray(arr)) continue
+        for (var j = 0; j < arr.length; j++) {
+          var entry = arr[j]
+          if (!entry || entry.id !== root.moduleName) continue
+          entry.selectedId = (entry.selectedId === id) ? "" : id
+          return
+        }
+      }
+    })
+  }
+
+  // Font Awesome solid, \u escapes only -- never a pasted glyph, per
+  // ruixen.pluginpins' own established reasoning (corrupted-byte issues
+  // hit twice already elsewhere in this repo). Used for the dropdown
+  // list's own per-row device-kind icon, and reused by the main bar
+  // icon's own mainText() for the "no fresh reading" and "nothing
+  // selected" cases -- see mainText() below.
+  //
+  // "mouse" is \uefba, not FA's own standard \uf8cc codepoint for the
+  // same computer-mouse icon -- confirmed live by inspecting this
+  // machine's actual font file (JetBrainsMonoNerdFont-Regular.ttf) with
+  // fontTools: f8cc renders as a missing-glyph box in this font, while
+  // efba is the same icon (glyph name "fa-computer_mouse" in the font's
+  // own cmap), just remapped to a different Private-Use-Area codepoint
+  // by however this particular Nerd Font build was patched.
+  function kindGlyph(kind) {
+    switch (kind) {
+      case "mouse": return "\uefba"
+      case "keyboard": return "\uf11c"
+      case "headset": return "\uf025"
+      case "controller": return "\uf11b"
+      default: return "\uf1e6"
+    }
+  }
+
+  // Direct follow-up after shipping the real battery-glyph icon here:
+  // "instead of showing the same battery icon as the laptop power
+  // battery, can be confusing, can it just show the % number." Retired
+  // the whole battery-glyph icon set (both the 10-level default/
+  // charging arrays and the earlier md-battery_unknown fallback) in
+  // favor of plain text -- a real number reads unambiguously as "this
+  // peripheral," where a battery-shaped icon could be mistaken for
+  // omarchy.power's own laptop battery at a glance.
+  function mainText(device) {
+    // Nothing selected yet -- generic plug, same as ever.
+    if (!device) return "\uf1e6"
+    // No fresh reading -- the device's own kind icon (see previous
+    // commit's own reasoning), unchanged by this pass.
+    if (!device.available) return root.kindGlyph(device.kind)
+    return root.percentText(device)
+  }
+
+  function percentText(device) {
+    return device && device.available ? Math.round(device.level) + "%" : "--"
+  }
+
+  // Cheap, fixed low-battery cue -- direct scope: "know if it needs to be
+  // charged," not a configurable-threshold/notification system (that's
+  // the source plugin's own separate feature, not asked for here).
+  readonly property int lowBatteryPercent: 20
+  // Same convention as most OS battery indicators (a two-way red/not-red
+  // cue read as too coarse once this became a real 3-tier scheme) --
+  // below lowBatteryPercent is red, below this is yellow, everything
+  // above reads as green/healthy.
+  readonly property int mediumBatteryPercent: 50
+
+  function semanticColor(role, fallback) {
+    if (!root.bar) return fallback
+    switch (role) {
+      case "good": return root.bar.semanticGood
+      case "warn": return root.bar.semanticWarn
+      case "bad": return root.bar.semanticBad
+      default: return root.bar.semanticNeutral
+    }
+  }
+
+  function percentColor(device) {
+    if (!device || !device.available) return root.semanticColor("neutral", Color.muted)
+    if (device.level < root.lowBatteryPercent) return root.semanticColor("bad", themeColors.red)
+    if (device.level < root.mediumBatteryPercent) return root.semanticColor("warn", themeColors.yellow)
+    return root.semanticColor("good", themeColors.green)
+  }
+
+  property bool popupOpen: false
+  function close() { popupOpen = false }
+
+  implicitWidth: button.implicitWidth
+  implicitHeight: button.implicitHeight
+
+  BarIconButton {
+    id: button
+    bar: root.bar
+    text: root.mainText(root.selectedDevice)
+    // Same theme-green/yellow/red tiers as the dropdown row's own
+    // percentage text -- the main bar icon is the one most people
+    // actually glance at, so it should carry the same at-a-glance charge
+    // cue the dropdown already had, not just the popup.
+    foreground: root.percentColor(root.selectedDevice)
+    // Smaller than the default icon font (13px) -- direct follow-up:
+    // "the numbers are kinda big, maybe abit smaller font size and more
+    // compact." Only actually matters for the percent-text case; a
+    // single kind/plug glyph reads fine either size, and BarIconButton's
+    // own OpticalGlyph centers whichever glyph shows up regardless.
+    fontSize: Style.font.bodySmall
+    // Fixed width whenever a real percentage is being shown (not
+    // dependent on the number's own digit count) -- direct follow-up:
+    // "make sure the number dont shift between 2 or 3 digits oldly."
+    // The slot's own width only depends on WHETHER a percent is being
+    // displayed at all, never on the current value, so it stays put as
+    // a real device's battery drains from "100%" down through "9%" --
+    // only the icon-vs-percent cases (nothing selected / no reading)
+    // ever actually change width, and those are discrete state changes,
+    // not a live-updating number. Narrowed from a flat 2x to 1.6x
+    // alongside the smaller font -- "more compact" -- still comfortably
+    // fits "100%" at the new size.
+    slotSize: Style.bar.iconSlot * (root.selectedDevice && root.selectedDevice.available && !vertical ? 1.6 : 1)
+    tooltipText: root.selectedDevice ? root.selectedDevice.name : "Wireless peripherals"
+    onPressed: function() { root.popupOpen = !root.popupOpen }
+  }
+
+  component DeviceRow: Item {
+    id: rowRoot
+    required property var device
+    signal triggered()
+
+    implicitHeight: Style.space(32)
+
+    Rectangle {
+      anchors.fill: parent
+      radius: ShellConfig.radius
+      color: mouse.containsMouse ? Style.hoverFillFor(Color.popups.text, Color.popups.text) : "transparent"
+    }
+
+    // One slot, not two -- direct follow-up ("the popup is a bit too
+    // wide, instead of a column where theres a check that comes in, can
+    // we place the pin device with the check instead of the device
+    // icon on that row"): the device-kind icon and the "this one's
+    // selected" indicator share the same position now. Selected shows
+    // a check (U+F00C, accent-colored, same glyph ruixen.pluginpins'
+    // own checkGlyph already uses); everything else still shows its
+    // own kind icon. Removes the separate right-side check column
+    // entirely, narrowing the row by that column's own width.
+    readonly property bool isSelected: root.selectedId === rowRoot.device.id
+    Text {
+      id: glyph
+      anchors.verticalCenter: parent.verticalCenter
+      anchors.left: parent.left
+      anchors.leftMargin: Style.space(10)
+      width: Style.space(16)
+      horizontalAlignment: Text.AlignHCenter
+      text: rowRoot.isSelected ? "\uf00c" : root.kindGlyph(rowRoot.device.kind)
+      color: rowRoot.isSelected ? Color.accent : Color.popups.text
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.body
+    }
+
+    Text {
+      anchors.verticalCenter: parent.verticalCenter
+      anchors.left: glyph.right
+      anchors.right: percent.left
+      anchors.leftMargin: Style.space(8)
+      anchors.rightMargin: Style.space(6)
+      elide: Text.ElideRight
+      text: rowRoot.device.name || (rowRoot.device.brand + " " + rowRoot.device.kind)
+      color: Color.popups.text
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.bodySmall
+    }
+
+    Text {
+      id: percent
+      anchors.verticalCenter: parent.verticalCenter
+      anchors.right: parent.right
+      anchors.rightMargin: Style.space(10)
+      width: Style.space(28)
+      horizontalAlignment: Text.AlignRight
+      text: root.percentText(rowRoot.device)
+      color: root.percentColor(rowRoot.device)
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.bodySmall
+    }
+
+    MouseArea {
+      id: mouse
+      anchors.fill: parent
+      hoverEnabled: true
+      cursorShape: Qt.PointingHandCursor
+      onClicked: rowRoot.triggered()
+    }
+  }
+
+  PopupCard {
+    id: popup
+    anchorItem: button
+    owner: root
+    bar: root.bar
+    open: root.popupOpen
+    // Narrowed from 240 -- removing the separate check column (merged
+    // into the device-kind icon slot, see DeviceRow's own comment)
+    // freed up a whole column's worth of width.
+    contentWidth: popup.fittedContentWidth(Style.space(210))
+    contentHeight: popup.fittedContentHeight(column.implicitHeight, Style.space(360))
+
+    // Escape to dismiss, matching every other PopupCard in this repo.
+    Item {
+      id: escapeCatcher
+      anchors.fill: parent
+      focus: true
+      Keys.onEscapePressed: root.close()
+    }
+    onOpenChanged: if (open) Qt.callLater(function() { escapeCatcher.forceActiveFocus() })
+
+    Text {
+      visible: root.devices.length === 0
+      anchors.centerIn: parent
+      width: parent.width
+      text: root.lastError ? root.lastError : "No wireless peripherals found"
+      color: Util.alpha(Color.popups.text, 0.75)
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.bodySmall
+      horizontalAlignment: Text.AlignHCenter
+      wrapMode: Text.WordWrap
+    }
+
+    Flickable {
+      id: flick
+      visible: root.devices.length > 0
+      anchors.fill: parent
+      contentWidth: width
+      contentHeight: column.implicitHeight
+      clip: true
+      boundsBehavior: Flickable.StopAtBounds
+
+      Column {
+        id: column
+        width: flick.width
+        spacing: Style.space(2)
+
+        Repeater {
+          model: root.devices
+
+          DeviceRow {
+            required property var modelData
+            width: column.width
+            device: modelData
+            onTriggered: root.selectDevice(modelData.id)
+          }
+        }
+      }
+    }
+  }
+}

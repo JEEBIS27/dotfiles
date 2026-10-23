@@ -6,6 +6,7 @@ let
   runtime = import ../packages/desktop/runtime.nix { pkgs = appPkgs; };
   themeDir = "${config.xdg.stateHome}/${if native then "jeebis-desktop" else "omarchy"}/current/theme";
   coreSource = ../files/desktop;
+  ruixen = import ../packages/jeebis-shell.nix { pkgs = appPkgs; inherit native; };
   presetDefinitions = builtins.fromJSON (builtins.readFile ../files/desktop/presets.json);
   presetFiles = builtins.listToAttrs (map (preset: {
     name = "omarchy/themes/${preset.name}/colors.toml";
@@ -20,7 +21,6 @@ let
     presets = presetDefinitions;
     templates = toString templates;
     renderer = "${../packages/desktop}/render-theme.sh";
-    omarchyBar = "${../packages/desktop}/omarchy-bar-action.sh";
     omarchyCycle = "${../packages/desktop}/omarchy-theme-cycle.sh";
     commands = {
       terminal = "wezterm"; browser = if native then "chromium" else "helium"; editor = "nvim";
@@ -36,6 +36,7 @@ let
   nativeDeps = [ quickshell ] ++ (with appPkgs; [
     hyprland uwsm wezterm grim slurp wl-clipboard libnotify brightnessctl
     wireplumber pulseaudio networkmanager bluez power-profiles-daemon upower
+    ffmpeg curl fastfetch cava qt6.qtmultimedia
     fuzzel xdg-utils ddcutil iputils iw fontconfig dbus systemd procps python3 util-linux file hyprsunset inotify-tools findutils libxkbcommon
   ]);
   package = pkgs.runCommand "jeebis-desktop-${cfg.backend}" { } ''
@@ -44,7 +45,7 @@ let
 #!${pkgs.runtimeShell}
 export PATH="${lib.makeBinPath ([ appPkgs.python3 pkgs.bash pkgs.coreutils pkgs.gawk pkgs.gnused pkgs.gnugrep pkgs.util-linux appPkgs.jq ] ++ lib.optionals native nativeDeps)}:$HOME/.nix-profile/bin:$PATH"
 export PATH="$(dirname "$0"):$PATH"
-${lib.optionalString native ''export PATH="${runtime}/bin:$PATH"; export OMARCHY_PATH="${runtime}"''}
+${lib.optionalString native ''export PATH="$(dirname "$0"):${runtime}/bin:$PATH"; export OMARCHY_PATH="${runtime}"''}
 exec ${appPkgs.python3}/bin/python3 ${../packages/desktop/desktopctl.py} --config ${json} "$@"
 SH
     chmod +x "$out/bin/jeebis-desktop"
@@ -54,6 +55,19 @@ export PATH="${lib.makeBinPath [ pkgs.bash pkgs.gawk pkgs.coreutils ]}:$PATH"
 exec ${pkgs.bash}/bin/bash ${../packages/desktop/theme-colors.sh} "$@"
 SH
     chmod +x "$out/bin/jeebis-theme-colors"
+    ${lib.concatMapStringsSep "\n" (entry: ''
+      cat > "$out/bin/${entry.name}" <<SH
+#!${pkgs.runtimeShell}
+exec "$out/bin/jeebis-desktop" ${entry.action} "\$@"
+SH
+      chmod +x "$out/bin/${entry.name}"
+    '') [
+      { name = "jeebis-ruixen-theme-set"; action = "theme set"; }
+      { name = "jeebis-ruixen-theme-pick"; action = "theme pick"; }
+      { name = "jeebis-ruixen-theme-list"; action = "theme list"; }
+      { name = "jeebis-ruixen-wallpaper-set"; action = "wallpaper set"; }
+      { name = "jeebis-ruixen-wallpaper-pick"; action = "wallpaper pick"; }
+    ]}
     ${lib.optionalString native ''
       ${lib.concatMapStringsSep "\n" (name: ''
         cat > "$out/bin/${name}" <<SH
@@ -65,24 +79,13 @@ SH
       cat > "$out/bin/jeebis-shell" <<'SH'
 #!${pkgs.runtimeShell}
 export OMARCHY_PATH="${runtime}"
-export PATH="${lib.makeBinPath (nativeDeps ++ [ pkgs.bash pkgs.coreutils pkgs.gawk pkgs.gnused pkgs.gnugrep appPkgs.jq ])}:$HOME/.nix-profile/bin:${runtime}/bin:$PATH"
+export QML_IMPORT_PATH="${appPkgs.qt6.qtmultimedia}/${appPkgs.qt6.qtbase.qtQmlPrefix}:$QML_IMPORT_PATH"
+export QT_PLUGIN_PATH="${appPkgs.qt6.qtmultimedia}/${appPkgs.qt6.qtbase.qtPluginPrefix}:$QT_PLUGIN_PATH"
+export PATH="$(dirname "$0"):${lib.makeBinPath (nativeDeps ++ [ pkgs.bash pkgs.coreutils pkgs.gawk pkgs.gnused pkgs.gnugrep appPkgs.jq ])}:$HOME/.nix-profile/bin:${runtime}/bin:$PATH"
 exec ${quickshell}/bin/quickshell -n -p ${runtime}/shell "$@"
 SH
       chmod +x "$out/bin/jeebis-shell"
     ''}
-  '';
-  plugins = if !native then coreSource + /plugins else pkgs.runCommand "jeebis-desktop-plugins" { } ''
-    cp -R ${coreSource}/plugins "$out"
-    chmod -R u+w "$out"
-    find "$out" -type f \( -name '*.qml' -o -name '*.js' -o -name '*.py' \) -print0 | while IFS= read -r -d $'\0' file; do
-      substituteInPlace "$file" \
-        --replace-quiet '/usr/bin/python3' '${appPkgs.python3}/bin/python3' \
-        --replace-quiet '/.config/omarchy' '/.config/jeebis-desktop' \
-        --replace-quiet '/.local/state/omarchy' '/.local/state/jeebis-desktop'
-      # Qt's Color name conflicts with our singleton; keep property names intact.
-      sed -i -E 's/\<Color\./DesktopColor./g' "$file"
-    done
-    find "$out" -name qmldir -type f -exec sed -i 's/singleton Color /singleton DesktopColor /g' {} +
   '';
   personalHelpers = pkgs.runCommand "jeebis-personal-desktop-helpers" { nativeBuildInputs = [ pkgs.bash appPkgs.python3 ]; } ''
     mkdir -p "$out"
@@ -90,7 +93,8 @@ SH
     chmod +wx "$out/"*
     patchShebangs "$out"
   '';
-  hyprFiles = lib.filesystem.listFilesRecursive ../files/hypr;
+  # Monitor setup stays local. Personal look-and-feel is managed from files/hypr.
+  hyprFiles = builtins.filter (path: !(builtins.elem (builtins.baseNameOf path) [ "monitors.lua" ])) (lib.filesystem.listFilesRecursive ../files/hypr);
   relative = base: path: lib.removePrefix ((toString base) + "/") (toString path);
   fileLinks = builtins.listToAttrs (map (path: {
     name = "hypr/${relative ../files/hypr path}";
@@ -105,7 +109,9 @@ in
     command = lib.mkOption { type = lib.types.str; readOnly = true; default = "${package}/bin/jeebis-desktop"; };
   };
   config = {
-    home.packages = [ package appPkgs.fuzzel ];
+    home.packages = [ package appPkgs.fuzzel appPkgs.cava appPkgs.fastfetch ];
+    xdg.dataFile."ruixen-shell/hyprland".source = ruixen + /hyprland;
+    xdg.dataFile."jeebis-desktop/backgrounds".source = coreSource + /backgrounds;
     xdg.configFile = fileLinks // {
       "jeebis/desktop.lua".text = ''
         local M = {}
@@ -121,8 +127,9 @@ in
         function M.bind(...) return o.bind(...) end
         return M
       '';
-      "${hostConfigDir}/plugins".source = plugins;
-      "${hostConfigDir}/shell.json".source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/Git/home-manager/files/desktop/shell.json";
+      "jeebis/curvature.lua".source = ruixen + /hyprland/jeebis-curvature.lua;
+      "${hostConfigDir}/plugins".source = ruixen + /plugins;
+      "${hostConfigDir}/shell.json".source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/Git/home-manager/files/desktop/jeebis-shell.json";
       "wezterm/theme.lua".source = lib.mkForce (pkgs.writeText "wezterm-shared-theme.lua" (builtins.replaceStrings [ "@themeCurrent@" ] [ (builtins.dirOf themeDir) ] (builtins.readFile ../files/wezterm/theme.lua)));
     } // builtins.listToAttrs (map (path: {
       name = "wezterm/${relative ../files/wezterm path}";
@@ -137,9 +144,15 @@ in
     });
     home.file.".local/bin/jeebis-codex-herdr" = { source = personalHelpers + /jeebis-codex-herdr; executable = true; };
     home.file.".local/bin/jeebis-chatgpt-new-window" = { source = personalHelpers + /jeebis-chatgpt-new-window; executable = true; };
-    home.file.".local/bin/jeebis-bar-action" = { text = "#!${pkgs.runtimeShell}\nexec ${cfg.command} bar-action \"$@\"\n"; executable = true; };
     home.file.".local/bin/jeebis-theme-cycle" = { text = "#!${pkgs.runtimeShell}\nexec ${cfg.command} theme cycle\n"; executable = true; };
-    home.activation = lib.optionalAttrs native {
+    home.activation = {
+      initializeRuixenHypr = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+      run mkdir -p "$HOME/.config/hypr"
+      if [ ! -e "$HOME/.config/hypr/monitors.lua" ]; then
+        run install -m644 ${../files/hypr/monitors.lua} "$HOME/.config/hypr/monitors.lua"
+      fi
+    '';
+    } // lib.optionalAttrs native {
       initializeDesktopTheme = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
         run ${package}/bin/jeebis-desktop theme init
       '';

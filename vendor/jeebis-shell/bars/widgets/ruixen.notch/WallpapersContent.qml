@@ -1,0 +1,1865 @@
+import "../../../ShellConfig.js" as ShellConfig
+import QtQuick
+import QtQuick.Layouts
+import Quickshell
+import Quickshell.Io
+import Quickshell.Widgets
+import "WallpaperEffectModel.js" as EffectModel
+
+// A second copy of this file's own picker LOGIC lives at
+// ruixen.launcher/extensions/wallpapers/WallpapersContent.qml (a launcher "Wallpapers"
+// extension, same "plugin folders can't share a file" reason
+// AppLibrary.qml is copied per-plugin too) -- keep both in sync by
+// hand if kindFilter/searchText/discovery/poster generation change
+// here. Not byte-for-byte anymore: this file also owns the notch-only
+// theme switcher and the responsive expanded-notch grid layout, while
+// the launcher card stays a pure wallpaper picker with its own wider
+// card/dropdown treatment. The two surfaces also now split the feature
+// set rather than both carrying everything: this file owns Artwork
+// rotation only, the launcher copy owns Wallpaper appearance only (direct
+// request -- both sections stacked in one place felt too crowded).
+//
+// This file is now ALSO the notch's own Theme switcher (a WALLPAPER/
+// THEME sliding tab sharing one row with the search box, tab pill on
+// the right and search filling the rest -- through several follow-ups:
+// two stacked rows collapsed into one, two separate chips merged into
+// one sliding pill, then the pill moved from the search box's left to
+// its right). That mode is deliberately NOT synced to the launcher
+// copy: the keybind that
+// summons this tab (ruixen.notch toggleWallpapers) is the whole point
+// of the feature, the launcher card stays a pure wallpaper picker, and
+// theme discovery/application (list-themes.sh + omarchy-theme-set)
+// lives entirely in the blocks marked "Theme mode" below.
+//
+// Real wallpaper picker for the notch dashboard's own "Wallpapers" tab,
+// replacing the "coming soon" stub. Reads from the exact same two
+// directories Omarchy's own omarchy-theme-bg-switcher does (confirmed
+// by reading that script directly, not guessed), plus one of this
+// plugin's own -- direct request ("each theme has unique wallpapers,
+// we can keep this and show them first... but can we also show from
+// the folder like in /Pictures/... this folder survives theme
+// changes"):
+//   - ~/.local/state/omarchy/current/theme/backgrounds (the active
+//     theme's own shipped wallpapers)
+//   - ~/.config/omarchy/backgrounds/<theme-name>/ (Omarchy's existing
+//     per-theme user-additions folder -- already the real extension
+//     point, no custom watcher needed)
+//   - ~/Pictures/ruixen-wallpapers (this plugin's own persistent folder,
+//     shown after the two above -- never touched by Omarchy's theme
+//     switching, unlike the first two, so whatever's dropped in here
+//     survives every theme change untouched)
+// Clicking a plain image tile calls the same real omarchy-theme-bg-set
+// the stock picker uses, so it stays byte-for-byte consistent with
+// Super+Ctrl+Space's own picker (same symlink write, same live shell
+// notify) -- this is a second front door onto the same state, not a
+// parallel one.
+//
+// Video and GIF tiles -- direct request ("can we remake one in our
+// shell like ruixen-wallpaper plugin that works with our notch... it
+// just needs to show up in the notch wallpaper picker"), GIF added as
+// the planned fast-follow ("yea lets do the gif next"). Video/GIF
+// playback itself lives entirely in the separate ruixen.wallpaper
+// service plugin (see its own Service.qml for the real mechanism --
+// video is a from-scratch port of yesheytenzin/live-wallpaper's own
+// design, used only as a reference; GIF has no reference, it's just
+// QML's own native AnimatedImage); this file's own job is discovering
+// video/gif files alongside plain images, generating/caching a poster
+// frame for video specifically (Image can't decode video, so the tile
+// itself always shows a real image regardless of source kind -- a gif
+// needs no such extraction, Image already renders its own first frame
+// directly), and routing a click to the right place -- ruixen.
+// wallpaper's own playVideo/playGif IPC for those two kinds, the
+// normal omarchy-theme-bg-set flow for everything else.
+Item {
+  id: root
+
+  property color textColor: "#ffffff"
+  property color muted: Qt.rgba(1, 1, 1, 0.5)
+  property color accent: "#3ecf5b"
+  property color secondary: accent
+  // Theme-aware red for the search clear "x" -- direct correction: was
+  // the plugin's own hardcoded #e05252, same live theme "red" swatch
+  // (Color.accent fallback) Overlay.qml already computes as
+  // kanbanDangerColor for Kanban's own delete affordances.
+  property color dangerColor: "#e05252"
+  property string fontFamily: "JetBrainsMono Nerd Font"
+
+  // ruixen-shell#89 follow-up: tonal surfaces/hover states/borders here
+  // were all flat white-tinted translucent overlays (Qt.rgba(1,1,1,X))
+  // -- fine against the old always-black surface, washes out against
+  // an actually light Theme-mode surface. Same unconditional
+  // textColor-tint approach as KanbanContent's own cardSurface/
+  // surfaceTint (see that file): textColor is already guaranteed
+  // readable against whatever surface is actually active, in every
+  // mode, so tinting toward it instead of raw white is always correct.
+  function surfaceTint(alpha) {
+    return Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, alpha)
+  }
+
+  // Only visible/active while the tab itself is on screen -- refresh()
+  // is cheap (two quick Processes) but no reason to run it while some
+  // other tab is showing.
+  property bool active: false
+
+  // Each entry: { kind, display, real }. kind is "image", "gif", or
+  // "video" -- an explicit tag now, not derived from display/real
+  // differing the way it briefly was for video-only support: a gif
+  // entry has display === real (same as a plain image, no poster
+  // needed) but still needs routing to playGif, not the plain
+  // omarchy-theme-bg-set flow, so equality alone can't distinguish
+  // them anymore. display is always a real *image* path (the file
+  // itself for a plain wallpaper or gif, a generated poster frame for
+  // video) -- the tile's own Image element never needs to know or
+  // care which kind it's looking at, it just always renders display.
+  // real is what actually gets played -- passed to omarchy-theme-bg-
+  // set for images, or ruixen.wallpaper's playVideo/playGif for those
+  // two kinds.
+  property var wallpaperPaths: []
+  property string currentBackground: ""
+  property string searchText: ""
+
+  // Bumped on every select() call, passed to ruixen.wallpaper's own
+  // playVideo/playGif/stop IPC calls so it can reject an out-of-order
+  // arrival -- see that service's own selectGeneration/
+  // acceptsGeneration comment for the full "why". Each of the three
+  // kinds dispatches through its OWN Process (below), so nothing on
+  // this side alone guarantees their independent `qs ipc call`
+  // subprocesses arrive in click order when kinds are switched
+  // rapidly; this is what actually closes that gap.
+  //
+  // Seeded from Date.now() (real, not int -- see below), not a plain
+  // 0 -- direct review finding ("Make wallpaper selection generations
+  // survive Notch reloads", #22): ruixen.wallpaper stays loaded and
+  // keeps its OWN selectGeneration for its entire process lifetime,
+  // but this WallpapersContent instance can be destroyed and recreated
+  // independently of it -- ruixen.notch disabled/re-enabled, a plugin
+  // reload. A freshly created instance restarting from 0 would send
+  // generation 1 on its very first real click while the service might
+  // already be sitting on, say, 15 from the PREVIOUS instance's
+  // lifetime -- rejected as stale, and every click after it too, until
+  // this counter climbed back past 15.
+  //
+  // nextGeneration() below (not a plain `+= 1`) -- real bug found live:
+  // this instance stays alive for the WHOLE session (never recreated
+  // on its own), same as the launcher's own Wallpapers/Wallpaper
+  // Shuffle extensions each do with THEIR own local counter. A plain
+  // `+= 1` only ever reflects how many times THIS ONE client has been
+  // clicked, not real chronological order against another client's own
+  // counter -- spend a while clicking through the launcher's picker
+  // instead and its counter (and so the service's shared threshold)
+  // climbs past whatever this instance was sitting on; every later
+  // click here does +1 off its own now-stale local value and can never
+  // clear that threshold again, permanently rejected until the whole
+  // shell restarts and reseeds this property. `Math.max(Date.now(),
+  // selectGeneration + 1)` fixes both at once: still strictly
+  // increasing within THIS client for two rapid clicks (so a slow
+  // older reply still can't stomp a newer one that already landed --
+  // the original #22 guarantee), but a click after any idle stretch
+  // jumps back up to the real current timestamp instead of crawling up
+  // one at a time from a stale baseline, so an idle client catches back
+  // up to a currently-active sibling client on its very next click.
+  //
+  // `real`, not `int` -- confirmed empirically (isolated Quickshell
+  // test), not assumed: Date.now()'s ~13-digit millisecond value
+  // silently overflows QML's 32-bit `int` type. `real` (a JS double)
+  // safely holds integers up to 2^53, comfortably covering millisecond
+  // timestamps for millennia. ruixen.wallpaper/Service.qml's own
+  // selectGeneration was widened to match -- see its own comment.
+  property real selectGeneration: Date.now()
+  function nextGeneration() {
+    return Math.max(Date.now(), root.selectGeneration + 1)
+  }
+
+  // Direct follow-up ("we should lazyload it in from the other
+  // direction... it seems to be loading in 50, 49, 48, 47 etc so we
+  // see a huge blank space while waiting for the top ones to load
+  // in"). Real cause: Image's own asynchronous decode (below) hands
+  // every initially-visible tile's request to Qt's decode thread at
+  // once on first population, and that thread doesn't guarantee it
+  // finishes a whole burst in the order the requests were issued --
+  // empirically it was coming back closer to reverse order, so the
+  // bottom rows resolved first and the top stayed blank longest. This
+  // gate drip-feeds "permission to load" in strict ascending index
+  // order instead, a couple tiles at a time, so requests never arrive
+  // as one big simultaneous burst and the visible fill order matches
+  // the array order (theme wallpapers, top-left, first) regardless of
+  // whatever order the decode thread would otherwise finish in.
+  property int loadGate: 0
+
+  // "all", "image", "video", or "gif" -- direct request ("on the
+  // right side of the panel, theres some space left like a right
+  // panel, can we use these to toggle between IMAGE and VIDEO and
+  // then GIF too"). Combines with searchText below rather than
+  // replacing it -- a kind filter plus a live text search is more
+  // useful than having to choose one or the other.
+  property string kindFilter: "all"
+
+  // "all", "omarchy", or "custom" -- direct follow-up ("add chips for
+  // All Omarchy Custom so we can filter between these"). Combines with
+  // kindFilter/searchText the same way they already combine with each
+  // other -- each one only ever narrows further, never replaces
+  // another.
+  property string sourceFilter: "all"
+
+  // One chip row, two different filters depending on mediaMode --
+  // direct follow-up ("the theme is omarchy and custom but for
+  // wallpapers we have type"). Wallpaper mode's own chips replace the
+  // old kind-filter stat tiles instead of duplicating them in a second
+  // place.
+  readonly property var activeFilterChips: root.mediaMode === "themes"
+    ? [{ value: "all", label: "All" }, { value: "omarchy", label: "Omarchy" }, { value: "custom", label: "Custom" }]
+    : [{ value: "all", label: "All" }, { value: "image", label: "Images" }, { value: "video", label: "Video" }, { value: "gif", label: "Gif" }]
+  readonly property string activeFilterValue: root.mediaMode === "themes" ? root.sourceFilter : root.kindFilter
+  function setActiveFilter(value) {
+    if (root.mediaMode === "themes") root.sourceFilter = value
+    else root.kindFilter = value
+  }
+
+  // ---- Theme mode ---- (the WALLPAPER/THEME sliding tab to the right
+  // of the search box; see the header comment for why this is
+  // notch-only and not synced to the launcher copy).
+  //
+  // Which half of the segmented control is showing: "wallpapers" (the
+  // picker this file has always been) or "themes" (a grid of installed
+  // Omarchy themes; clicking one runs the real omarchy-theme-set, the
+  // same front door Super+Shift+Ctrl+Space's own picker uses -- a
+  // second window onto the same state, not a parallel one, exactly
+  // like this file's wallpaper selection above it).
+  property string mediaMode: "wallpapers"
+
+  // Direct ask: "next to the Top arrow... add the wallpaper shuffle
+  // icon there and then clicking it would open the wallpaper shuffle
+  // extension from the expanded notch" -- this file launches the jump
+  // itself (openWallpaperShuffleProc below, same self-contained
+  // Process-per-action shape every other button here already uses),
+  // but only Overlay.qml's own `panel` owns whether the notch is
+  // expanded, so collapsing it on the way out has to bubble up.
+  signal openWallpaperShuffleRequested()
+  // Same follow-up, for the launcher's Wallpapers Effects extension --
+  // direct ask: "can we do one for the wallpapers effect icon too
+  // that does that so users know we have these 2 other menus".
+  signal openWallpaperEffectsRequested()
+  // Same again, Theme mode's own equivalent -- direct follow-up: "for
+  // the theme, next to that up button we can add icon to the bjaneo
+  // themes too".
+  signal openThemeBrowserRequested()
+
+  // Each entry: { name, display, preview }. name is the theme
+  // directory's basename -- the exact string passed to
+  // omarchy-theme-set (which re-normalizes case/dashes itself).
+  // display is the human-readable label from list-themes.sh's own
+  // title-casing, preview is a representative image path or "" (the
+  // tile renders the name instead). Populated by themeListProc below,
+  // running the same shipped list-themes.sh the test runs.
+  property var themeEntries: []
+
+  // The active theme's directory name, read from the same file
+  // omarchy-theme-set itself writes (~/.local/state/omarchy/current/
+  // theme.name) -- drives the CURRENT highlight, same role
+  // currentBackground plays for wallpaper tiles. Applied optimistically
+  // on click, then confirmed by the post-set refresh().
+  property string currentTheme: ""
+
+  // Search narrowed against the wallpaper list vs the theme list
+  // depending on which mode the segmented control is in -- one
+  // searchInput serves both, only the placeholder text differs.
+  // sourceFilter applies here too now (direct follow-up: "the themes
+  // can have those chips [too]") -- the SAME chip row/property the
+  // wallpaper grid already uses, same "all/omarchy/custom only ever
+  // narrows further" composition with search.
+  readonly property var filteredThemes: {
+    var result = sourceFilter === "all" ? themeEntries : themeEntries.filter(function(e) { return e.source === sourceFilter })
+    if (searchText.length === 0) return result
+    var needle = searchText.toLowerCase()
+    return result.filter(function(entry) {
+      return entry.name.toLowerCase().indexOf(needle) !== -1 ||
+             entry.display.toLowerCase().indexOf(needle) !== -1
+    })
+  }
+
+  // Filename substring match against the REAL path (the video's own
+  // filename, not its poster's hashed cache name) -- a plain
+  // independent filter, deliberately not carrying any per-screen/OLED/
+  // tint/scheme state this notch doesn't have. kindFilter narrows
+  // first, search narrows further. sourceFilter does NOT apply here --
+  // direct correction ("these all omarchy and custom toggle... should
+  // only effect the theme page"): the Wallpaper chip row only ever
+  // offers All/Images/Video/Gif, with no Omarchy/Custom chip to see or
+  // reset sourceFilter from, so a value picked on the Theme page was
+  // silently narrowing the wallpaper grid too with no way back to All
+  // short of switching back to Theme mode. kindFilter (Wallpaper) and
+  // sourceFilter (Theme) are each scoped to their own page now.
+  readonly property var filteredPaths: {
+    var result = kindFilter === "all" ? wallpaperPaths : wallpaperPaths.filter(function(e) { return e.kind === kindFilter })
+    if (searchText.length === 0) return result
+    var needle = searchText.toLowerCase()
+    return result.filter(function(entry) {
+      var fileName = entry.real.substring(entry.real.lastIndexOf("/") + 1).toLowerCase()
+      return fileName.indexOf(needle) !== -1
+    })
+  }
+
+  function refresh() {
+    if (!listProc.running) listProc.running = true
+    if (!currentProc.running) currentProc.running = true
+    // Theme mode's two reads ride the same refresh -- both are cheap
+    // (one find + one cat), and re-reading the theme list on every tab
+    // open is what keeps a just-installed theme from needing a shell
+    // restart to show up. Wallpaper reads re-running in themes mode is
+    // harmless (nothing on this side branches on the results while
+    // they're hidden).
+    if (!themeListProc.running) themeListProc.running = true
+    if (!currentThemeProc.running) currentThemeProc.running = true
+  }
+
+  // Segmented-control click handler. Clearing the search on a mode
+  // switch is deliberate: the two modes filter different lists, so a
+  // needle typed for wallpapers sitting in the box while the theme
+  // grid loads would read as "no themes match" noise the user didn't
+  // ask for.
+  function setMediaMode(mode) {
+    if (root.mediaMode === mode) return
+    root.mediaMode = mode
+    searchInput.text = ""
+    if (mode === "themes") refresh()
+  }
+
+  onActiveChanged: if (active) refresh()
+
+  // Drives loadGate up a couple tiles at a time -- fast enough that
+  // the initial screenful fills in well under half a second, but
+  // spaced out enough that each request has time to actually reach
+  // Qt's decode thread before the next one arrives, which is what
+  // keeps them from bunching into the kind of simultaneous burst that
+  // was coming back out of order. Stops itself once the gate has
+  // caught up to however many entries exist.
+  Timer {
+    interval: 10
+    running: root.active && root.loadGate < root.wallpaperPaths.length
+    repeat: true
+    onTriggered: root.loadGate += 2
+  }
+
+  // Theme wallpapers (the exact same two directories/extensions
+  // omarchy-theme-bg-switcher passes to the stock image-picker
+  // overlay -- verified by reading that script directly) THEN the
+  // user's own persistent folder (~/Pictures/ruixen-wallpapers),
+  // appended after -- direct request ("we can create /USER_wallpapper
+  // and then show the images from that folder after the theme, and
+  // then this folder survives theme changes").
+  //
+  // The actual discovery/classification/poster-caching pipeline lives
+  // in list-wallpapers.sh, a sibling file in this same plugin
+  // directory, not inline here -- direct review finding ("Extract
+  // wallpaper discovery into shared production code so tests cannot
+  // drift", #17): this used to be a raw inline Process.command string
+  // with tests/wallpaper-discovery-format.sh keeping its own "faithful
+  // copy" that had to be hand-kept in sync, a real risk of the test
+  // silently drifting from what actually ships. That test now runs
+  // this exact same script file, so there is only one implementation
+  // to keep correct. See list-wallpapers.sh's own comment for the full
+  // "why" behind the US-delimited record format, NUL-safe traversal,
+  // and poster mtime-staleness logic -- unchanged from before, just
+  // relocated. $HOME/.config/omarchy/plugins/ruixen.notch is where
+  // install.sh's own `cp -r` always deploys this plugin (a fixed,
+  // well-known location, unlike install.sh's own git checkout path,
+  // which can live anywhere) -- same absolute-path-via-$HOME
+  // convention this file already uses for favoritesPath below.
+  Process {
+    id: listProc
+    command: [Quickshell.env("HOME") + "/.config/omarchy/plugins/ruixen.notch/list-wallpapers.sh"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var lines = String(text || "").split("\n").filter(function(line) { return line.length > 0 })
+        root.wallpaperPaths = lines.map(function(line) {
+          var parts = line.split("\u001f")
+          // identity (#23): what to compare against currentBackground,
+          // NOT necessarily what the tile renders (display) -- see
+          // list-wallpapers.sh's own comment for why those diverge for
+          // GIF specifically. Falls back to display if a 4th field is
+          // ever missing (shouldn't happen -- this Process always runs
+          // fresh -- but a silently-undefined identity would break
+          // every GIF's CURRENT state instead of degrading gracefully
+          // to the old, still-correct-for-image/video behavior).
+          // source (direct follow-up: "add chips for All Omarchy Custom
+          // so we can filter between these") -- "omarchy" or "custom",
+          // which of list-wallpapers.sh's own two find|process
+          // pipelines this entry came from. Falls back to "omarchy",
+          // same "shouldn't happen, degrade toward the larger/default
+          // group rather than silently miscategorizing" reasoning as
+          // identity's own fallback above.
+          return { kind: parts[0], display: parts[1], real: parts[2], identity: parts[3] !== undefined ? parts[3] : parts[1], source: parts[4] !== undefined ? parts[4] : "omarchy" }
+        })
+        root.loadGate = 0
+      }
+    }
+  }
+
+  Process {
+    id: currentProc
+    command: ["bash", "-c", "readlink -f \"$HOME/.local/state/omarchy/current/background\" 2>/dev/null"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.currentBackground = String(text || "").trim()
+    }
+  }
+
+  // Theme mode -- theme discovery via the same shipped-script pattern
+  // as listProc above (list-themes.sh, a sibling file the test suite
+  // runs too, so the format can't drift). Same StdioCollector +
+  // US-splitting shape listProc uses.
+  Process {
+    id: themeListProc
+    command: [Quickshell.env("HOME") + "/.config/omarchy/plugins/ruixen.notch/list-themes.sh"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var lines = String(text || "").split("\n").filter(function(line) { return line.length > 0 })
+        root.themeEntries = lines.map(function(line) {
+          var parts = line.split("\u001f")
+          // preview may legitimately be empty (a theme with no
+          // preview.* and no backgrounds/ -- the tile falls back to
+          // rendering the name), so a missing 3rd field and an empty
+          // one are treated the same way here.
+          // source (direct follow-up: "the themes can have those chips
+          // [too]") -- "omarchy" or "custom", same meaning as
+          // wallpaperPaths' own source field, just resolved from
+          // list-themes.sh's own USER_THEMES_PATH/OMARCHY_THEMES_PATH
+          // precedence instead of which find|process pipeline.
+          return { name: parts[0], display: parts[1], preview: parts[2] !== undefined ? parts[2] : "", source: parts[3] !== undefined ? parts[3] : "custom" }
+        })
+      }
+    }
+  }
+
+  // The active theme's directory name, from the same file
+  // omarchy-theme-set itself writes on every successful set -- nothing
+  // here guesses or caches it across theme changes made outside this
+  // panel (Super+Shift+Ctrl+Space's own picker included).
+  Process {
+    id: currentThemeProc
+    command: ["bash", "-c", "cat \"$HOME/.local/state/omarchy/current/theme.name\" 2>/dev/null"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.currentTheme = String(text || "").trim()
+    }
+  }
+
+  // Same real command the stock Super+Ctrl+Space picker's own selection
+  // handler runs -- just symlinks current/background and notifies the
+  // live shell, doesn't touch theme colors at all.
+  Process {
+    id: setProc
+    stdout: StdioCollector { waitForEnd: true }
+  }
+
+  // Stops any playing video/gif the instant a plain image is picked
+  // here -- ruixen.wallpaper's own 1s poll would eventually catch
+  // this too (comparing current/background against its last-set
+  // posterPath), but that poll is really a safety net for the STOCK
+  // Omarchy picker, which has no way to know this plugin exists at
+  // all. Our own picker can just say so directly and immediately.
+  // Harmless no-op if nothing was playing. No longer guarded by
+  // `if (!stopVideoProc.running)` -- confirmed directly that
+  // reassigning a Process's command while it's already running is
+  // safe (the in-flight run finishes, then the reassigned command
+  // fires), so skipping the reassignment here just meant a rapid
+  // second stop could go out with a stale generation number instead
+  // of the current one.
+  Process {
+    id: stopVideoProc
+    stdout: StdioCollector { waitForEnd: true }
+  }
+
+  Process {
+    id: playVideoProc
+    stdout: StdioCollector { waitForEnd: true }
+  }
+
+  Process {
+    id: playGifProc
+    stdout: StdioCollector { waitForEnd: true }
+  }
+
+  Process {
+    id: markCurrentProc
+    stdout: StdioCollector { waitForEnd: true }
+  }
+
+  // Jumps to the launcher's own Wallpaper Shuffle extension -- same
+  // omarchy-shell wrapper (resolved $OMARCHY_PATH, a real timeout)
+  // every other shell call in this file already uses, same "toggle +
+  // extension payload" shape the launcher's own keybind recipes use
+  // (docs/KEYBINDS.md). "toggle", not "summon" -- there's no specific
+  // settings section to land on, just the extension itself.
+  Process {
+    id: openWallpaperShuffleProc
+    command: ["omarchy-shell", "shell", "toggle", "ruixen.launcher", "{\"extension\":\"wallpaper-shuffle\"}"]
+    stdout: StdioCollector { waitForEnd: true }
+  }
+
+  // Same jump, for the launcher's Wallpapers Effects extension --
+  // "wallpapers" is still the real extension id/payload value (the
+  // rename to "Wallpapers Effects" was display-text only, see
+  // Launcher.qml's own wallpapersRow() comment; the id Launcher.qml's
+  // payload handler actually matches against never changed).
+  Process {
+    id: openWallpaperEffectsProc
+    command: ["omarchy-shell", "shell", "toggle", "ruixen.launcher", "{\"extension\":\"wallpapers\"}"]
+    stdout: StdioCollector { waitForEnd: true }
+  }
+
+  // Same jump, for the launcher's Bjarneo Themes (theme-browser)
+  // extension -- Theme mode's own equivalent of the two wallpaper
+  // jump buttons above.
+  Process {
+    id: openThemeBrowserProc
+    command: ["omarchy-shell", "shell", "toggle", "ruixen.launcher", "{\"extension\":\"theme-browser\"}"]
+    stdout: StdioCollector { waitForEnd: true }
+  }
+
+  // omarchy-shell, not a raw `qs -p /usr/share/omarchy/shell ipc call`
+  // -- direct review finding ("Replace hardcoded /usr/share/omarchy/
+  // shell IPC calls with omarchy-shell", #24): the raw form hardcodes
+  // Omarchy's install path (breaks under a non-default OMARCHY_PATH)
+  // and has no timeout at all, so a hung/unresponsive shell would hang
+  // this Process indefinitely. omarchy-shell (confirmed by reading it
+  // directly) resolves $OMARCHY_PATH itself, recovers WAYLAND_DISPLAY
+  // for out-of-session callers, and wraps the call in a real timeout
+  // (OMARCHY_SHELL_IPC_TIMEOUT, default 2s) -- this repo already uses
+  // it elsewhere (ruixen.settingsbutton, ruixen-bar-mode.sh), this was
+  // just the operational calls that predated it still using the old
+  // form. No -q here: these are the actual functional action (playing
+  // the video/gif IS the point of the click), so a real failure should
+  // still show up in the journal even though nothing in this file
+  // currently branches on the exit code either way.
+  function select(entry) {
+    // identity, not display (#23) -- optimistic immediate CURRENT
+    // highlight the instant a tile is clicked, before the async IPC
+    // call below even lands. For gif specifically, display is the raw
+    // .gif (what the tile renders); identity is the cached poster path
+    // Service.qml's own playGif() is about to actually write to
+    // current/background, matching what a later refresh would read
+    // back. Using display here for gif would highlight nothing at all
+    // until the next refresh, since currentBackground would hold a
+    // value (the raw gif) that no tile's own identity ever equals.
+    root.currentBackground = entry.identity
+    root.selectGeneration = root.nextGeneration()
+    var gen = String(root.selectGeneration)
+    if (entry.kind === "video") {
+      playVideoProc.command = ["omarchy-shell", "ruixen.wallpaper", "playVideo", entry.real, gen]
+      playVideoProc.running = true
+    } else if (entry.kind === "gif") {
+      playGifProc.command = ["omarchy-shell", "ruixen.wallpaper", "playGif", entry.real, gen]
+      playGifProc.running = true
+    } else {
+      stopVideoProc.command = ["omarchy-shell", "ruixen.wallpaper", "stop", gen]
+      stopVideoProc.running = true
+      setProc.command = ["omarchy-theme-bg-set", entry.real]
+      setProc.running = true
+    }
+    // A manual pick won't wait for rotation's own timer to re-anchor
+    // the queue -- see WallpaperRotation.qml's own markCurrent() for
+    // why this needs to be a direct ask, not just self-healing.
+    markCurrentProc.command = ["omarchy-shell", "ruixen-wallpaper-rotation", "markCurrent", entry.real]
+    markCurrentProc.running = true
+  }
+
+  // Theme mode -- apply a theme. Same front door the stock
+  // Super+Shift+Ctrl+Space picker uses: omarchy-theme-set with the
+  // theme directory's own name (that script re-normalizes case and
+  // dashes itself, so passing the basename it listed under is exactly
+  // right -- no pre-mangling here).
+  //
+  // The whitelist check is this repo's own fixed-argv rule for
+  // anything that reaches a process argument from outside (here: a
+  // filename on disk -- a theme directory name containing anything
+  // beyond letters/digits/dash/underscore is not something
+  // omarchy-theme-set would accept anyway, so skipping the click
+  // beats letting the CLI's own error be the only line of defense).
+  //
+  // Stopping any playing video/gif first, with a fresh generation:
+  // omarchy-theme-set is about to point current/background at the new
+  // theme's own image, and ruixen.wallpaper's 1s poll would eventually
+  // stop the overlay on its own -- saying so directly, with a
+  // generation this instance minted, keeps the same out-of-order
+  // protection select() has.
+  Process {
+    id: themeStopProc
+    stdout: StdioCollector { waitForEnd: true }
+  }
+
+  Process {
+    id: themeSetProc
+    // omarchy-theme-set runs its post-theme hooks to completion
+    // (terminal/editor/app retints, seconds, not ms) -- all this
+    // process does is wait for it off the UI thread, then one refresh
+    // re-reads wallpapers/current background/theme name so every tile
+    // state on BOTH sides of the segmented control matches the new
+    // theme without a tab close/reopen.
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.refresh()
+    }
+  }
+
+  function applyTheme(entry) {
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(entry.name)) return
+    root.currentTheme = entry.name
+    root.selectGeneration = root.nextGeneration()
+    themeStopProc.command = ["omarchy-shell", "ruixen.wallpaper", "stop", String(root.selectGeneration)]
+    themeStopProc.running = true
+    themeSetProc.command = ["omarchy-theme-set", entry.name]
+    themeSetProc.running = true
+  }
+
+  // Headless probe/debounce/write state for the Shuffle and Transition
+  // filter-row chips -- no visual UI of their own, so these are root
+  // siblings, not ColumnLayout children (same place listProc/currentProc
+  // and this file's other non-visual Process/Timer helpers already
+  // live). Direct report after they'd drifted into the ColumnLayout at
+  // some point: the panel's own top content (the search row) was
+  // starting visibly lower than every other notch tab's. Root cause --
+  // ColumnLayout still reserves a full `spacing: 10` gap around a 0x0
+  // child unless it's explicitly `visible: false`, and these two
+  // defaulted to visible: true; two of them stacked ~20px of dead
+  // space above the search row that had nothing to do with its own
+  // layout at all.
+  WallpaperRotationState {
+    id: rotationState
+    active: root.active && root.mediaMode === "wallpapers"
+  }
+  WallpaperAppearanceState {
+    id: appearanceState
+    active: root.active && root.mediaMode === "wallpapers"
+  }
+
+  // Outer ColumnLayout -- the search bar spans the full panel width,
+  // while the wallpaper/theme content below can switch between its own
+  // full-row grids without affecting that top chrome.
+  ColumnLayout {
+    anchors.fill: parent
+    spacing: 10
+
+    // Search + WALLPAPER/THEME tab, collapsed into one row (direct
+    // follow-up -- "instead of the two tabs up top and the search
+    // input, collapse them into one row", then "put them in an actual
+    // tab together but a sliding between them", then "instead of in
+    // front of the search, maybe after it... on the right"). Search
+    // box claims whatever's left via Layout.fillWidth, tab pill sits
+    // fixed-width on the right.
+    //
+    // rightMargin per a further follow-up ("this row with tab
+    // stretches too far to the notch edge... it should line up at the
+    // end with others") -- with none, the pill's flat corner sat
+    // right against the panel's own rounded edge, closer to it than
+    // the filter sidebar below ever gets (that sidebar's own fillWidth
+    // column centers its fixed 76px chips within its leftover space,
+    // which naturally keeps them off the true edge by about this much).
+    // No leftMargin needed -- the search box's left edge already lines
+    // up with the wallpaper grid's own left edge with zero margin.
+    RowLayout {
+      Layout.fillWidth: true
+      Layout.maximumWidth: Number.POSITIVE_INFINITY
+      Layout.rightMargin: 12
+      spacing: 8
+
+      // Search box -- plain TextInput + placeholder overlay, matching
+      // this plugin's existing self-contained style (no qs.Ui.TextField
+      // pulled in here, unlike ruixen.weather's location search -- that
+      // one already has qs.Ui available; this plugin deliberately stays
+      // on plain QML primitives throughout, see DashboardContent.qml).
+      Rectangle {
+        Layout.fillWidth: true
+        Layout.preferredHeight: 40
+        radius: ShellConfig.radius
+        color: root.surfaceTint(0.06)
+
+        // Magnify glyph in front of the placeholder -- always
+        // visible now, not just on an empty query (direct correction,
+        // same pass as the notch quick-launcher and shelf search
+        // boxes), accent instead of muted. Sibling of the TextInput,
+        // not a child of it -- a child Text sits at the TextInput's
+        // own text-layout origin, the same spot the blinking caret
+        // renders at, so it drew the caret in front of the icon when
+        // it lived there and this field has active focus.
+        Text {
+          id: searchPlaceholderIcon
+          anchors.verticalCenter: parent.verticalCenter
+          anchors.left: parent.left
+          anchors.leftMargin: 12
+          text: ""
+          color: root.accent
+          font.family: root.fontFamily
+          font.pixelSize: 11
+        }
+
+        TextInput {
+          id: searchInput
+          anchors.fill: parent
+          // Fixed clear of the always-visible icon above, not
+          // conditional on query length -- the icon never hides, so
+          // typed text/caret always need this same clearance.
+          anchors.leftMargin: 30
+          anchors.rightMargin: 34
+          verticalAlignment: TextInput.AlignVCenter
+          color: root.textColor
+          font.family: root.fontFamily
+          font.pixelSize: 12
+          clip: true
+
+          onTextChanged: root.searchText = text
+
+          Text {
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.left: parent.left
+            // Placeholder follows the segmented control -- direct
+            // request: "so theme will say search themes...".
+            text: root.mediaMode === "themes" ? "Search themes..." : "Search wallpapers..."
+            color: root.muted
+            font.family: root.fontFamily
+            font.pixelSize: 12
+            visible: searchInput.text.length === 0
+          }
+        }
+
+        // Clear button -- direct request ("i type space then select the
+        // wallpaper i like then press the x to clear in the input field
+        // right side to clear it"). Sits in the rightMargin space
+        // reserved above so it never overlaps typed text. Same "✕"
+        // glyph/placement LauncherContent.qml's own app search already
+        // uses. Theme-aware red now (root.dangerColor, wired from
+        // Overlay.qml's own kanbanDangerColor) -- direct correction,
+        // was this plugin's own hardcoded #e05252. Flat color, no
+        // hover-lighten -- direct follow-up ("the x on hover is kinda
+        // weird, it gets like faded out"): Qt.lighter on a saturated
+        // theme red can wash out toward pink instead of reading as a
+        // hover highlight. Matches LauncherContent.qml's own clear "✕",
+        // which never had a hover variant to begin with.
+        Text {
+          visible: searchInput.text.length > 0
+          anchors.right: parent.right
+          anchors.rightMargin: 14
+          anchors.verticalCenter: parent.verticalCenter
+          text: "✕"
+          font.pixelSize: 13
+          color: root.dangerColor
+
+          MouseArea {
+            id: clearSearchMouse
+            anchors.centerIn: parent
+            width: 20
+            height: 20
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: {
+              searchInput.text = ""
+              searchInput.forceActiveFocus()
+            }
+          }
+        }
+      }
+
+      Rectangle {
+        id: modeTab
+        // Both halves sized off the wider label (WALLPAPER) so the
+        // thumb sliding to either side is the same width -- an uneven
+        // thumb would visibly resize on every switch instead of just
+        // sliding.
+        readonly property real chipWidth: Math.max(wallpaperLabel.implicitWidth, themeLabel.implicitWidth) + 28
+
+        Layout.preferredWidth: modeTab.chipWidth * 2 + 4
+        Layout.preferredHeight: 40
+        radius: ShellConfig.radius
+        color: root.surfaceTint(0.04)
+
+        // The sliding thumb -- declared before the labels below so it
+        // paints behind them, animates x only (fixed width/height), so
+        // it reads as one pill moving rather than a second element.
+        // Direct correction: was a subtle tint + accent outline, which
+        // read as "a bit dim" next to the solid-accent-fill/black-text
+        // treatment this pass already gave the favorites toggle and
+        // kanban add button. Solid accent fill now, same family.
+        Rectangle {
+          x: root.mediaMode === "wallpapers" ? 2 : modeTab.chipWidth + 2
+          y: 2
+          width: modeTab.chipWidth
+          height: parent.height - 4
+          radius: ShellConfig.radius
+          color: root.accent
+
+          Behavior on x {
+            NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+          }
+        }
+
+        Row {
+          anchors.fill: parent
+
+          Item {
+            width: modeTab.chipWidth
+            height: parent.height
+
+            Text {
+              id: wallpaperLabel
+              anchors.centerIn: parent
+              text: "WALLPAPER"
+              font.family: root.fontFamily
+              font.pixelSize: 10
+              font.weight: root.mediaMode === "wallpapers" ? Font.DemiBold : Font.Normal
+              color: root.mediaMode === "wallpapers" ? "#000000" : root.accent
+            }
+
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: root.setMediaMode("wallpapers")
+            }
+          }
+
+          Item {
+            width: modeTab.chipWidth
+            height: parent.height
+
+            Text {
+              id: themeLabel
+              anchors.centerIn: parent
+              text: "THEME"
+              font.family: root.fontFamily
+              font.pixelSize: 10
+              font.weight: root.mediaMode === "themes" ? Font.DemiBold : Font.Normal
+              color: root.mediaMode === "themes" ? "#000000" : root.accent
+            }
+
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: root.setMediaMode("themes")
+            }
+          }
+        }
+      }
+    }
+
+    // Filter chips -- direct follow-up ("in the expanded notch,
+    // between the search input and tab row and where the image
+    // thumbnail start, can we add chips for All Omarchy Custom so we
+    // can filter between these?", then "the themes can have those
+    // chips [too]", then "for the wallpaper, instead of all omarchy and
+    // custom, can we convert this to All Images Video and Gif... the
+    // theme is omarchy and custom but for wallpapers we have type, im
+    // thinking about converting that side panel stuff we have into the
+    // chips here instead for wallpaper"). One row, one shape, but which
+    // filter it drives depends on mediaMode -- Theme mode keeps
+    // sourceFilter (Omarchy/Custom, see list-themes.sh's own
+    // USER_THEMES_PATH/OMARCHY_THEMES_PATH precedence), Wallpaper mode
+    // now drives kindFilter (All/Images/Video/Gif) instead, replacing
+    // the old kind-filter stat tiles. activeFilterChips/activeFilterValue/
+    // setActiveFilter below are the one indirection that lets a single
+    // Repeater+delegate serve both without duplicating the chip markup
+    // a second time for a near-identical row.
+    RowLayout {
+      Layout.fillWidth: true
+      Layout.maximumWidth: Number.POSITIVE_INFINITY
+      Layout.rightMargin: 12
+      spacing: 6
+
+      Row {
+        spacing: 6
+
+      Repeater {
+        model: root.activeFilterChips
+
+        Rectangle {
+          id: topFilterChip
+          required property var modelData
+          readonly property bool selected: root.activeFilterValue === topFilterChip.modelData.value
+
+          width: topFilterChipLabel.implicitWidth + 20
+          height: 28
+          radius: ShellConfig.radius
+          // Direct correction, same pass as the WALLPAPER/THEME tab,
+          // favorites toggle and back-to-top: solid accent fill + black
+          // text when selected, accent text on a subtle tint otherwise
+          // -- was accent text on a barely-different tint either way,
+          // which read as a different "selected" language right next
+          // to the tab above it.
+          color: topFilterChip.selected ? root.accent : root.surfaceTint(0.04)
+          border.width: 1
+          border.color: topFilterChip.selected ? root.accent : root.surfaceTint(0.12)
+
+          Text {
+            id: topFilterChipLabel
+            anchors.centerIn: parent
+            text: topFilterChip.modelData.label
+            font.family: root.fontFamily
+            font.pixelSize: 11
+            color: topFilterChip.selected ? "#000000" : root.accent
+          }
+
+          MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.setActiveFilter(topFilterChip.modelData.value)
+          }
+        }
+      }
+      }
+
+      // Artwork rotation, two segments grouped into one chip sitting
+      // right after the kind filter -- same idea as Cliamp Radio's
+      // LIVE/clock pill (CliampStationPanel.qml's statusPill: two
+      // Rectangles in a Row, spacing 0, per-corner radius so they read
+      // as one shape), but radius 8 like the other filter chips in this
+      // row instead of that pill's fully-rounded height/2 ends (direct
+      // correction: "are we not able to keep the design like cliamp
+      // radio pill without making it a pill?"). Left segment is a
+      // constant-accent "Shuffle" label -- always lit, not conditional
+      // on anything, so it reads as a feature marker at a glance
+      // ("Shuffle side Accent so people can see it as a feature").
+      // Right segment is the cycling value. There's no separate shuffle
+      // on/off state -- rotation always shuffles when it's on ("i just
+      // need to shuffle... at intervals"), so the only axis left is the
+      // interval. Left click anywhere cycles Off -> 5m -> 15m -> 30m ->
+      // 60m -> Off; right click jumps straight back to Off.
+      Item {
+        id: rotationChip
+        visible: root.mediaMode === "wallpapers" && rotationState.available
+        readonly property bool on: rotationState.settings.enabled === true
+        readonly property string valueLabel: rotationChip.on ? rotationState.settings.intervalMinutes + "m" : "Off"
+
+        width: rotationChipRow.implicitWidth
+        height: 28
+
+        // Value segment is a fixed width (the widest of Off/5m/15m/
+        // 30m/60m), not sized to whichever label happens to be
+        // showing -- direct report: "the shuffle chip on the expanded
+        // notch wallpaper panel is abit tight compared to the effect,
+        // we can like make it more not as compact". Same fixed-width
+        // technique backgroundEffectChip's own valueSegmentWidth
+        // already uses (see its own comment) -- that's the actual
+        // reason Effect read as roomier: its value segment always
+        // reserves room for "Matrix", the widest of its own three
+        // values, while this one used to shrink-wrap whatever was
+        // currently showing instead.
+        FontMetrics {
+          id: rotationValueMetrics
+          font.family: root.fontFamily
+          font.pixelSize: 11
+        }
+        readonly property real valueSegmentWidth: Math.max(
+          rotationValueMetrics.advanceWidth("Off"),
+          rotationValueMetrics.advanceWidth("5m"),
+          rotationValueMetrics.advanceWidth("15m"),
+          rotationValueMetrics.advanceWidth("30m"),
+          rotationValueMetrics.advanceWidth("60m")) + 14
+
+        Row {
+          id: rotationChipRow
+          height: parent.height
+          spacing: 0
+
+          Rectangle {
+            height: parent.height
+            width: rotationShuffleLabel.implicitWidth + 16
+            color: root.accent
+            topLeftRadius: ShellConfig.radius
+            bottomLeftRadius: ShellConfig.radius
+            // Softened, not square -- direct correction ("the join hard
+            // corner is a bit too strong, curve it a bit like the
+            // tabs"): a small radius on the inner seam instead of 0,
+            // short of the outer 8 so the two segments still read as
+            // one joined chip rather than two separate pills.
+            topRightRadius: ShellConfig.radius
+            bottomRightRadius: ShellConfig.radius
+            Text {
+              id: rotationShuffleLabel
+              anchors.centerIn: parent
+              text: "Shuffle"
+              color: "#000000"
+              font.family: root.fontFamily
+              font.pixelSize: 11
+            }
+          }
+          Rectangle {
+            height: parent.height
+            width: rotationChip.valueSegmentWidth
+            color: root.surfaceTint(0.04)
+            topLeftRadius: ShellConfig.radius
+            bottomLeftRadius: ShellConfig.radius
+            topRightRadius: ShellConfig.radius
+            bottomRightRadius: ShellConfig.radius
+            Text {
+              id: rotationValueLabel
+              anchors.centerIn: parent
+              text: rotationChip.valueLabel
+              color: root.accent
+              font.family: root.fontFamily
+              font.pixelSize: 11
+            }
+          }
+        }
+
+        MouseArea {
+          anchors.fill: parent
+          cursorShape: Qt.PointingHandCursor
+          acceptedButtons: Qt.LeftButton | Qt.RightButton
+          onClicked: (mouse) => {
+            if (mouse.button === Qt.RightButton) rotationState.turnOff()
+            else rotationState.cycleInterval()
+          }
+        }
+      }
+
+      // Wallpaper appearance's quick Effect chip, right next to Shuffle
+      // (direct request). Same two-segment shape: a constant-accent
+      // "Effect" label plus a value segment cycling Off -> CRT ->
+      // Matrix -> Off. Picking CRT or Matrix auto-enables the native
+      // renderer same as Transition does; cycling back to this chip's
+      // own Off only disables the renderer if Transition isn't also
+      // keeping it on, so Stock Transition + an active CRT/Matrix (or
+      // the reverse) both hold correctly -- see
+      // WallpaperAppearanceState.qml's own header comment for the bug
+      // this fixed. Right click jumps straight back to Off.
+      Item {
+        id: backgroundEffectChip
+        visible: root.mediaMode === "wallpapers" && appearanceState.available
+        readonly property string valueLabel: appearanceState.rendererEnabled && appearanceState.backgroundEffectOn
+          ? appearanceState.backgroundEffectLabel(appearanceState.settings.backgroundEffect) : "Off"
+
+        width: backgroundEffectChipRow.implicitWidth
+        height: 28
+
+        // Value segment is a fixed width (the widest of Off/CRT/Matrix),
+        // not sized to whichever label happens to be showing -- direct
+        // report: cycling to "Matrix" grew the chip and clipped it
+        // under Transition next to it. A per-click-resizing chip would
+        // also shove Transition sideways on every cycle, same class of
+        // bug Transition's own header comment (below) already
+        // describes from the other direction.
+        FontMetrics {
+          id: backgroundEffectValueMetrics
+          font.family: root.fontFamily
+          font.pixelSize: 11
+        }
+        readonly property real valueSegmentWidth: Math.max(
+          backgroundEffectValueMetrics.advanceWidth("Off"),
+          backgroundEffectValueMetrics.advanceWidth("CRT"),
+          backgroundEffectValueMetrics.advanceWidth("Matrix")) + 14
+
+        Row {
+          id: backgroundEffectChipRow
+          height: parent.height
+          spacing: 0
+
+          Rectangle {
+            height: parent.height
+            width: backgroundEffectLabel.implicitWidth + 16
+            color: root.accent
+            topLeftRadius: ShellConfig.radius
+            bottomLeftRadius: ShellConfig.radius
+            topRightRadius: ShellConfig.radius
+            bottomRightRadius: ShellConfig.radius
+            Text {
+              id: backgroundEffectLabel
+              anchors.centerIn: parent
+              text: "Effect"
+              color: "#000000"
+              font.family: root.fontFamily
+              font.pixelSize: 11
+            }
+          }
+          Rectangle {
+            height: parent.height
+            width: backgroundEffectChip.valueSegmentWidth
+            color: root.surfaceTint(0.04)
+            topLeftRadius: ShellConfig.radius
+            bottomLeftRadius: ShellConfig.radius
+            topRightRadius: ShellConfig.radius
+            bottomRightRadius: ShellConfig.radius
+            Text {
+              id: backgroundEffectValueLabel
+              anchors.centerIn: parent
+              text: backgroundEffectChip.valueLabel
+              color: root.accent
+              font.family: root.fontFamily
+              font.pixelSize: 11
+            }
+          }
+        }
+
+        MouseArea {
+          anchors.fill: parent
+          cursorShape: Qt.PointingHandCursor
+          acceptedButtons: Qt.LeftButton | Qt.RightButton
+          onClicked: (mouse) => {
+            if (mouse.button === Qt.RightButton) appearanceState.resetBackgroundEffect()
+            else appearanceState.cycleBackgroundEffect()
+          }
+        }
+      }
+
+      // Wallpaper appearance's quick Transition chip, right next to
+      // Effect -- moved to be the LAST chip in the row (direct
+      // correction: its value segment's label can run long -- "Signal
+      // tear", "Code bleed", "Bleed through" -- and with Effect sitting
+      // after it, that growth pushed Effect along too, which the fixed-
+      // width RowLayout had nowhere good to put, right into Effect's
+      // own bounds). Being last means its variable width only ever
+      // pushes the trailing fillWidth spacer and back-to-top button,
+      // never another chip. Same two-segment shape: a constant-accent
+      // "Transition" label plus a value segment cycling through Stock
+      // and the 13 real transitions. Picking a real transition auto-
+      // enables the native renderer; cycling back to Stock turns it off
+      // -- "clicking it cycles through the transition and automatically
+      // turns the renderer on so we dont need that extra enable step".
+      // Right click jumps straight back to Stock. See
+      // WallpaperAppearanceState.qml for the cycle.
+      Item {
+        id: appearanceChip
+        visible: root.mediaMode === "wallpapers" && appearanceState.available
+        readonly property string valueLabel: appearanceState.rendererEnabled && appearanceState.transitionOn
+          ? appearanceState.effectLabel(appearanceState.settings.transitionEffect) : "Stock"
+
+        width: appearanceChipRow.implicitWidth
+        height: 28
+
+        Row {
+          id: appearanceChipRow
+          height: parent.height
+          spacing: 0
+
+          Rectangle {
+            height: parent.height
+            width: appearanceLabel.implicitWidth + 16
+            color: root.accent
+            topLeftRadius: ShellConfig.radius
+            bottomLeftRadius: ShellConfig.radius
+            topRightRadius: ShellConfig.radius
+            bottomRightRadius: ShellConfig.radius
+            Text {
+              id: appearanceLabel
+              anchors.centerIn: parent
+              text: "Transition"
+              color: "#000000"
+              font.family: root.fontFamily
+              font.pixelSize: 11
+            }
+          }
+          Rectangle {
+            height: parent.height
+            width: appearanceValueLabel.implicitWidth + 14
+            color: root.surfaceTint(0.04)
+            topLeftRadius: ShellConfig.radius
+            bottomLeftRadius: ShellConfig.radius
+            topRightRadius: ShellConfig.radius
+            bottomRightRadius: ShellConfig.radius
+            Text {
+              id: appearanceValueLabel
+              anchors.centerIn: parent
+              text: appearanceChip.valueLabel
+              color: root.accent
+              font.family: root.fontFamily
+              font.pixelSize: 11
+            }
+          }
+        }
+
+        MouseArea {
+          anchors.fill: parent
+          cursorShape: Qt.PointingHandCursor
+          acceptedButtons: Qt.LeftButton | Qt.RightButton
+          onClicked: (mouse) => {
+            if (mouse.button === Qt.RightButton) appearanceState.resetToStock()
+            else appearanceState.cycleTransition()
+          }
+        }
+      }
+
+      Item { Layout.fillWidth: true }
+
+      // Direct follow-up, right after the Shuffle jump button below:
+      // "can we do one for the wallpapers effect icon too that does
+      // that so users know we have these 2 other menus" -- same shape
+      // again, this time for the launcher's Wallpapers Effects
+      // extension (its own transition/effect chip panel). fa-image
+      // (U+F03E), the exact same glyph wallpapersRow() uses for this
+      // extension's own landing-list icon in Launcher.qml, so it
+      // reads as the same feature there too.
+      Rectangle {
+        id: openWallpaperEffectsButton
+        visible: root.mediaMode === "wallpapers"
+        readonly property bool filled: openWallpaperEffectsArea.containsMouse
+        Layout.preferredWidth: 28
+        Layout.preferredHeight: 28
+        radius: ShellConfig.radius
+        color: openWallpaperEffectsButton.filled ? root.secondary : root.surfaceTint(0.04)
+        border.width: 1
+        border.color: root.surfaceTint(0.12)
+
+        Text {
+          anchors.centerIn: parent
+          text: ""
+          font.family: root.fontFamily
+          font.pixelSize: 12
+          color: openWallpaperEffectsButton.filled ? "#000000" : root.secondary
+        }
+
+        MouseArea {
+          id: openWallpaperEffectsArea
+          anchors.fill: parent
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: {
+            openWallpaperEffectsProc.running = true
+            root.openWallpaperEffectsRequested()
+          }
+        }
+      }
+
+      // Direct ask: "next to the Top arrow that comes active when we
+      // scroll, to the left of it, can you add the wallpaper shuffle
+      // icon there and then clicking it would open the wallpaper
+      // shuffle extension from the expanded notch" -- same icon-button
+      // shape as Back to top right after it, but always active (no
+      // scroll state to gate on) and wallpapers-mode only, since
+      // Wallpaper Shuffle's own reorderable queue is a wallpaper-
+      // specific concept with no Theme equivalent. fa-shuffle
+      // (U+F074), the same glyph the launcher's own landing row and
+      // search entry already use for this extension, so it reads as
+      // the same feature wherever it shows up.
+      Rectangle {
+        id: openWallpaperShuffleButton
+        visible: root.mediaMode === "wallpapers"
+        readonly property bool filled: openWallpaperShuffleArea.containsMouse
+        Layout.preferredWidth: 28
+        Layout.preferredHeight: 28
+        radius: ShellConfig.radius
+        color: openWallpaperShuffleButton.filled ? root.secondary : root.surfaceTint(0.04)
+        border.width: 1
+        border.color: root.surfaceTint(0.12)
+
+        Text {
+          anchors.centerIn: parent
+          text: ""
+          font.family: root.fontFamily
+          font.pixelSize: 12
+          color: openWallpaperShuffleButton.filled ? "#000000" : root.secondary
+        }
+
+        MouseArea {
+          id: openWallpaperShuffleArea
+          anchors.fill: parent
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: {
+            openWallpaperShuffleProc.running = true
+            root.openWallpaperShuffleRequested()
+          }
+        }
+      }
+
+      // Theme mode's own equivalent of the two wallpaper jump buttons
+      // above -- direct follow-up: "for the theme, next to that up
+      // button we can add icon to the bjaneo themes too". Same shape,
+      // themes-mode only. fa-paint-brush (U+F1FC), the exact glyph
+      // themeBrowserRow() already uses for this extension's own
+      // landing-list icon in Launcher.qml.
+      Rectangle {
+        id: openThemeBrowserButton
+        visible: root.mediaMode === "themes"
+        readonly property bool filled: openThemeBrowserArea.containsMouse
+        Layout.preferredWidth: 28
+        Layout.preferredHeight: 28
+        radius: ShellConfig.radius
+        color: openThemeBrowserButton.filled ? root.secondary : root.surfaceTint(0.04)
+        border.width: 1
+        border.color: root.surfaceTint(0.12)
+
+        Text {
+          anchors.centerIn: parent
+          text: ""
+          font.family: root.fontFamily
+          font.pixelSize: 12
+          color: openThemeBrowserButton.filled ? "#000000" : root.secondary
+        }
+
+        MouseArea {
+          id: openThemeBrowserArea
+          anchors.fill: parent
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: {
+            openThemeBrowserProc.running = true
+            root.openThemeBrowserRequested()
+          }
+        }
+      }
+
+      // Back to top -- moved here from the right sidebar (direct
+      // follow-up: "move the top button up to the same top row but
+      // right aligned"), then extended to Theme mode too ("we can do
+      // this for the themes too"). Always present so the row doesn't reflow,
+      // but dimmed and inert until the grid has actually scrolled
+      // (grid.contentY > 0 -- GridView is itself a Flickable, so its
+      // own contentY is the real scroll position). Plain contentY
+      // assignment on click, matching this repo's scroll-to-top
+      // convention (ruixen.tray's trayMenuFlick.contentY = 0).
+      Rectangle {
+        id: backToTopButton
+        // Drives whichever grid is showing -- wallpaper grid or theme
+        // grid (both GridViews, so both are Flickables with a real
+        // contentY).
+        readonly property var targetGrid: root.mediaMode === "themes" ? themeGrid : grid
+        readonly property bool active: backToTopButton.targetGrid.contentY > 0
+        // Direct correction: icon-only now, no "Top" label -- and
+        // hover fills solid, same black-icon-on-fill treatment as the
+        // WALLPAPER/THEME tab and the favorites toggle. Fills with
+        // root.secondary, not root.accent -- direct follow-up ("if the
+        // icon is green, the hilight should match the icon color not
+        // the accent"): the icon itself has always read root.secondary
+        // at rest (this plugin's own live theme "secondary" swatch,
+        // which can be a different hue than accent entirely), so the
+        // highlight has to follow that same token or the hover fill
+        // visibly clashes with the icon it's supposed to be framing.
+        readonly property bool filled: backToTopButton.active && backToTopArea.containsMouse
+        Layout.preferredWidth: 28
+        Layout.preferredHeight: 28
+        radius: ShellConfig.radius
+        opacity: backToTopButton.active ? 1 : 0.35
+        color: backToTopButton.filled ? root.secondary : root.surfaceTint(0.04)
+        border.width: 1
+        border.color: root.surfaceTint(0.12)
+
+        Text {
+          anchors.centerIn: parent
+          text: "↑"
+          font.family: root.fontFamily
+          font.pixelSize: 11
+          color: backToTopButton.filled ? "#000000" : root.secondary
+        }
+
+        MouseArea {
+          id: backToTopArea
+          anchors.fill: parent
+          enabled: backToTopButton.active
+          hoverEnabled: true
+          cursorShape: backToTopButton.active ? Qt.PointingHandCursor : Qt.ArrowCursor
+          onClicked: backToTopButton.targetGrid.contentY = 0
+        }
+      }
+    }
+
+
+    // Wallpaper grid -- fills the same full row as the theme grid now
+    // that the old right sidebar/stat-card layout has been folded into
+    // the shared chip row above.
+    RowLayout {
+      // Wallpaper mode only -- in theme mode this whole wallpaper
+      // block below the search bar steps aside for themeGrid (layouts
+      // skip invisible children, so it yields its height to the theme
+      // grid with no extra geometry work).
+      visible: root.mediaMode === "wallpapers"
+      // maximumWidth freed because nested RowLayout/ColumnLayout items
+      // can otherwise cap themselves at implicitWidth and fail to reach
+      // the outer ColumnLayout's real width.
+      Layout.fillWidth: true
+      Layout.maximumWidth: Number.POSITIVE_INFINITY
+      Layout.fillHeight: true
+      spacing: 10
+
+    ColumnLayout {
+      id: wallpaperGridWrap
+      // Fills the whole row now -- the right sidebar that used to claim
+      // the leftover space past the grid's fixed 680px is gone, so the
+      // grid sizes itself the same way themeGrid does (columns from
+      // this wrapper's width, tiles stretched to consume the row).
+      // maximumWidth freed because a nested ColumnLayout defaults it to
+      // its own implicitWidth, which would cap it short of the row.
+      Layout.fillWidth: true
+      Layout.maximumWidth: Number.POSITIVE_INFINITY
+      Layout.fillHeight: true
+      spacing: 10
+
+    Text {
+      Layout.fillWidth: true
+      Layout.fillHeight: true
+      visible: root.filteredPaths.length === 0
+      horizontalAlignment: Text.AlignHCenter
+      verticalAlignment: Text.AlignVCenter
+      // Dropped "for this theme" -- no longer accurate on its own now
+      // that ~/Pictures/ruixen-wallpapers is a real second source.
+      text: root.wallpaperPaths.length === 0 ? "No wallpapers found" : "No wallpapers match “" + root.searchText + "”"
+      color: root.muted
+      font.family: root.fontFamily
+      font.pixelSize: 12
+    }
+
+    // GridView, not Flow+Repeater -- direct follow-up ("theres no
+    // preview image, only the first one has preview image... it just
+    // shows up now, took sometime to load, do we do like lazy load or
+    // something?"). Flow+Repeater instantiated and started loading
+    // EVERY tile's Image the instant the tab opened, no matter how
+    // many wallpapers exist or how many are actually visible -- fine
+    // at the handful of theme wallpapers this was built against, but
+    // a real problem once ~/Pictures/ruixen-wallpapers had a real
+    // library dropped into it (330 files, several multi-megabyte
+    // PNGs, confirmed directly on this machine) -- all 330 Image
+    // decodes queued up at once, so only the first few finished fast
+    // and the rest visibly popped in one at a time as their turn in
+    // the decode queue came up. GridView is a real fix, not a tuning
+    // knob: it only ever creates delegates for the tiles actually in
+    // (or near) the viewport, and reuseItems: true recycles them
+    // during scroll (changes an existing Image's source instead of
+    // destroying/recreating it) -- so opening this tab now only ever
+    // starts as many decodes as fit on screen, regardless of whether
+    // the library has 4 wallpapers or 4000.
+    GridView {
+      id: grid
+      // Same fill-the-row sizing as themeGrid (see its own comments for
+      // the full "why"): as many 170px-minimum columns as the wrapper's
+      // width allows, each cell stretched to consume the row, with the
+      // 10px right/bottom gap kept by construction (cellWidth = tile +
+      // 10). Width is exactly columns*cellWidth -- GridView lays out
+      // floor(width / cellWidth) columns, so undersizing it by even a
+      // pixel silently drops a column -- and centered, so any small
+      // remainder splits evenly left/right. Sized from the WRAPPER's
+      // width, not the grid's own, to avoid a width -> columns -> width
+      // loop.
+      Layout.alignment: Qt.AlignHCenter
+      Layout.preferredWidth: grid.columns * grid.cellWidth
+      Layout.fillHeight: true
+      visible: root.filteredPaths.length > 0
+      clip: true
+      boundsBehavior: Flickable.StopAtBounds
+      reuseItems: true
+      readonly property int columns: Math.max(1, Math.floor(wallpaperGridWrap.width / 170))
+      readonly property int tileWidth: Math.max(160, Math.floor(wallpaperGridWrap.width / grid.columns) - 10)
+      readonly property int tileHeight: Math.round(grid.tileWidth * 100 / 160)
+      cellWidth: grid.tileWidth + 10
+      cellHeight: grid.tileHeight + 10
+      model: root.filteredPaths
+
+      // Any deliberate scroll means the user is actively looking for
+      // something further down -- bypass loadGate entirely rather
+      // than making a manually-scrolled-to tile wait its turn behind
+      // a drip-feed meant only to smooth out the passive initial
+      // fill.
+      onMovementStarted: root.loadGate = root.wallpaperPaths.length
+
+      // Structural rewrite per direct correction: the previous pass
+      // put the hover frame's APPEARANCE on the same element that
+      // holds the image, without keeping the image container itself
+      // geometrically static. Animating a border directly on the
+      // SAME ClippingRectangle that holds the image (animated
+      // border.width, a permanent Image margin, an idle
+      // Behavior-driven fill color) is what caused the reported
+      // zoom/flash/lingering-fade symptoms -- each one traced back
+      // to the image container's own geometry or render layer
+      // changing. Fixed by fully separating them: the image sits in
+      // its own static, never-animated container; the ring, inner
+      // line, and label are separate sibling overlays with fixed
+      // geometry, toggled by plain `visible: tile.hovered` and
+      // nothing else -- no Behaviors anywhere in this delegate, so
+      // there's no lingering fade after the pointer leaves either.
+      delegate: Item {
+        id: tile
+        // { kind, display, real } now, not a bare path string -- see
+        // root.wallpaperPaths' own comment for why.
+        required property var modelData
+        // Only used to gate the Image source below against
+        // root.loadGate -- see its own comment for why.
+        required property int index
+        readonly property bool hovered: tileMouse.containsMouse
+        // Compares against identity, not display (#23) -- for a video
+        // entry, ruixen.wallpaper's own Service.qml sets
+        // current/background to the POSTER, which for video already
+        // equals display, so this used to just compare against display
+        // directly. That broke for GIF specifically: Service.qml's
+        // playGif() ALSO sets current/background to a cached poster
+        // (#12, to avoid the ImageMagick memory blowup a raw
+        // multi-frame GIF caused there), but a gif's display/real stay
+        // the raw .gif (the tile thumbnail still renders the gif
+        // directly, no poster file needed for that) -- so display could
+        // never equal currentBackground for an active GIF, and it lost
+        // its CURRENT state on every refresh/reopen. identity is
+        // list-wallpapers.sh's own dedicated field for exactly this
+        // comparison, computed with the same poster-hash formula
+        // Service.qml uses, so it matches for all three kinds without a
+        // branch here -- see that script's own comment for the full
+        // "why" and how identity differs from display for GIF.
+        //
+        // Only read for the label's own text/color below -- the
+        // frame itself (ring/band) stays hover-only regardless,
+        // per direct request that active alone shouldn't keep it
+        // lit at rest.
+        readonly property bool active: tile.modelData.identity === root.currentBackground
+
+        // What the hover preview transitions INTO. Normally the
+        // hovered tile's own image. For the CURRENT wallpaper's own
+        // tile, that would mean transitioning the image into itself --
+        // direct follow-up after shipping that: "dont make it
+        // transition into itself. just pick another demo to use", so
+        // this picks any other real image from the grid instead, same
+        // "not the current background, not just a renamed copy of it"
+        // selection WallpaperEffectModel.js's nextPreviewArtwork
+        // already does for the launcher's own hero-tile preview.
+        readonly property string previewTarget: tile.active
+          ? EffectModel.nextPreviewArtwork(root.currentBackground, root.wallpaperPaths)
+          : tile.modelData.display
+
+        width: grid.tileWidth
+        height: grid.tileHeight
+
+        // Image container -- always exactly `width`x`height`, no
+        // margins, no border, no animated properties at all. This
+        // is the ONLY thing visible at rest. Always a real *image*
+        // (display) even for a video entry -- Image can't decode
+        // video frames, display is guaranteed to be an actual poster
+        // image file for those.
+        ClippingRectangle {
+          anchors.fill: parent
+          radius: ShellConfig.radius
+          color: "transparent"
+
+          Image {
+            anchors.fill: parent
+            // Empty source until loadGate reaches this tile's index --
+            // see root.loadGate's own comment for why. Once a tile's
+            // source has been set it stays set even if the gate logic
+            // changes later (reuseItems recycles this same Image for a
+            // different index on scroll, which reassigns source to
+            // that new tile's own path directly, gate or not -- see
+            // GridView's onMovementStarted above).
+            source: tile.index <= root.loadGate ? ("file://" + tile.modelData.display) : ""
+            fillMode: Image.PreserveAspectCrop
+            asynchronous: true
+            sourceSize: Qt.size(grid.tileWidth, grid.tileHeight)
+          }
+        }
+
+        // Hover preview: the grid itself IS the preview surface, no
+        // separate dropdown/preview box. Only while a real transition
+        // is selected (appearanceState.transitionOn) and only for
+        // image tiles -- the real renderer never transitions INTO a
+        // video/gif (confirmed: those are always an instant cut), so
+        // previewing an animated transition onto one would show
+        // something that can never actually happen. Loader keeps this
+        // to at most one live WallpaperEffectPreview instance across
+        // the whole (up to ~330-tile) grid at a time, since only one
+        // tile can be hovered.
+        //
+        // The CURRENT wallpaper's own tile previews too, using
+        // tile.previewTarget (any other real image, see its own
+        // comment above) instead of transitioning into itself -- a
+        // same-image preview was tried first and looked like nothing
+        // was happening for every mask-type effect (crossfading an
+        // image into an identical copy of itself has no visible
+        // difference at any point in the animation, no matter how
+        // correctly it's running); only the four glitch effects
+        // showed real motion that way, since their distortion is
+        // procedural, not content-driven. Direct follow-up: "dont
+        // make it transition into itself. just pick another demo to
+        // use."
+        Loader {
+          anchors.fill: parent
+          // No explicit z -- declared after the Image container and
+          // before the hover ring/label/MouseArea below, so plain
+          // document-order stacking already paints it above the
+          // static thumbnail and under the ring/label/mouse overlays.
+          active: tile.hovered && tile.modelData.kind === "image" && tile.previewTarget !== ""
+            && appearanceState.rendererEnabled && appearanceState.transitionOn
+          sourceComponent: WallpaperEffectPreview {
+            accent: root.accent
+            fromPath: root.currentBackground
+            toPath: tile.previewTarget
+            effect: appearanceState.settings.transitionEffect || "reveal"
+            durationMs: appearanceState.settings.transitionDurationMs || 900
+            softness: appearanceState.settings.transitionSoftness !== undefined ? appearanceState.settings.transitionSoftness : .02
+            transitionOptions: appearanceState.settings.transitionOptions || {}
+            playing: true
+            ambientActive: false
+          }
+        }
+
+        // Hover decoration only -- a separate overlay sibling, not
+        // a property on the image's own container, so it can never
+        // affect the image's geometry or force a clip rebuild.
+        // Two directly-adjacent bands stacked outside-in: accent
+        // ring at the very edge, then the black band starting
+        // exactly where the ring ends (anchors.margins here MUST
+        // equal the ring's own border.width, 2 -- anything bigger
+        // leaves a transparent gap between them that the raw image
+        // shows through, reading as a separate floating ring
+        // instead of one continuous frame).
+        Rectangle {
+          anchors.fill: parent
+          radius: ShellConfig.radius
+          color: "transparent"
+          border.width: 2
+          border.color: root.accent
+          visible: tile.hovered
+          z: 2
+
+          Rectangle {
+            anchors.fill: parent
+            anchors.margins: 2
+            radius: ShellConfig.radius
+            color: "transparent"
+            border.width: 9
+            border.color: "#000000"
+          }
+        }
+
+        // Filename label -- also a separate overlay sibling, fixed
+        // geometry, plain visible toggle.
+        Rectangle {
+          anchors.left: parent.left
+          anchors.right: parent.right
+          anchors.bottom: parent.bottom
+          anchors.margins: 5
+          height: 26
+          color: Qt.rgba(0, 0, 0, 0.82)
+          visible: tile.hovered
+          z: 3
+
+          Text {
+            anchors.centerIn: parent
+            width: parent.width - 12
+            horizontalAlignment: Text.AlignHCenter
+            elide: Text.ElideRight
+            // "CURRENT" in the theme's own accent color for the
+            // actually-active wallpaper -- plain filename otherwise,
+            // real's own (the video's real filename for a video
+            // entry, not its poster's hashed cache name).
+            text: tile.active ? "CURRENT" : tile.modelData.real.substring(tile.modelData.real.lastIndexOf("/") + 1)
+            // Plain white, not root.textColor -- this overlay's own
+            // background is a fixed near-opaque black regardless of
+            // theme (Qt.rgba(0,0,0,0.82) above), so a light theme's own
+            // dark textColor rendered unreadable on it. Fixed white is
+            // correct here specifically because the overlay itself is
+            // theme-independent too, unlike the dashboard surfaces
+            // fixed elsewhere this session.
+            color: tile.active ? root.accent : "#ffffff"
+            font.family: root.fontFamily
+            font.pixelSize: 10
+          }
+        }
+
+        MouseArea {
+          id: tileMouse
+          anchors.fill: parent
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: root.select(tile.modelData)
+          z: 4
+        }
+      }
+    }
+  }
+
+  }
+
+  // ---- Theme mode content ---- sits as a sibling of the wallpaper
+  // block above (each side visible only in its own mediaMode), so both
+  // grids can own their row sizing independently.
+  Item {
+    id: themeGridWrap
+    Layout.fillWidth: true
+    Layout.maximumWidth: Number.POSITIVE_INFINITY
+    Layout.fillHeight: true
+    visible: root.mediaMode === "themes" && root.filteredThemes.length > 0
+
+    GridView {
+      id: themeGrid
+      // Exactly as wide as the columns it renders, centered in the
+      // wrapper -- flooring the cell math can leave a few dozen px of
+      // dead strip on the right (a real screenshot showed ~40px at the
+      // panel's width), so instead the grid owns only its used width
+      // and the small remainder splits evenly left/right (direct
+      // request: "fill that space on the right ... or center the theme
+      // grid to create equal space on right and left"). The sizing
+      // source is the WRAPPER's width, not the grid's own -- binding
+      // width -> columns -> width would be the circular kind.
+      //
+      // width MUST be columns*cellWidth, not anything smaller -- a
+      // follow-up fix ("grid theme is a bit narrower than what it
+      // should be", then, after a first attempt at that, "the grid in
+      // theme is only three column, if it was 4 it would fit nicely").
+      // The first attempt shaved the trailing per-cell gap off of
+      // width to reclaim it as tile size, which sounds harmless but
+      // GridView decides how many columns it actually lays out per
+      // row as floor(width / cellWidth) -- an internal computation
+      // that has no idea about our own "columns" property. Undersize
+      // width even by a few px below a full columns*cellWidth and
+      // GridView silently renders one fewer column than intended.
+      // width stays exactly columns*cellWidth here; the real fix for
+      // "narrower than it should be" is tileWidth below, which had its
+      // own separate bug.
+      anchors.horizontalCenter: parent.horizontalCenter
+      width: themeGrid.columns * themeGrid.cellWidth
+      height: parent.height
+      clip: true
+      boundsBehavior: Flickable.StopAtBounds
+      reuseItems: true
+      // Fit as many 170px-minimum columns as the real width allows,
+      // then stretch each cell to consume the row (at the panel's
+      // ~790px that turns 4x170+110-dead into 4x~197, using nearly all
+      // of it). The 10px right/bottom gap per cell -- the same rhythm
+      // the wallpaper grid's 170/110 cells produce -- is kept by
+      // construction (cellWidth = tile + 10), so the tiles themselves
+      // grow (~160 -> ~187) rather than the gaps ballooning. Floor,
+      // not round, on the cell math: a fractional cellWidth would make
+      // GridView round cell origins independently and visibly tear the
+      // grid rhythm column to column.
+      //
+      // tileWidth's own bug (the actual cause of "a bit narrower than
+      // it should be"): the previous formula computed the correct max
+      // tile size for the available width, THEN subtracted an extra,
+      // unearned 10px on top -- as if each column needed its own gap
+      // reserved twice. floor(width / columns) - 10 reserves the gap
+      // exactly once per column (cellWidth = tile + 10, times columns,
+      // covers all of it), nothing left over to wrongly subtract again.
+      readonly property int columns: Math.max(1, Math.floor(themeGridWrap.width / 170))
+      readonly property int tileWidth: Math.max(160, Math.floor(themeGridWrap.width / columns) - 10)
+      cellWidth: themeGrid.tileWidth + 10
+      cellHeight: Math.round(themeGrid.tileWidth * 100 / 160) + 10
+      model: root.filteredThemes
+
+    delegate: Item {
+      id: themeTile
+      required property var modelData
+      readonly property bool hovered: themeTileMouse.containsMouse
+      // Directory-name equality against the value read from
+      // omarchy-theme-set's own theme.name file (kept current
+      // optimistically on click, confirmed on the post-set refresh).
+      readonly property bool active: themeTile.modelData.name === root.currentTheme
+
+      // Fills its cell minus the 10px gap, aspect locked to the
+      // wallpaper tiles' 160x100 so both sides of the segmented
+      // control read as one surface.
+      width: themeGrid.tileWidth
+      height: Math.round(themeGrid.tileWidth * 100 / 160)
+
+      // Image container -- the same static, never-animated container
+      // recipe the wallpaper tiles use (see that block's structural
+      // rewrite comment for why nothing here may animate geometry).
+      // A theme with no preview at all gets a plain quiet tile with
+      // its name instead of a broken image.
+      ClippingRectangle {
+        anchors.fill: parent
+        radius: ShellConfig.radius
+        color: root.surfaceTint(0.06)
+        visible: themeTile.modelData.preview === ""
+
+        Text {
+          anchors.centerIn: parent
+          width: parent.width - 12
+          horizontalAlignment: Text.AlignHCenter
+          elide: Text.ElideRight
+          textFormat: Text.PlainText
+          text: themeTile.modelData.display
+          color: themeTile.active ? root.accent : root.muted
+          font.family: root.fontFamily
+          font.pixelSize: 11
+        }
+      }
+
+      ClippingRectangle {
+        anchors.fill: parent
+        radius: ShellConfig.radius
+        color: "transparent"
+        visible: themeTile.modelData.preview !== ""
+
+        Image {
+          anchors.fill: parent
+          source: themeTile.modelData.preview !== "" ? ("file://" + themeTile.modelData.preview) : ""
+          fillMode: Image.PreserveAspectCrop
+          asynchronous: true
+          // Track the tile's real size -- cells stretch to fill the row
+          // (see themeGrid.columns above), and a fixed 160x100 decode
+          // size would blur once the tile renders larger than that.
+          sourceSize: Qt.size(themeTile.width, themeTile.height)
+        }
+      }
+
+      // Hover decoration -- the wallpaper tiles' exact two-band recipe
+      // (accent ring at the edge, black band starting where the ring
+      // ends), copied rather than reinvented.
+      Rectangle {
+        anchors.fill: parent
+        radius: ShellConfig.radius
+        color: "transparent"
+        border.width: 2
+        border.color: root.accent
+        visible: themeTile.hovered
+        z: 2
+
+        Rectangle {
+          anchors.fill: parent
+          anchors.margins: 2
+          radius: ShellConfig.radius
+          color: "transparent"
+          border.width: 9
+          border.color: "#000000"
+        }
+      }
+
+      // Name label -- hover-only like the wallpaper tiles' own label,
+      // CURRENT in the accent for the applied theme.
+      Rectangle {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.margins: 5
+        height: 26
+        color: Qt.rgba(0, 0, 0, 0.82)
+        visible: themeTile.hovered
+        z: 3
+
+        Text {
+          anchors.centerIn: parent
+          width: parent.width - 12
+          horizontalAlignment: Text.AlignHCenter
+          elide: Text.ElideRight
+          textFormat: Text.PlainText
+          text: themeTile.active ? "CURRENT" : themeTile.modelData.display
+          // Plain white, same reasoning as the wallpaper tile's own
+          // label above -- this overlay is a fixed near-opaque black
+          // regardless of theme, so root.textColor went unreadable on
+          // it on a light theme.
+          color: themeTile.active ? root.accent : "#ffffff"
+          font.family: root.fontFamily
+          font.pixelSize: 10
+        }
+      }
+
+      MouseArea {
+        id: themeTileMouse
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: root.applyTheme(themeTile.modelData)
+        z: 4
+      }
+    }
+  }
+  }
+
+  // Theme mode's own empty state -- a sibling of the wallpaper empty
+  // state (which lives inside the wallpaper block above), each visible
+  // only in its own mode.
+  Text {
+    Layout.fillWidth: true
+    Layout.fillHeight: true
+    visible: root.mediaMode === "themes" && root.filteredThemes.length === 0
+    horizontalAlignment: Text.AlignHCenter
+    verticalAlignment: Text.AlignVCenter
+    text: root.themeEntries.length === 0 ? "No themes found" : "No themes match “" + root.searchText + "”"
+    color: root.muted
+    font.family: root.fontFamily
+    font.pixelSize: 12
+  }
+  }
+}

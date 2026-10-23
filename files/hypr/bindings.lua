@@ -683,12 +683,8 @@ desktop.bind("SUPER + D", "Toggle show desktop", toggle_show_desktop)
 hl.unbind("SUPER + ALT + D")
 desktop.bind("SUPER + ALT + D", "Codex (Herdr, maximized)", launch_codex)
 
+-- The old workspace-overview plugin is no longer deployed.
 hl.unbind("SUPER + SHIFT + D")
-desktop.bind(
-    "SUPER + SHIFT + D",
-    "Workspace overview",
-    desktop.command("overview")
-)
 
 hl.unbind("SUPER + SHIFT + ALT + D")
 desktop.bind("SUPER + SHIFT + ALT + D", "ChatGPT (new window here)", { launch = "/home/jeebis/.local/bin/jeebis-chatgpt-new-window" })
@@ -761,7 +757,6 @@ desktop.bind("SUPER + CTRL + SHIFT + T", "Activity", { tui = "btop" })
 local function focus_workspace_with_apps(workspace)
     return function()
         hl.dispatch(hl.dsp.focus({ workspace = workspace }))
-        hl.dispatch(hl.dsp.event("jeebis.apps.reveal"))
     end
 end
 
@@ -805,7 +800,7 @@ end
 
 hl.unbind("SUPER + SHIFT + W")
 desktop.bind("SUPER + SHIFT + W", "Close windows in current workspace", close_workspace_windows)
-desktop.bind("SUPER + F", "Search applications", desktop.command("menu", "apps"))
+desktop.bind("SUPER + F", "Ruixen App Launcher", desktop.command("shell", "ruixen.notch", "toggleLauncher"))
 desktop.bind("SUPER + SHIFT + F", "Maximize / restore window", toggle_full_width)
 hl.unbind("SUPER + N")
 desktop.bind("SUPER + N", "New terminal", { launch = "wezterm start --always-new-process" })
@@ -878,3 +873,10 @@ end)
 
 -- Cycle the three preferred Omarchy themes and show the selected theme.
 desktop.bind("SUPER + ALT + T", "Cycle theme: Tokyonight / Kanagawa / Catppuccin", (os.getenv("HOME") or "") .. "/.local/bin/jeebis-theme-cycle")
+
+-- Ruixen uses only Super+F and Super+Shift+Escape.
+-- Remove the former launcher/settings shortcuts and stock Apps menu entry.
+for _, key in ipairs({ "SUPER + R", "SUPER + SHIFT + R", "SUPER + ALT + SPACE", "SUPER + SHIFT + ALT + SPACE", "SUPER + SHIFT + ESCAPE" }) do
+    hl.unbind(key)
+end
+desktop.bind("SUPER + SHIFT + ESCAPE", "Ruixen Settings", desktop.command("shell", "shell", "toggle", "ruixen.launcher", '{"extension":"settings"}'))

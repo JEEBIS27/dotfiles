@@ -1,14 +1,12 @@
 { config, lib, pkgs, ... }:
 {
+  # Change only this public setting; keep identity and credentials outside Nix.
+  home.activation.deltaSharedTheme = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    run ${pkgs.git}/bin/git config --global delta.syntax-theme Desktop
+  '';
+
   xdg.configFile = {
-    "bat/themes/Omarchy.tmTheme".source = config.lib.file.mkOutOfStoreSymlink "${config.jeebis.desktop.themeDirectory}/preview.tmTheme";
-    "bat/themes/kanagawa.nvim/extras/sublime/kanagawa_dragon.tmTheme".source = ../files/bat/themes/kanagawa.nvim/extras/sublime/kanagawa_dragon.tmTheme;
-    "bat/themes/kanagawa.nvim/extras/sublime/kanagawa_lotus.tmTheme".source = ../files/bat/themes/kanagawa.nvim/extras/sublime/kanagawa_lotus.tmTheme;
-    "bat/themes/kanagawa.nvim/extras/sublime/kanagawa_wave.tmTheme".source = ../files/bat/themes/kanagawa.nvim/extras/sublime/kanagawa_wave.tmTheme;
-    "bat/themes/tokyonight.nvim/extras/sublime/tokyonight_day.tmTheme".source = ../files/bat/themes/tokyonight.nvim/extras/sublime/tokyonight_day.tmTheme;
-    "bat/themes/tokyonight.nvim/extras/sublime/tokyonight_moon.tmTheme".source = ../files/bat/themes/tokyonight.nvim/extras/sublime/tokyonight_moon.tmTheme;
-    "bat/themes/tokyonight.nvim/extras/sublime/tokyonight_night.tmTheme".source = ../files/bat/themes/tokyonight.nvim/extras/sublime/tokyonight_night.tmTheme;
-    "bat/themes/tokyonight.nvim/extras/sublime/tokyonight_storm.tmTheme".source = ../files/bat/themes/tokyonight.nvim/extras/sublime/tokyonight_storm.tmTheme;
+    "bat/themes/Desktop.tmTheme".source = config.lib.file.mkOutOfStoreSymlink "${config.jeebis.desktop.themeDirectory}/preview.tmTheme";
     "herdr/config.toml".source = ../files/herdr/config.toml;
     "nvim/after/lsp/lua_ls.lua".source = ../files/nvim/after/lsp/lua_ls.lua;
     "nvim/init.lua".source = ../files/nvim/init.lua;

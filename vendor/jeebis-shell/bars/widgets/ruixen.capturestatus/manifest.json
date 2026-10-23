@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "ruixen.capturestatus",
+  "name": "Ruixen Capture Status",
+  "version": "1.0.0",
+  "author": "ruixen",
+  "license": "MIT",
+  "description": "Pinned screen recording control for Omarchy.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Screen Recording",
+    "description": "Start screen recording, then click again to stop while active.",
+    "category": "Status",
+    "allowMultiple": false
+  }
+}

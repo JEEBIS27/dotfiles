@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict><key>name</key><string>Omarchy</string><key>settings</key><array>
+<plist version="1.0"><dict><key>name</key><string>Desktop</string><key>settings</key><array>
 <dict><key>settings</key><dict>
 <key>foreground</key><string>{{ foreground }}</string>
 <key>background</key><string>{{ background }}</string>

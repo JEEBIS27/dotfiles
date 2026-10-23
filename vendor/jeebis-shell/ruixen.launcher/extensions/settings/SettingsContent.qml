@@ -1,0 +1,3221 @@
+import QtQuick
+import QtQuick.Effects
+import Quickshell
+import Quickshell.Io
+import Quickshell.Services.Pipewire
+import Quickshell.Networking
+import Quickshell.Bluetooth
+import "services"
+// Issue #102 phase 1: same directory-import convention as "services"
+// above -- pages/ holds category content extracted out of this file's
+// own former giant flat body, one page at a time.
+import "pages"
+// Folder reorg: this extension now lives in extensions/settings/, two
+// levels below the plugin root -- "../.." reaches the shared chrome
+// (ExtensionTwoPanel/ResultsList below) the same way "services" above
+// still reaches this extension's own backend, just one level further
+// out. search/ holds the two JS modules below.
+import "../.."
+import "../../search/LauncherSearchConfig.js" as LauncherSearchConfig
+import "../../search/AppLauncherGlyphs.js" as AppLauncherGlyphs
+
+// Layout-only shell for the "Settings" extension -- direct request:
+// "lets do the Settings as Extension so Settings 2nd Column Ruixen and
+// type extension? itll be similar to the 2 panel layout where we have
+// the Profile Launcher Bluetooth menu options on the left panel, then
+// enter to go into the right panel where we have toggles and inputs
+// and options. dont build out the whole thing yet... just start with
+// the layout first then we can work on the panels?" -- deliberately
+// navigation + chrome only: a left category list and a right panel
+// that opens straight onto Profile ("we can land in the profile
+// page"). Direct follow-up landed Profile's own REAL content --
+// avatar/username/DiceBear picker, ported byte-for-byte in spirit from
+// ruixen.settings/GeneralContent.qml + the matching backend block in
+// ruixen.settings/Settings.qml (avatarCollections/selectAvatar/the
+// avatar.json state file) -- plugin folders can't share a file across
+// install locations (same reason AppLibrary.qml/AppSearch.js already
+// exist three times over, and LauncherSearchConfig.js twice), so this
+// is a second, independent copy of that exact same mechanism, reading
+// and writing the exact same real files (~/.face.icon, ~/.local/state/
+// ruixen/avatar.json) -- picking an avatar here is visible in
+// ruixen.notch's own UserAvatar too, same as picking one there is.
+// Every OTHER category still gets the plain header + description
+// treatment -- that's explicit later work, one category at a time.
+//
+// Direct follow-up chain after the first pass hand-rolled its own row
+// visuals and its own margins: "it looks too much different than the
+// file search, lets have some design consistency"; then, after a
+// Loader/Component-based attempt at sharing that quietly broke font
+// propagation: "why did you port it over from the ruixen settings
+// menu... wouldnt it be a lot easier to just make a list of stuff like
+// a list component from file search thats shared?" -- so the category
+// list below IS ResultsList/ResultRow, the exact same component Search
+// Files itself renders through (filesMode: true, same icon+label-only
+// row), not a second implementation of "a list of rows". Only the
+// outer 2-panel split (list width/detail width/divider) comes from
+// ExtensionTwoPanel.qml, and even that owns geometry only -- every
+// color/font binding below is a plain, direct binding off this file's
+// own root, same as every other file in this plugin.
+Item {
+  id: root
+
+  property color textColor: "#ffffff"
+  property color muted: Qt.rgba(1, 1, 1, 0.5)
+  property color accent: "#3ecf5b"
+  property string fontFamily: "JetBrainsMono Nerd Font"
+  property bool active: false
+  // Reuse the existing Wi-Fi/audio controls in the compact notch menus.
+  property bool compactMode: false
+  // Fed from the outer SearchHeader/root.query, same single-search-box
+  // convention Wallpapers already established ("we dont need two
+  // search box, use the launcher for wallpaper search input") -- direct
+  // follow-up: "does search work for menu items on the left too?"
+  property string searchText: ""
+  // Relayed up to Launcher.qml (searchHeader.focusInput()) whenever a
+  // text-entry item's own real Qt focus needs to hand back to the
+  // fake-focus keyboard nav -- see SettingsAddListItem.qml's own
+  // cancelled() comment for the full chain.
+  signal returnFocusRequested()
+
+  // --- Profile: avatar/username, ported from ruixen.settings -- see
+  // this file's own header comment for why this is a second, real copy
+  // rather than a shared import. Every property/function/Process name
+  // below matches ruixen.settings/Settings.qml's own naming exactly,
+  // so the two stay easy to compare/keep in sync by hand.
+  readonly property string username: {
+    var u = Quickshell.env("USER") || "user"
+    return u.charAt(0).toUpperCase() + u.slice(1)
+  }
+  property string hardwareName: ""
+  property int avatarCacheBust: 0
+  property bool avatarBusy: false
+  property bool avatarAnimated: false
+  property int avatarFrameCount: 0
+  property int avatarFrameDelayMs: 80
+  readonly property string avatarGifPath: Quickshell.env("HOME") + "/.local/state/ruixen/avatar.gif"
+  readonly property string avatarFrameDir: Quickshell.env("HOME") + "/.local/state/ruixen/avatar-frames"
+  // GitHub avatar option, ported from ruixen.settings/Settings.qml --
+  // see its own comment for the full "why" (Discord would mean owning a
+  // full OAuth2 app + local redirect listener + token storage, `gh` is
+  // already shipped and already authenticated for anyone doing ordinary
+  // git/PR work). Gated on `gh auth status` succeeding, checked once at
+  // startup -- never shown as an option that would silently fail.
+  property bool githubConnected: false
+
+  Process {
+    id: githubAuthCheckProc
+    command: ["gh", "auth", "status"]
+    onExited: function(exitCode) { root.githubConnected = exitCode === 0 }
+  }
+
+  // Still a readonly property, but now a live binding instead of a bare
+  // literal -- it recomputes automatically once githubConnected flips.
+  // GitHub is always present, last after every DiceBear style -- direct
+  // follow-up: shown but dimmed/unclickable when not connected reads
+  // better than vanishing outright, the same way avatarBusy already
+  // dims every button mid-fetch. available defaults to true for every
+  // other entry (checked with !== false, not truthiness, so omitting
+  // the field entirely -- what every DiceBear entry does -- still means
+  // available).
+  readonly property var avatarCollections: [
+    { id: "gradient", label: "Gradient" },
+    { id: "bottts-neutral", label: "Bottts", version: "10.x", format: "svg" },
+    { id: "pixel-art", label: "Pixel Art" },
+    { id: "pixelbot", label: "Pixelbot", version: "10.x", format: "svg" },
+    { id: "identicon", label: "Identicon" },
+    { id: "thumbs", label: "Thumbs" },
+    { id: "sprouts", label: "Sprouts", version: "10.x", format: "svg" },
+    { id: "critters", label: "Critters", version: "10.x", format: "svg" },
+    { id: "moods", label: "Moods", version: "10.x", format: "svg" },
+    { id: "github", label: "GitHub", available: root.githubConnected },
+    // Always available, no gating -- picking a local file needs no
+    // external auth/connection at all, unlike GitHub. Last of all: the
+    // most deliberate action in this row (browse and choose, not a
+    // single click), same reasoning that put GitHub after every
+    // DiceBear style rather than up front.
+    { id: "custom", label: "Custom File" }
+  ]
+  property string avatarCollection: "gradient"
+  // Set right before avatarCollection is overwritten in selectAvatar()
+  // below, read back by avatarProc's own onExited on a failed run --
+  // reverts the picker's own selected-highlight to whatever was
+  // actually applied last, instead of leaving it stuck on the one that
+  // just failed.
+  property string avatarPreviousCollection: "gradient"
+  property bool avatarStateLoaded: false
+  readonly property string avatarStatePath: Quickshell.env("HOME") + "/.local/state/ruixen/avatar.json"
+
+  function loadAvatarState(raw) {
+    if (root.avatarStateLoaded) return
+    try {
+      var parsed = JSON.parse(raw)
+      if (parsed && typeof parsed.collection === "string") {
+        var known = false
+        for (var i = 0; i < root.avatarCollections.length; i++) {
+          if (root.avatarCollections[i].id === parsed.collection) { known = true; break }
+        }
+        if (known) root.avatarCollection = parsed.collection
+        root.avatarAnimated = !!parsed.animated
+        root.avatarFrameCount = Math.max(0, parseInt(parsed.frameCount || 0))
+        root.avatarFrameDelayMs = Math.max(40, parseInt(parsed.frameDelayMs || 80))
+      }
+    } catch (e) {}
+    root.avatarStateLoaded = true
+  }
+
+  // Single entry point for every avatar-picker button -- "gradient"
+  // deletes ~/.face.icon, any real DiceBear slug fetches a random
+  // avatar from that collection. Kept in sync with
+  // ruixen.settings/Settings.qml because this page is another real
+  // writer of the same avatar files/state.
+  function selectAvatar(collection, filePath) {
+    if (root.avatarBusy) return
+    // Belt-and-suspenders, not just relying on the picker's own button
+    // being visually disabled -- GitHub's own command already fails
+    // safely on its own (set -e below stops it before curl ever runs),
+    // but no-opping here means nothing happens at all: no avatarBusy
+    // flicker, no avatarCollection persisted as "github" while the
+    // actual file/display never changed.
+    if (collection === "github" && !root.githubConnected) return
+    root.avatarPreviousCollection = root.avatarCollection
+    root.avatarBusy = true
+    root.avatarCollection = collection
+    var target = Quickshell.env("HOME") + "/.face.icon"
+    if (collection === "gradient") {
+      avatarProc.command = ["bash", "-c",
+        "rm -f \"$1\" \"$2\"; mkdir -p \"$3\"; find \"$3\" -maxdepth 1 -type f -name 'frame-*.png' -delete; printf 'static 0 80'",
+        "ruixen-avatar-gradient", target, root.avatarGifPath, root.avatarFrameDir]
+    } else if (collection === "custom") {
+      // The picked path is passed as a real argv parameter to the
+      // helper shell ($1), never interpolated into the script string, so
+      // a filename with a space/apostrophe/anything else shell-special
+      // is not a quoting concern.
+      //
+      // 512x512> (ImageMagick's own "only shrink if larger, never
+      // enlarge" syntax) instead of a hard reject on oversized files --
+      // normalizing down covers a giant camera-roll photo AND a tiny
+      // existing icon with the same one command, no arbitrary size
+      // limit to pick or explain to anyone. -auto-orient respects a
+      // phone photo's own EXIF rotation before resizing. Animated GIFs
+      // are written to a real .gif path for Ruixen's AnimatedImage
+      // views, with ~/.face.icon kept as a static PNG first-frame
+      // fallback for non-Ruixen consumers. -loop 0 is required because
+      // generated GIFs can otherwise play once and stop in Qt.
+      avatarProc.command = ["bash", "-c",
+        "set -euo pipefail\n" +
+        "src=$1\n" +
+        "target=$2\n" +
+        "gif=$3\n" +
+        "frames=$4\n" +
+        "rm -f \"$gif\"\n" +
+        "mkdir -p \"$frames\"\n" +
+        "find \"$frames\" -maxdepth 1 -type f -name 'frame-*.png' -delete\n" +
+        "fmt=$(magick identify -quiet -format '%m' \"$src[0]\" | tr '[:upper:]' '[:lower:]')\n" +
+        "if [[ \"$fmt\" == gif ]]; then\n" +
+        "  magick \"$src\" -auto-orient -coalesce -strip -resize '512x512>' -loop 0 \"GIF:$gif\"\n" +
+        "  magick \"$gif[0]\" -strip \"PNG:$target\"\n" +
+        "  magick \"$gif\" -coalesce \"$frames/frame-%03d.png\"\n" +
+        "  count=$(magick identify -format '%n\\n' \"$gif\" | head -n 1)\n" +
+        "  delay=$(magick identify -format '%T\\n' \"$gif[0]\" | head -n 1)\n" +
+        "  ms=$(( delay > 0 ? delay * 10 : 80 ))\n" +
+        "  printf 'animated %s %s' \"$count\" \"$ms\"\n" +
+        "else\n" +
+        "  magick \"$src\" -auto-orient -strip -resize '512x512>' \"PNG:$target\"\n" +
+        "  printf 'static 0 80'\n" +
+        "fi",
+        "ruixen-avatar-custom", filePath, target, root.avatarGifPath, root.avatarFrameDir]
+    } else if (collection === "github") {
+      // One command, not a separate fetch-then-curl pair of Processes --
+      // `gh api user` already needs the same `gh` auth this option is
+      // gated on. set -e so a failed `gh api` call (revoked token,
+      // offline) does not fall through into curl-ing an empty URL and
+      // silently overwriting a perfectly good existing avatar.
+      avatarProc.command = ["bash", "-c",
+        "set -e; rm -f \"$2\"; mkdir -p \"$3\"; find \"$3\" -maxdepth 1 -type f -name 'frame-*.png' -delete; url=\"$(gh api user --jq .avatar_url)\"; curl -fsL \"$url\" -o \"$1\"; printf 'static 0 80'",
+        "ruixen-avatar-github", target, root.avatarGifPath, root.avatarFrameDir]
+    } else {
+      var seed = Math.random().toString(36).slice(2) + Date.now()
+      var entry = null
+      for (var i = 0; i < root.avatarCollections.length; i++) {
+        if (root.avatarCollections[i].id === collection) { entry = root.avatarCollections[i]; break }
+      }
+      var version = (entry && entry.version) || "9.x"
+      var format = (entry && entry.format) || "png"
+      var url = "https://api.dicebear.com/" + version + "/" + collection + "/" + format + "?seed=" + seed
+      avatarProc.command = ["bash", "-c",
+        "rm -f \"$2\"; mkdir -p \"$3\"; find \"$3\" -maxdepth 1 -type f -name 'frame-*.png' -delete; curl -fsL \"$4\" -o \"$1\"; printf 'static 0 80'",
+        "ruixen-avatar-dicebear", target, root.avatarGifPath, root.avatarFrameDir, url]
+    }
+    avatarProc.running = true
+  }
+
+  Process {
+    id: identityProc
+    command: ["fastfetch", "--format", "json", "-s", "Host"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        try {
+          var data = JSON.parse(text)
+          for (var i = 0; i < data.length; i++) {
+            if (data[i].type === "Host") root.hardwareName = data[i].result.name || ""
+          }
+        } catch (e) {}
+      }
+    }
+  }
+
+  // About's own single line of debug-useful context -- direct request:
+  // "add the omarchy version... something light though user facing
+  // info", after ruling out embedding ruixen-doctor.sh's own full
+  // report (a multi-section diagnostic dump meant to be pasted into a
+  // support chat, not always-visible UI text). Read once, same
+  // "doesn't change mid-session, don't re-run needlessly" gate
+  // hardwareName's own identityProc already uses.
+  property string omarchyVersion: ""
+
+  Process {
+    id: omarchyVersionProc
+    command: ["omarchy-version"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.omarchyVersion = text.trim()
+    }
+  }
+
+  // About's own health card -- direct request: "a few checks for
+  // dependencies etc for our services to work, at least the big ones...
+  // abit of health status but not the full doctor." ruixen-doctor.sh
+  // (repo root) already exists for the real full report -- already ruled
+  // out from living inline here for the exact same reason omarchyVersion
+  // above was: a multi-section diagnostic dump meant to be pasted into a
+  // support chat, not always-visible UI text. This reuses that script's
+  // own actual check commands (same meaning, not approximated) for just
+  // the handful load-bearing enough for THIS plugin's OWN core features,
+  // not every feature doctor.sh covers: the shell IPC bridge nearly
+  // every toggle/action here calls through, fd (Search Files' real
+  // backend -- doctor.sh's own comment confirms it's a stock Omarchy
+  // base package, so its absence means something removed it, not a
+  // stock gap), hyprctl (window/workspace actions), and how many
+  // quickshell processes are actually running (doctor.sh's own Runtime
+  // section: more than one means a stale instance is stuck).
+  //
+  // A second "optional feature deps" group (ffmpeg/qt6-multimedia/curl/
+  // python3/fastfetch/cava, matching README.md's own canonical list) was
+  // tried and reverted -- direct follow-up: "thats a bit much we dont
+  // need the optional group then, just one group is enough with core
+  // things is fine." One tight group, not two.
+  property var healthChecks: []
+
+  Process {
+    id: healthCheckProc
+    command: ["bash", "-c",
+      "command -v fd >/dev/null 2>&1 && echo fd:ok || echo fd:missing; " +
+      "command -v hyprctl >/dev/null 2>&1 && echo hyprctl:ok || echo hyprctl:missing; " +
+      "if command -v omarchy-shell >/dev/null 2>&1 && OMARCHY_SHELL_IPC_TIMEOUT=1s omarchy-shell shell ping >/dev/null 2>&1; then echo ipc:ok; else echo ipc:fail; fi; " +
+      "echo quickshell:\"$(pgrep -c -f '^quickshell -n' 2>/dev/null || echo 0)\""]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var map = {}
+        String(text || "").trim().split("\n").forEach(function(line) {
+          var sep = line.indexOf(":")
+          if (sep > 0) map[line.slice(0, sep)] = line.slice(sep + 1)
+        })
+        root.healthChecks = [
+          { label: "Shell IPC", ok: map["ipc"] === "ok",
+            detail: map["ipc"] === "ok" ? "responding" : "not responding -- try omarchy restart shell" },
+          { label: "File Search (fd)", ok: map["fd"] === "ok",
+            detail: map["fd"] === "ok" ? "found" : "not found -- pacman -S --needed fd" },
+          { label: "Hyprland (hyprctl)", ok: map["hyprctl"] === "ok",
+            detail: map["hyprctl"] === "ok" ? "found" : "not found" },
+          { label: "Quickshell", ok: map["quickshell"] === "1",
+            detail: (map["quickshell"] || "0") + " process" + (map["quickshell"] === "1" ? "" : "es") + " running"
+              + (map["quickshell"] === "1" ? "" : " -- expected 1, a stale instance may be stuck") }
+        ]
+      }
+    }
+  }
+
+  Process {
+    id: ensureAvatarStateDirProc
+    command: ["mkdir", "-p", Quickshell.env("HOME") + "/.local/state/ruixen"]
+  }
+
+  FileView {
+    id: avatarStateFile
+    path: root.avatarStatePath
+    watchChanges: false
+    atomicWrites: true
+    printErrors: false
+    onLoaded: root.loadAvatarState(text())
+    onLoadFailed: root.loadAvatarState("")
+  }
+
+  Process {
+    id: avatarProc
+    stdout: StdioCollector { id: avatarProcStdout; waitForEnd: true }
+    stderr: StdioCollector { id: avatarProcStderr; waitForEnd: true }
+    // exitCode wasn't even read before -- direct live report: picking a
+    // GIF as a custom avatar "didnt even change" anything. Root cause
+    // confirmed: magick can fail (bad/unreadable source path, corrupt
+    // file, whatever) and this handler ran through to completion
+    // regardless, bumping avatarCacheBust and persisting the new
+    // collection as if it had actually applied -- the picker's own
+    // button looked selected, ~/.face.icon was untouched, and nothing
+    // anywhere surfaced that the fetch/convert had actually failed.
+    // Checking exitCode and reverting avatarCollection on failure fixes
+    // the false "it applied" state; the notification below surfaces
+    // the real reason instead of a silent no-op.
+    onExited: function(exitCode) {
+      root.avatarBusy = false
+      if (exitCode !== 0) {
+        root.avatarCollection = root.avatarPreviousCollection
+        var errLine = String(avatarProcStderr.text || "").trim().split("\n").pop()
+        avatarNotifyProc.command = ["omarchy-notification-send", "-u", "normal",
+          "Avatar update failed", errLine || ("exit code " + exitCode)]
+        avatarNotifyProc.running = true
+        return
+      }
+      var parts = String(avatarProcStdout.text || "").trim().split(/\s+/)
+      root.avatarAnimated = parts[0] === "animated"
+      root.avatarFrameCount = root.avatarAnimated ? Math.max(0, parseInt(parts[1] || 0)) : 0
+      root.avatarFrameDelayMs = root.avatarAnimated ? Math.max(40, parseInt(parts[2] || 80)) : 80
+      root.avatarCacheBust = root.avatarCacheBust + 1
+      avatarStateFile.setText(JSON.stringify({
+        collection: root.avatarCollection,
+        animated: root.avatarAnimated,
+        frameCount: root.avatarFrameCount,
+        frameDelayMs: root.avatarFrameDelayMs
+      }, null, 2) + "\n")
+      // Tells ruixen.notch's own UserAvatar to re-read the file too --
+      // it's a separate keepLoaded:true plugin process, so it has no
+      // other way to know ~/.face.icon just changed.
+      avatarNotifyProc.command = ["omarchy-shell", "-q", "ruixen.notch", "refreshAvatar"]
+      avatarNotifyProc.running = true
+    }
+  }
+
+  Process {
+    id: avatarNotifyProc
+  }
+
+  // --- Profile: Window Curvature (Sharp/Half/Rounded). First ported
+  // byte-for-byte from ruixen.settings (cornerCurvature/
+  // setCornerCurvature), which shells out to the real hyprland/
+  // ruixen-lookfeel.sh SCRIPT via a required git checkout path
+  // (ruixenRepoPath) -- direct follow-up caught the real problem with
+  // that: "this makes it not really workable as standalone launcher
+  // right, cause it still relies on the lookandfeel from the
+  // ruixen-shell?"
+  //
+  // Fix, not a workaround: ruixen-lookfeel.sh's OWN header comment
+  // (confirmed by reading the real script directly) already documents
+  // that its lua TARGETS live at a stable, install-time-deployed path
+  // -- $HOME/.local/share/ruixen-shell/hyprland -- specifically so
+  // toggling look'n'feel "stopped [working] the moment the checkout
+  // that ran install.sh was moved or deleted" (issue #15). Only the
+  // SCRIPT FILE ITSELF stays checkout-relative; the actual lua content
+  // it symlinks to is already checkout-independent. So this reimplements
+  // just the script's own small symlink-swap+reload sequence directly
+  // (~6 lines, confirmed against the real script's own apply()),
+  // pointed at that same already-stable deployed directory -- no lua
+  // files duplicated (there's exactly one real copy on disk, shared by
+  // both this and the real ruixen.settings page), no ruixenRepoPath,
+  // no git-checkout dependency of any kind. "Off" (stock Omarchy, no
+  // border/blur/shadow) isn't offered here either, same as the real
+  // page -- a much bigger toggle than corner shape alone, stays
+  // CLI-only (`ruixen-lookfeel off`).
+  //
+  // This IS a second, independent copy of the orchestration logic
+  // (matching every other "plugin folders can't share a file" case in
+  // this repo) -- direct follow-up accepted that explicitly: "we can
+  // have two copies... just build 2 for now till we phase out the old
+  // settings, than it should be easier to decide [on one]." Once
+  // ruixen.settings' own General page is retired, this becomes the
+  // only copy left, naturally converging without any migration step --
+  // and even today, the only thing duplicated is this orchestration
+  // sequence, not the real theming data both copies point at.
+  //
+  // Clicking either option ends in a full `omarchy restart shell` --
+  // this launcher's own process included -- same as the real script
+  // always has (ruixen.frame-widget's own corner mask only reads which
+  // variant is active at its own startup, so a plain `hyprctl reload`
+  // alone could never pick up a live switch). Expected, not a bug.
+  property string cornerCurvature: "half"
+  readonly property string looknfeelTarget: Quickshell.env("HOME") + "/.config/hypr/looknfeel.lua"
+  readonly property string looknfeelDataDir: Quickshell.env("HOME") + "/.local/share/ruixen-shell/hyprland"
+
+  Process {
+    id: cornerCurvatureReadProc
+    command: ["bash", "-c", "readlink \"" + Quickshell.env("HOME") + "/.config/hypr/looknfeel.lua\" 2>/dev/null"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var link = String(text || "")
+        if (link.indexOf("looknfeel.square.lua") >= 0)
+          root.cornerCurvature = "sharp"
+        else if (link.indexOf("looknfeel.half.lua") >= 0)
+          root.cornerCurvature = "half"
+        else if (link.indexOf("looknfeel.ruixen.lua") >= 0)
+          root.cornerCurvature = "rounded"
+        else
+          root.cornerCurvature = "half"
+      }
+    }
+  }
+
+  Process {
+    id: cornerCurvatureWriteProc
+    stdout: StdioCollector { waitForEnd: true }
+  }
+
+  function setCornerCurvature(curvature) {
+    if (curvature !== "sharp" && curvature !== "half" && curvature !== "rounded") return
+    root.cornerCurvature = curvature
+    var target = root.looknfeelTarget
+    var src = root.looknfeelDataDir + "/" + (curvature === "sharp" ? "looknfeel.square.lua"
+              : curvature === "half" ? "looknfeel.half.lua"
+              : "looknfeel.ruixen.lua")
+    // Same three steps as ruixen-lookfeel.sh's own apply(): back up a
+    // real (non-symlink) file rather than clobber it, swap the symlink
+    // + reload Hyprland, then always attempt the shell restart last
+    // (the trailing `|| true` matches the real script -- a failed
+    // restart shouldn't be treated as this whole action having failed).
+    cornerCurvatureWriteProc.command = ["bash", "-c",
+      "target='" + target + "'; " +
+      "if [ -e \"$target\" ] && [ ! -L \"$target\" ]; then mv \"$target\" \"$target.bak.$(date +%s)\"; fi; " +
+      "ln -sf '" + src + "' \"$target\" && hyprctl reload >/dev/null; " +
+      "omarchy restart shell >/dev/null 2>&1 || true"]
+    cornerCurvatureWriteProc.running = true
+  }
+
+  // --- Profile: Window Spacing (Comfy/Tight), ported from
+  // ruixen.settings -- same naming as Settings.qml's own
+  // spacingProfile/setSpacingProfile. Unlike Window Curvature, this
+  // doesn't shell out to a real script or need a repo checkout -- a
+  // plain text file + `hyprctl reload`, so no ruixenRepoPath guard
+  // here either. Applies under every curvature variant (all three
+  // Ruixen-look files -- looknfeel.ruixen.lua, looknfeel.square.lua,
+  // looknfeel.half.lua -- read this same
+  // file), so this card's own availability never depends on
+  // cornerCurvature's current value.
+  property string spacingProfile: "comfy"
+  readonly property string spacingProfilePath: Quickshell.env("HOME") + "/.local/state/ruixen/spacing-profile"
+
+  Process {
+    id: spacingProfileReadProc
+    command: ["bash", "-c", "cat \"" + root.spacingProfilePath + "\" 2>/dev/null"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var v = String(text || "").trim()
+        root.spacingProfile = (v === "tight") ? v : "comfy"
+      }
+    }
+  }
+
+  Process {
+    id: spacingProfileWriteProc
+    stdout: StdioCollector { waitForEnd: true }
+  }
+
+  function setSpacingProfile(profile) {
+    if (profile !== "comfy" && profile !== "tight") return
+    root.spacingProfile = profile
+    spacingProfileWriteProc.command = ["bash", "-c",
+      "printf '%s' '" + profile + "' > \"" + root.spacingProfilePath + "\" && hyprctl reload"]
+    spacingProfileWriteProc.running = true
+  }
+
+  // --- Profile: Animation Style (Calm/Bubbly/Snappy), ported from
+  // ruixen.settings -- same naming as Settings.qml's own
+  // animationProfile/setAnimationProfile. Same plain-text-file +
+  // `hyprctl reload` shape as Window Spacing, no repo checkout
+  // dependency -- the actual curve/speed values live in
+  // hyprland/looknfeel.ruixen.lua, which reads this same file directly;
+  // this side's only job is writing the chosen profile. Calm first
+  // (the real app's own default), then Bubbly, then Snappy -- matches
+  // ruixen.settings/GeneralContent.qml's own model order exactly, not
+  // alphabetical.
+  property string animationProfile: "calm"
+  readonly property string animationProfilePath: Quickshell.env("HOME") + "/.local/state/ruixen/animation-profile"
+
+  Process {
+    id: animationProfileReadProc
+    command: ["bash", "-c", "cat \"" + root.animationProfilePath + "\" 2>/dev/null"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var v = String(text || "").trim()
+        root.animationProfile = (v === "bubbly" || v === "snappy") ? v : "calm"
+      }
+    }
+  }
+
+  Process {
+    id: animationProfileWriteProc
+    stdout: StdioCollector { waitForEnd: true }
+  }
+
+  function setAnimationProfile(profile) {
+    if (profile !== "bubbly" && profile !== "calm" && profile !== "snappy") return
+    root.animationProfile = profile
+    animationProfileWriteProc.command = ["bash", "-c",
+      "printf '%s' '" + profile + "' > \"" + root.animationProfilePath + "\" && hyprctl reload"]
+    animationProfileWriteProc.running = true
+  }
+
+  // --- Profile: Glass (Frosted/Transparent) -- direct request, after
+  // checking a reference theme's own window-look hook for how its blur
+  // read noticeably clearer: "im thinking of making that a setting in
+  // profile between frosted and transparent." Same plain-text-file +
+  // `hyprctl reload` shape as Window Spacing/Animation Style above, no
+  // repo checkout dependency -- the actual opacity/blur values live in
+  // hyprland/looknfeel.ruixen.lua and looknfeel.square.lua (both read
+  // this same file, same as Window Spacing above), this side's only
+  // job is writing the chosen profile. Frosted (today's existing
+  // Transparent is the default; Frosted keeps the stronger blur/opacity
+  // values for people who prefer the original heavier glass.
+  //
+  // A Vibrant (blur.vibrancy boost) and Solid (blur off) pair were
+  // also tried and reverted -- direct report: "solid still broken and
+  // it breaks the ruixen app launcher too, vibrancy still looks like
+  // frosted, so i guess we dont need them." See looknfeel.ruixen.lua's
+  // own comment on its readGlassProfile() for the full root-cause
+  // writeup, for anyone tempted to retry either.
+  property string glassProfile: "transparent"
+  readonly property string glassProfilePath: Quickshell.env("HOME") + "/.local/state/ruixen/glass-profile"
+
+  Process {
+    id: glassProfileReadProc
+    command: ["bash", "-c", "cat \"" + root.glassProfilePath + "\" 2>/dev/null"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var v = String(text || "").trim()
+        root.glassProfile = (v === "frosted") ? v : "transparent"
+      }
+    }
+  }
+
+  Process {
+    id: glassProfileWriteProc
+    stdout: StdioCollector { waitForEnd: true }
+  }
+
+  function setGlassProfile(profile) {
+    if (profile !== "frosted" && profile !== "transparent") return
+    root.glassProfile = profile
+    glassProfileWriteProc.command = ["bash", "-c",
+      "printf '%s' '" + profile + "' > \"" + root.glassProfilePath + "\" && hyprctl reload"]
+    glassProfileWriteProc.running = true
+  }
+
+  // --- Profile: Glass Tint (Themed/Black) -- direct request, after
+  // remembering this had already been explored: "i think we had this
+  // effect before in the past but opted to go for the theme tint
+  // only." A separate control from Glass Effect above -- orthogonal
+  // axes (this is the launcher card's own TINT COLOR, a pure QML
+  // property in Launcher.qml; Glass Effect is Hyprland-level blur/
+  // opacity STRENGTH) -- so no `hyprctl reload` here, just a plain
+  // state file Launcher.qml's own FileView watches directly (see its
+  // glassTintMode there for the actual color resolution).
+  property string glassTintMode: "black"
+  readonly property string glassTintModePath: Quickshell.env("HOME") + "/.local/state/ruixen/glass-tint-mode"
+
+  Process {
+    id: glassTintModeReadProc
+    command: ["bash", "-c", "cat \"" + root.glassTintModePath + "\" 2>/dev/null"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var v = String(text || "").trim()
+        root.glassTintMode = (v === "themed") ? v : "black"
+      }
+    }
+  }
+
+  Process {
+    id: glassTintModeWriteProc
+    stdout: StdioCollector { waitForEnd: true }
+  }
+
+  function setGlassTintMode(mode) {
+    if (mode !== "themed" && mode !== "black") return
+    root.glassTintMode = mode
+    glassTintModeWriteProc.command = ["bash", "-c",
+      "printf '%s' '" + mode + "' > \"" + root.glassTintModePath + "\""]
+    glassTintModeWriteProc.running = true
+  }
+
+  // --- Bar: Bar Layout (Floating/Docked), ported from ruixen.settings
+  // -- same naming as Settings.qml's own barMode/setBarMode. Plain
+  // shell.json read/write via python3 (same mechanism, no repo
+  // checkout dependency -- already standalone-safe as ported). Full
+  // `omarchy restart shell`, not just a config reload -- same real
+  // reason Window Curvature's own restart exists: ruixen.frame-widget
+  // only reads bar.docked once at its own startup, so a plain reload
+  // would leave it stale against a live Floating/Docked switch.
+  property string barMode: "floating"
+
+  Process {
+    id: barModeReadProc
+    command: ["bash", "-c", "python3 -c \"import json; d=json.load(open('" + Quickshell.env("HOME") + "/.config/omarchy/shell.json')); print('docked' if d.get('bar',{}).get('docked') is True else 'floating')\" 2>/dev/null || echo floating"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.barMode = String(text || "floating").trim() === "docked" ? "docked" : "floating"
+    }
+  }
+
+  Process {
+    id: barModeWriteProc
+    stdout: StdioCollector { waitForEnd: true }
+  }
+
+  Process {
+    id: barSurfaceMaterialReloadProc
+    stdout: StdioCollector { waitForEnd: true }
+  }
+
+  function setBarMode(mode) {
+    if (mode !== "docked" && mode !== "floating") return
+    root.barMode = mode
+    var home = Quickshell.env("HOME")
+    var path = home + "/.config/omarchy/shell.json"
+    var value = mode === "docked" ? "True" : "False"
+    barModeWriteProc.command = ["bash", "-c",
+      "python3 -c \"import json; p='" + path + "'; d=json.load(open(p)); d.setdefault('bar', {})['docked'] = " + value + "; json.dump(d, open(p, 'w'), indent=2)\" && omarchy restart shell >/dev/null 2>&1 || true"]
+    barModeWriteProc.running = true
+  }
+
+  // --- Launcher: Include Home / Auto-include Mounted Drives, ported
+  // from ruixen.settings/Settings.qml's own launcherSearchConfig block
+  // -- same naming (setLauncherIncludeHome/setLauncherIncludeMountedRoots).
+  // Reads/writes the exact same file (~/.local/state/ruixen/
+  // launcher-search-config.json) FileSearchProvider.qml already
+  // watches (watchChanges: true) to build its own real search roots --
+  // no new plumbing needed on that side, a save here just takes effect
+  // the next search. LauncherSearchConfig.js itself is already a
+  // second copy in this exact plugin folder (FileSearchProvider.qml's
+  // own import), not a new one -- this is the first time anything in
+  // ruixen.launcher WRITES that file rather than only reading it.
+  //
+  // Scoped to just the two toggles for this pass, not the full page
+  // (mounted-drives checklist, custom roots, path/name exclusions) --
+  // those are their own, genuinely different list-editing UI, real
+  // follow-on work rather than a same-shape extension of this one.
+  property var launcherSearchConfig: LauncherSearchConfig.defaultConfig()
+  readonly property string launcherSearchConfigPath: Quickshell.env("HOME") + "/.local/state/ruixen/launcher-search-config.json"
+
+  function loadLauncherSearchConfig(raw) {
+    root.launcherSearchConfig = LauncherSearchConfig.parseSearchConfig(raw)
+  }
+
+  function saveLauncherSearchConfig() {
+    launcherSearchConfigFile.setText(LauncherSearchConfig.serializeSearchConfig(root.launcherSearchConfig))
+  }
+
+  FileView {
+    id: launcherSearchConfigFile
+    path: root.launcherSearchConfigPath
+    watchChanges: true
+    atomicWrites: true
+    printErrors: false
+    onLoaded: root.loadLauncherSearchConfig(text())
+    onLoadFailed: root.loadLauncherSearchConfig("")
+    onFileChanged: reload()
+  }
+
+  function setLauncherIncludeHome(value) {
+    root.launcherSearchConfig = Object.assign({}, root.launcherSearchConfig, { includeHome: value })
+    root.saveLauncherSearchConfig()
+  }
+
+  function setLauncherIncludeMountedRoots(value) {
+    root.launcherSearchConfig = Object.assign({}, root.launcherSearchConfig, { includeMountedRoots: value })
+    root.saveLauncherSearchConfig()
+  }
+
+  // A mount toggled off here stays remembered (present in
+  // disabledAutoRoots) even after it's physically unmounted -- the
+  // checklist below shows a disabled-but-not-currently-mounted entry
+  // too, not just the live findmnt list, so re-plugging the same drive
+  // doesn't silently re-enable it.
+  function toggleLauncherAutoRootDisabled(path) {
+    var list = root.launcherSearchConfig.disabledAutoRoots.slice()
+    var idx = list.indexOf(path)
+    if (idx === -1) list.push(path)
+    else list.splice(idx, 1)
+    root.launcherSearchConfig = Object.assign({}, root.launcherSearchConfig, { disabledAutoRoots: list })
+    root.saveLauncherSearchConfig()
+  }
+
+
+  function addLauncherRoot(path) {
+    var p = String(path || "").trim()
+    if (!p) return
+    var list = root.launcherSearchConfig.roots.slice()
+    if (list.indexOf(p) === -1) list.push(p)
+    root.launcherSearchConfig = Object.assign({}, root.launcherSearchConfig, { roots: list })
+    root.saveLauncherSearchConfig()
+  }
+
+  function removeLauncherRoot(path) {
+    var list = root.launcherSearchConfig.roots.filter(function(r) { return r !== path })
+    root.launcherSearchConfig = Object.assign({}, root.launcherSearchConfig, { roots: list })
+    root.saveLauncherSearchConfig()
+  }
+
+  function addLauncherExcludePath(path) {
+    var p = String(path || "").trim()
+    if (!p) return
+    var list = root.launcherSearchConfig.excludePaths.slice()
+    if (list.indexOf(p) === -1) list.push(p)
+    root.launcherSearchConfig = Object.assign({}, root.launcherSearchConfig, { excludePaths: list })
+    root.saveLauncherSearchConfig()
+  }
+
+  function removeLauncherExcludePath(path) {
+    var list = root.launcherSearchConfig.excludePaths.filter(function(p) { return p !== path })
+    root.launcherSearchConfig = Object.assign({}, root.launcherSearchConfig, { excludePaths: list })
+    root.saveLauncherSearchConfig()
+  }
+
+  function addLauncherExcludeName(name) {
+    var n = String(name || "").trim()
+    if (!n) return
+    var list = root.launcherSearchConfig.excludeNames.slice()
+    if (list.indexOf(n) === -1) list.push(n)
+    root.launcherSearchConfig = Object.assign({}, root.launcherSearchConfig, { excludeNames: list })
+    root.saveLauncherSearchConfig()
+  }
+
+  function removeLauncherExcludeName(name) {
+    var list = root.launcherSearchConfig.excludeNames.filter(function(n) { return n !== name })
+    root.launcherSearchConfig = Object.assign({}, root.launcherSearchConfig, { excludeNames: list })
+    root.saveLauncherSearchConfig()
+  }
+
+  // Live-discovered mounts for the checklist -- same findmnt --json
+  // pipeline FileSearchProvider.qml's own refreshRoots() uses, ported
+  // as its own small copy per LauncherSearchConfig.js's own header
+  // comment (this is a different Item tree than FileSearchProvider's,
+  // no way to share the live property directly). Refreshed when the
+  // Launcher category is actually opened (onOpenIndexChanged below),
+  // not on a timer.
+  property var launcherDiscoveredMounts: []
+
+  function refreshLauncherDiscoveredMounts() {
+    launcherMountProc.exec(["findmnt", "--json", "-o", "TARGET,FSTYPE"])
+  }
+
+  Process {
+    id: launcherMountProc
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.launcherDiscoveredMounts = LauncherSearchConfig.discoverMountedRoots(text)
+    }
+  }
+
+  // Merges the live findmnt-discovered mounts with any remembered
+  // disabled root that ISN'T currently mounted -- ported verbatim from
+  // ruixen.settings/LauncherSettingsContent.qml's own mountChecklist.
+  readonly property var mountChecklist: {
+    var cfg = root.launcherSearchConfig
+    var disabledSet = ({})
+    for (var i = 0; i < cfg.disabledAutoRoots.length; i++) disabledSet[cfg.disabledAutoRoots[i]] = true
+    var seen = ({})
+    var out = []
+    var live = root.launcherDiscoveredMounts
+    for (var j = 0; j < live.length; j++) {
+      seen[live[j].path] = true
+      out.push({ path: live[j].path, fstype: live[j].fstype, disabled: !!disabledSet[live[j].path], connected: true })
+    }
+    for (var k = 0; k < cfg.disabledAutoRoots.length; k++) {
+      if (seen[cfg.disabledAutoRoots[k]]) continue
+      out.push({ path: cfg.disabledAutoRoots[k], fstype: "", disabled: true, connected: false })
+    }
+    return out
+  }
+
+  // --- Audio: real Pipewire volume + output/input device pickers,
+  // ported from ruixen.settings/AudioContent.qml + its Settings.qml
+  // backend (outputSink/outputVolume/outputMuted/outputDevices/
+  // setOutputVolume/toggleOutputMute/setDefaultOutput, and the input
+  // mirror of each). Quickshell.Services.Pipewire is a standard
+  // Quickshell module (not Omarchy-private, confirmed by reading
+  // Omarchy's own audio bar-widget directly for these exact property
+  // paths, same as the real page's own comment already documents) --
+  // no repo-checkout dependency, no shell restart, standalone-safe by
+  // construction the same way Window Spacing/Animation Style already
+  // are.
+  readonly property var outputSink: Pipewire.defaultAudioSink
+  readonly property real outputVolume: outputSink && outputSink.audio ? outputSink.audio.volume : 0
+  readonly property bool outputMuted: outputSink && outputSink.audio ? outputSink.audio.muted : false
+
+  readonly property var outputDevices: {
+    var list = []
+    var all = Pipewire.nodes ? Pipewire.nodes.values : []
+    for (var i = 0; i < all.length; i++) {
+      var n = all[i]
+      if (n && n.isSink && !n.isStream) list.push(n)
+    }
+    return list
+  }
+
+  function setOutputVolume(v) {
+    if (root.outputSink && root.outputSink.audio)
+      root.outputSink.audio.volume = Math.max(0, Math.min(1, v))
+  }
+
+  function toggleOutputMute() {
+    if (root.outputSink && root.outputSink.audio)
+      root.outputSink.audio.muted = !root.outputSink.audio.muted
+  }
+
+  function setDefaultOutput(node) {
+    Pipewire.preferredDefaultAudioSink = node
+  }
+
+  // Input (microphone) -- same real API shape as output, mirrored from
+  // Omarchy's own Panel.qml. isSource's filter is broader than isSink/
+  // isStream alone -- a source node can be a true audio source without
+  // node.isSink ever being set.
+  readonly property var inputSource: Pipewire.defaultAudioSource
+  readonly property real inputVolume: inputSource && inputSource.audio ? inputSource.audio.volume : 0
+  readonly property bool inputMuted: inputSource && inputSource.audio ? inputSource.audio.muted : false
+
+  readonly property var inputDevices: {
+    var list = []
+    var all = Pipewire.nodes ? Pipewire.nodes.values : []
+    for (var i = 0; i < all.length; i++) {
+      var n = all[i]
+      if (!n || n.isSink || n.isStream) continue
+      var mediaClass = String(n.type || "")
+      var isSource = !!n.audio || mediaClass.indexOf("Audio/Source") !== -1
+        || mediaClass.indexOf("AudioSource") !== -1 || mediaClass.indexOf("Source") !== -1
+      if (!isSource) continue
+      if ((n.name || "") === "quickshell") continue
+      list.push(n)
+    }
+    return list
+  }
+
+  function setInputVolume(v) {
+    if (root.inputSource && root.inputSource.audio)
+      root.inputSource.audio.volume = Math.max(0, Math.min(1, v))
+  }
+
+  function toggleInputMute() {
+    if (root.inputSource && root.inputSource.audio)
+      root.inputSource.audio.muted = !root.inputSource.audio.muted
+  }
+
+  function setDefaultInput(node) {
+    Pipewire.preferredDefaultAudioSource = node
+  }
+
+  // Audio's own top-level on/off, same hero-switch semantics as
+  // Omarchy's own audio panel (confirmed by reading
+  // $OMARCHY_PATH/shell/plugins/panels/audio/Panel.qml directly, not
+  // guessed) -- PipeWire itself has no real "off" state for a sink/
+  // source the way a Wi-Fi/Bluetooth radio does, so this is a mute-both
+  // toggle standing in for one: reads as on while anything is still
+  // audible (either channel), and a single press mutes BOTH output and
+  // input together, or unmutes both together, whichever the current
+  // state calls for. Muting just one channel from its own row below
+  // does NOT flip this master switch off by itself -- only when both
+  // end up muted does anyAudible go false.
+  readonly property bool anyAudible: (!!root.outputSink && !root.outputMuted) || (!!root.inputSource && !root.inputMuted)
+
+  function toggleAllMuted() {
+    var mute = root.anyAudible
+    if (root.outputSink && root.outputSink.audio) root.outputSink.audio.muted = mute
+    if (root.inputSource && root.inputSource.audio) root.inputSource.audio.muted = mute
+  }
+
+  // Same real property-preference order as Omarchy's own nodeLabel()/
+  // friendlyDeviceLabel(), ported directly: nickname/nick fields
+  // first, falling back to description/name, then trimmed of the same
+  // noisy driver-name prefixes/suffixes and the Microphones->Microphone
+  // normalization real hardware strings carry. Shared by both output
+  // and input rows.
+  function deviceLabel(node) {
+    if (!node) return "Unknown"
+    var props = (node.ready && node.properties) ? node.properties : {}
+    var nickname = node.nickname || node.nick || props["node.nick"] || props["device.profile.description"] || ""
+    var label = String(nickname || node.description || props["node.description"] || node.name || "Unknown").trim()
+    label = label.replace(/^sof-soundwire\s+/i, "")
+    label = label.replace(/^built-?in audio\s+/i, "")
+    label = label.replace(/\s+Output$/i, "")
+    label = label.replace(/\s+Input$/i, "")
+    label = label.replace(/\bMicrophones\b/g, "Microphone")
+    return label
+  }
+
+  // Binds/tracks the candidate output/input nodes so their volume/
+  // muted/name properties actually receive live updates.
+  PwObjectTracker { objects: root.outputDevices }
+  PwObjectTracker { objects: root.inputDevices }
+
+  // --- Display: real brightness + scale, ported from ruixen.settings/
+  // DisplayContent.qml + its Settings.qml backend (brightnessPercent/
+  // focusedMonitor/brightnessAvailable/setBrightness, scalePresets/
+  // displayScale/setDisplayScale). Same real omarchy-monitor-state
+  // read / omarchy-brightness-display + omarchy-hyprland-monitor-
+  // scaling write mechanism ruixen-notch's own proven brightness
+  // control already uses -- no repo-checkout dependency, no shell
+  // restart, standalone-safe the same way Audio already is.
+  property real brightnessPercent: 50
+  property string focusedMonitor: ""
+  property bool brightnessAvailable: false
+
+  Process {
+    id: brightnessStateProc
+    command: ["omarchy-monitor-state"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var lines = String(text || "").split("\n")
+        var b = String(lines[0] || "").trim()
+        // An empty first line isn't the same as a genuine
+        // "unavailable" response (a real race with ruixen-notch's own
+        // independent poll of the same command, confirmed live in the
+        // real app) -- ignored rather than treated as authoritative,
+        // keeping the last known good state.
+        if (b === "") return
+        root.brightnessAvailable = b !== "unavailable"
+        if (root.brightnessAvailable) root.brightnessPercent = Math.max(0, Math.min(100, parseInt(b, 10)))
+        root.focusedMonitor = String(lines[5] || "").trim()
+        var scaleLine = parseFloat(String(lines[6] || "").trim())
+        if (isFinite(scaleLine)) root.displayScale = String(Math.round(scaleLine * 100) / 100)
+      }
+    }
+  }
+
+  Timer {
+    interval: 5000
+    running: root.active
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: if (!brightnessStateProc.running) brightnessStateProc.running = true
+  }
+
+  Process {
+    id: setBrightnessProc
+    stdout: StdioCollector { waitForEnd: true }
+    // Deliberately does NOT trigger a re-read on completion -- same
+    // reasoning ported from ruixen-notch's own comment: re-reading via
+    // omarchy-monitor-state right after a write races the hardware/
+    // driver and can return an empty string, briefly bouncing the
+    // slider back to 0. The locally-set value is authoritative until
+    // the next periodic poll.
+  }
+
+  function setBrightness(percent) {
+    var p = Math.max(0, Math.min(100, Math.round(percent)))
+    root.brightnessPercent = p
+    setBrightnessProc.command = ["omarchy-brightness-display", "--no-osd", "--monitor", root.focusedMonitor, p + "%"]
+    setBrightnessProc.running = true
+  }
+
+  // Display scale (Hyprland's own per-monitor fractional scaling) --
+  // real presets ported from Omarchy's own scalePresets in Panel.qml.
+  readonly property var scalePresets: ["1", "1.25", "1.6", "2", "3", "4"]
+  property string displayScale: ""
+
+  Process {
+    id: setScaleProc
+    stdout: StdioCollector { waitForEnd: true }
+  }
+
+  function setDisplayScale(scale) {
+    root.displayScale = scale
+    setScaleProc.command = ["bash", "-c", "omarchy-hyprland-monitor-scaling " + scale]
+    setScaleProc.running = true
+  }
+
+  // Night Light -- real omarchy-toggle-nightlight CLI (confirmed by
+  // reading it directly, not guessed): --status prints
+  // {enabled, temperature} JSON, using the exact same
+  // "temperature < 6000 counts as night light" threshold its own real
+  // first-party bar service does (Omarchy's own NightlightModel.js).
+  // Plain args (no --status) toggles between 4000K/6500K, resending for
+  // up to 2s to outlast hyprsunset's own default-temperature-on-boot
+  // behavior -- deliberately NOT re-read synchronously after toggling
+  // for that reason (same "don't race the real hardware/daemon" call
+  // Display's own setBrightness makes); the next periodic poll below
+  // catches up once the CLI's own resend loop has settled.
+  property bool nightLightEnabled: false
+
+  Process {
+    id: nightLightStatusProc
+    command: ["omarchy-toggle-nightlight", "--status"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var parsed = null
+        try { parsed = JSON.parse(text) } catch (e) { parsed = null }
+        if (parsed) root.nightLightEnabled = !!parsed.enabled
+      }
+    }
+  }
+
+  Timer {
+    interval: 5000
+    running: root.active
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: if (!nightLightStatusProc.running) nightLightStatusProc.running = true
+  }
+
+  Process {
+    id: nightLightToggleProc
+    command: ["omarchy-toggle-nightlight"]
+  }
+
+  function toggleNightLight() {
+    // Optimistic flip -- same immediate-feedback convention Audio's own
+    // mute toggles get for free from Pipewire's synchronous property
+    // writes; here the CLI itself takes up to ~2s to settle, so this is
+    // what keeps the toggle from reading as unresponsive in the
+    // meantime. The next 5s poll corrects it if reality disagrees.
+    root.nightLightEnabled = !root.nightLightEnabled
+    nightLightToggleProc.running = true
+  }
+
+  // Real Quickshell.Networking-backed Wi-Fi state -- another standard
+  // Quickshell module, confirmed the same way Audio's own Pipewire
+  // backend was (reading Omarchy's own network bar-widget directly).
+  // Scoped the same as ruixen.settings' own real page: status + known-
+  // network switcher + connect to open/known/new-secured networks, no
+  // WPA-Enterprise flow (rare outside campus/corporate Wi-Fi, a real
+  // separate nmcli-scripted flow their own file documents as its own
+  // out-of-scope case too).
+  readonly property var networkDevices: Networking.devices ? Networking.devices.values : []
+
+  function findWifiDevice() {
+    var devices = root.networkDevices
+    var fallback = null
+    for (var i = 0; i < devices.length; i++) {
+      var d = devices[i]
+      if (!d || d.type !== DeviceType.Wifi) continue
+      if (d.connected) return d
+      if (!fallback) fallback = d
+    }
+    return fallback
+  }
+
+  readonly property var wifiDevice: findWifiDevice()
+  readonly property var wifiNetworkObjects: wifiDevice && wifiDevice.networks ? wifiDevice.networks.values : []
+  property var wifiRows: []
+
+  // Primitives only, not the live WifiNetwork objects -- ported
+  // directly from ruixen.settings/Settings.qml's own syncWifiNetworks()
+  // comment: NetworkManager scan churn can destroy a network object
+  // while a delegate built from it is still incubating, which segfaults
+  // quickshell if a live QObject wrapper sits in list-model data.
+  // Connecting resolves back to the live object via networkForSsid() at
+  // activate time instead.
+  function syncWifiNetworks() {
+    // Skip while a password prompt is open -- a scan tick mid-typing
+    // would replace wifiRows with a brand-new array, tearing down and
+    // recreating every row (including the one whose password field is
+    // focused). Caught up again in closeWifiPasswordPrompt() below.
+    if (root.wifiPasswordSsid !== "") return
+    var nets = []
+    var networks = root.wifiNetworkObjects
+    for (var i = 0; i < networks.length; i++) {
+      var n = networks[i]
+      if (!n) continue
+      nets.push({
+        connected: !!n.connected,
+        known: !!n.known,
+        ssid: n.name || "",
+        signal: Math.round((n.signalStrength || 0) * 100),
+        security: n.security
+      })
+    }
+    nets.sort(function(a, b) {
+      if (a.connected !== b.connected) return a.connected ? -1 : 1
+      if (a.known !== b.known) return a.known ? -1 : 1
+      return b.signal - a.signal
+    })
+    root.wifiRows = nets
+  }
+
+  onWifiNetworkObjectsChanged: root.syncWifiNetworks()
+
+  readonly property var connectedWifiNetwork: {
+    for (var i = 0; i < root.wifiRows.length; i++)
+      if (root.wifiRows[i].connected) return root.wifiRows[i]
+    return null
+  }
+
+  readonly property var knownWifiRows: root.wifiRows.filter(function(r) { return r.known })
+  readonly property var otherWifiRows: root.wifiRows.filter(function(r) { return !r.known })
+
+  function isOpenNetwork(security) {
+    return security === WifiSecurityType.Open
+  }
+
+  function networkForSsid(ssid) {
+    var networks = root.wifiNetworkObjects
+    for (var i = 0; i < networks.length; i++)
+      if (networks[i] && networks[i].name === ssid) return networks[i]
+    return null
+  }
+
+  // Passphrase prompt state for connecting to a new (unknown) protected
+  // network. Unlike the real page's own wifiPasswordAttempt, the typed
+  // password never lives here -- SettingsWifiRow.qml keeps it locally
+  // and hands it over once, via passwordSubmitted(password), since
+  // nothing else in this simpler keyboard-nav model needs to read it
+  // mid-type.
+  property string wifiPasswordSsid: ""
+  property bool wifiConnecting: false
+  property string wifiConnectError: ""
+
+  function openWifiPasswordPrompt(ssid) {
+    root.wifiPasswordSsid = ssid
+    root.wifiConnectError = ""
+    root.wifiConnecting = false
+  }
+
+  function closeWifiPasswordPrompt() {
+    root.wifiPasswordSsid = ""
+    root.wifiConnectError = ""
+    root.wifiConnecting = false
+    root.syncWifiNetworks()
+  }
+
+  function submitWifiPassword(password) {
+    if (root.wifiConnecting || !password || password.length === 0) return
+    var network = root.networkForSsid(root.wifiPasswordSsid)
+    if (!network) { root.wifiConnectError = "Network no longer in range"; return }
+    // Real error hit live on ruixen.settings' own page: "WifiNetwork is
+    // already connected" -- the network can transition to connected on
+    // its own between click and submit (802.11k/v roaming between two
+    // SSIDs off the same router), and connectWithPsk() on an already-
+    // connected network throws that instead of no-op'ing.
+    if (network.connected) { root.closeWifiPasswordPrompt(); return }
+    root.wifiConnectError = ""
+    root.wifiConnecting = true
+    network.connectWithPsk(password)
+  }
+
+  // Scoped to whichever network the open passphrase prompt targets --
+  // connectionFailed(reason)/connectedChanged are the same two signals
+  // ruixen.settings' own page listens to for this exact purpose.
+  Connections {
+    target: root.wifiPasswordSsid !== "" ? root.networkForSsid(root.wifiPasswordSsid) : null
+    function onConnectionFailed(reason) {
+      root.wifiConnecting = false
+      root.wifiConnectError = (reason === ConnectionFailReason.NoSecrets || reason === ConnectionFailReason.WifiAuthTimeout)
+        ? "Wrong password" : "Couldn't connect"
+      // connectWithPsk() creates a full, autoconnect-enabled
+      // NetworkManager profile immediately as part of attempting the
+      // connection -- BEFORE the password is validated. On failure that
+      // broken profile just sits there looking "known" despite never
+      // authenticating, and NM keeps quietly retrying it whenever in
+      // range. This flow only opens for rows that were NOT known when
+      // clicked, so failure here always means the attempt itself
+      // failed -- safe to forget unconditionally.
+      if (target) target.forget()
+    }
+    function onConnectedChanged() {
+      if (target && target.connected) root.closeWifiPasswordPrompt()
+    }
+  }
+
+  // Real click/Enter-to-connect. Known networks and open networks
+  // connect immediately; a new protected network opens the passphrase
+  // prompt instead.
+  function connectToWifi(row) {
+    if (!row || row.connected) return
+    if (!row.known && !root.isOpenNetwork(row.security)) {
+      // Activating the row that's already expanded closes it back up.
+      if (root.wifiPasswordSsid === row.ssid) root.closeWifiPasswordPrompt()
+      else root.openWifiPasswordPrompt(row.ssid)
+      return
+    }
+    var network = root.networkForSsid(row.ssid)
+    if (network && !network.connected) network.connect()
+  }
+
+  // Excludes the connected network (mirrors canForgetNetwork: known &&
+  // !connected on the real page) -- forgetting the network you're
+  // actively using would disconnect you as a side effect of what's
+  // meant to be a plain cleanup click.
+  function forgetWifi(row) {
+    if (!row || row.connected) return
+    var network = root.networkForSsid(row.ssid)
+    if (network) network.forget()
+  }
+
+  function toggleWifiRadio() {
+    Networking.wifiEnabled = !Networking.wifiEnabled
+  }
+
+  // Both real Omarchy panel plugins (kind: panel), already enabled in
+  // this shell -- confirmed via omarchy-shell shell listPlugins, not
+  // guessed. Direct follow-up: "definitely add the qr and speed test,
+  // these should be easy to do as they are button that calls omarchy
+  // overlays". Payload shapes ported directly from ruixen.settings/
+  // Settings.qml's own summonWifiQr()/summonSpeedTest(), themselves
+  // ported from Omarchy's own real network Panel.qml.
+  //
+  // NOT root.shell.summon() -- confirmed real bug, not a coding
+  // mistake, by reading $OMARCHY_PATH/shell/shell.qml directly: the
+  // in-process API a plugin's own root.shell resolves to is a SCOPED,
+  // sandboxed proxy (createScopedPluginShell) whose own _summon() only
+  // allows a plugin to open something it "owns" (its own id),
+  // something a bar-widget-capable plugin controls, or -- the one real
+  // exception -- a plugin whose OWN manifest.omarchy.clonedFrom is
+  // "omarchy.network" (only that lets a caller reach wifiqr/speedtest).
+  // ruixen.launcher is none of those, so root.shell.summon() here
+  // silently returned false and did nothing -- exactly the reported
+  // "doesnt do anything when i click on them". omarchy-shell's own CLI
+  // (the same one bindings.lua/ruixen.settingsbutton already shell out
+  // to) hits shell.summon() UNSCOPED via its own top-level IpcHandler
+  // instead, with no such ownership check -- the same privilege an
+  // external keybind/terminal call already has, not something specific
+  // to this plugin.
+  function summonWifiQr() {
+    var payload = {}
+    if (root.connectedWifiNetwork) {
+      if (root.netInfo.iface) payload.iface = root.netInfo.iface
+      payload.ssid = root.connectedWifiNetwork.ssid
+    }
+    Quickshell.execDetached(["omarchy-shell", "shell", "summon", "omarchy.wifiqr", JSON.stringify(payload)])
+  }
+
+  function summonSpeedTest() {
+    var connection = root.connectedWifiNetwork ? root.connectedWifiNetwork.ssid : ""
+    var payload = connection ? JSON.stringify({ connection: connection }) : "{}"
+    Quickshell.execDetached(["omarchy-shell", "shell", "summon", "omarchy.speedtest", payload])
+  }
+
+  // scannerEnabled lives on the shared WifiDevice, not per-instance
+  // state, so it has to be explicitly released -- tracks which device
+  // THIS instance turned scanning on for, same as ruixen.settings' own
+  // setScannerEnabled()/scannerDevice.
+  property var scannerDevice: null
+
+  function setScannerEnabled(enabled) {
+    var nextDevice = root.active ? root.wifiDevice : null
+    if (root.scannerDevice && root.scannerDevice !== nextDevice)
+      root.scannerDevice.scannerEnabled = false
+    root.scannerDevice = nextDevice
+    if (root.scannerDevice)
+      root.scannerDevice.scannerEnabled = enabled
+  }
+
+  // Actual onActiveChanged wiring lives on the existing handler further
+  // down (search for "Fresh state every time the extension is
+  // (re)entered") -- QML only allows one onXChanged per signal per
+  // object, so this call is folded into that one rather than declared
+  // again here.
+  onWifiDeviceChanged: root.setScannerEnabled(true)
+  // Component.onDestruction is folded into the one below (Bluetooth's
+  // own scanner release) -- same one-handler-per-signal reason.
+
+  // Real connection stats (IP, gateway, ping) via `omarchy-network-
+  // status --verbose` -- a real standalone Omarchy CLI binary, same
+  // class of dependency as omarchy-monitor-state above. Tab-separated
+  // key\tvalue lines, confirmed by running it directly, not guessed.
+  // Display-only, no keyboard target -- same reasoning Profile
+  // Picture's own preview or the mount checklist's "Not currently
+  // connected" subtitle already apply (plain informational text next
+  // to something that IS interactive).
+  property var netInfo: ({})
+
+  function parseNetStatus(raw) {
+    var next = {}
+    var lines = String(raw || "").split("\n")
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i]
+      if (!line) continue
+      var idx = line.indexOf("\t")
+      if (idx === -1) continue
+      next[line.substring(0, idx)] = line.substring(idx + 1).trim()
+    }
+    return next
+  }
+
+  Process {
+    id: netStatusProc
+    command: ["omarchy-network-status", "--verbose"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.netInfo = root.parseNetStatus(text)
+    }
+  }
+
+  Timer {
+    interval: 2000
+    running: root.active
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: if (!netStatusProc.running) netStatusProc.running = true
+  }
+
+  // Real Quickshell.Bluetooth-backed state -- another standard
+  // Quickshell module, confirmed the same way Wi-Fi's own
+  // Quickshell.Networking backend was. Real mechanism difference from
+  // Wi-Fi/Audio, confirmed directly: the adapter's own `enabled`
+  // property doesn't persist by itself (that only writes BlueZ's
+  // Powered, which nothing persists), so toggling and per-device
+  // actions both go through real external CLIs (omarchy-bluetooth-
+  // power, omarchy-bluetooth-device) via Quickshell.execDetached(), not
+  // direct property writes the way Wi-Fi's own network.connect() was.
+  readonly property var btAdapter: Bluetooth.defaultAdapter
+  readonly property bool btEnabled: !!(btAdapter && btAdapter.enabled)
+  readonly property var btDeviceObjects: Bluetooth.devices ? Bluetooth.devices.values : []
+  property var btRows: []
+
+  function btDeviceLabel(d) {
+    return String((d && (d.deviceName || d.name)) || "").trim()
+  }
+
+  function btIsUuidLike(value) {
+    var text = String(value || "").trim()
+    if (text === "") return false
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(text)
+      || /^[0-9a-f]{32}$/i.test(text)
+  }
+
+  function btIsAddressLike(value) {
+    return /^([0-9a-f]{2}[:-]){5}[0-9a-f]{2}$/i.test(String(value || "").trim())
+  }
+
+  function btHasHumanName(d) {
+    var label = root.btDeviceLabel(d)
+    return label !== "" && !root.btIsUuidLike(label) && !root.btIsAddressLike(label)
+  }
+
+  // Primitives only, not the live Bluetooth device objects -- same
+  // real crash-avoidance reasoning as Wi-Fi's own syncWifiNetworks():
+  // BlueZ churn (discovery timeouts, unpair) can destroy a device
+  // object while a delegate built from it is still incubating. Actions
+  // resolve back to the live object via btDeviceForAddress() at
+  // activate time instead.
+  function syncBtDevices() {
+    var rows = []
+    var devs = root.btDeviceObjects
+    for (var i = 0; i < devs.length; i++) {
+      var d = devs[i]
+      if (!d || !root.btHasHumanName(d)) continue
+      rows.push({
+        address: d.address || "",
+        name: root.btDeviceLabel(d),
+        connected: !!d.connected,
+        known: !!(d.paired || d.bonded || d.trusted),
+        pairedFormally: !!(d.paired || d.bonded)
+      })
+    }
+    rows.sort(function(a, b) {
+      if (a.connected !== b.connected) return a.connected ? -1 : 1
+      if (a.known !== b.known) return a.known ? -1 : 1
+      return a.name.localeCompare(b.name)
+    })
+    root.btRows = rows
+    // Clear a busy marker once the device's real state actually moved
+    // -- without this, "Connecting.../Pairing..." would hang forever if
+    // the CLI's own best-effort connect/pair silently no-ops.
+    if (root.btBusyAddress !== "") {
+      var busy = root.btDeviceForAddress(root.btBusyAddress)
+      if (!busy || busy.connected) root.btBusyAddress = ""
+    }
+  }
+
+  onBtDeviceObjectsChanged: root.syncBtDevices()
+
+  // Busy feedback for an in-flight connect/pair -- a fire-and-forget
+  // CLI call with real ~1-minute BLE connect latency reads as "did
+  // nothing" without this. Cleared above once the device's connected
+  // state moves, or by this timeout as a backstop if it never does.
+  property string btBusyAddress: ""
+
+  Timer {
+    id: btBusyTimeout
+    interval: 20000
+    onTriggered: root.btBusyAddress = ""
+  }
+
+  readonly property var knownBtRows: root.btRows.filter(function(r) { return r.known })
+  readonly property var otherBtRows: root.btRows.filter(function(r) { return !r.known })
+
+  // Confirm-before-pair for unknown devices -- unlike Wi-Fi (picking a
+  // network you already recognize as yours), a nearby Bluetooth device
+  // can easily be someone else's phone/earbuds in a shared space. First
+  // click on an other-device row arms it (Confirm Pair button); the
+  // actual pair command only fires on that second, deliberate action.
+  property string btPairArmedAddress: ""
+
+  function toggleBluetoothRadio() {
+    Quickshell.execDetached(["omarchy-bluetooth-power", root.btEnabled ? "off" : "on"])
+  }
+
+  function btDeviceForAddress(address) {
+    var devs = root.btDeviceObjects
+    for (var i = 0; i < devs.length; i++)
+      if (devs[i] && devs[i].address === address) return devs[i]
+    return null
+  }
+
+  function toggleBtConnection(row) {
+    if (!row || !row.address) return
+    if (row.connected) { Quickshell.execDetached(["omarchy-bluetooth-device", "disconnect", row.address]); return }
+    if (row.known) {
+      root.btBusyAddress = row.address
+      btBusyTimeout.restart()
+      Quickshell.execDetached(["omarchy-bluetooth-device", "connect", row.address])
+      return
+    }
+    // Unknown device -- arms the row instead of pairing immediately.
+    // Clicking the row that's already armed disarms it, same toggle-
+    // closed-on-second-click Wi-Fi's own password prompt uses.
+    root.btPairArmedAddress = (root.btPairArmedAddress === row.address) ? "" : row.address
+  }
+
+  function confirmPairBtDevice(row) {
+    if (!row || !row.address) return
+    root.btPairArmedAddress = ""
+    root.btBusyAddress = row.address
+    btBusyTimeout.restart()
+    Quickshell.execDetached(["omarchy-bluetooth-device", "pair", row.address])
+  }
+
+  // Excludes the connected device -- disconnect first, then forget,
+  // rather than a one-step forget that disconnects as a side effect.
+  function forgetBtDevice(row) {
+    if (!row || !row.address || row.connected) return
+    Quickshell.execDetached(["omarchy-bluetooth-device", "forget", row.address])
+  }
+
+  // scannerEnabled equivalent for BlueZ's discovery session -- same
+  // ownership-release reasoning as Wi-Fi's own scannerDevice, applied
+  // to adapter.discovering instead ("keep nudging it back on so an
+  // enabled adapter is always scanning" while this category is open).
+  property var btScannerAdapter: null
+
+  function setBtScannerEnabled(enabled) {
+    var nextAdapter = root.active ? root.btAdapter : null
+    if (root.btScannerAdapter && root.btScannerAdapter !== nextAdapter)
+      root.btScannerAdapter.discovering = false
+    root.btScannerAdapter = nextAdapter
+    if (root.btScannerAdapter)
+      root.btScannerAdapter.discovering = enabled
+  }
+
+  // Actual onActiveChanged wiring lives on the existing handler (search
+  // for "Fresh state every time the extension is (re)entered") -- QML
+  // only allows one onXChanged per signal per object.
+  onBtAdapterChanged: root.setBtScannerEnabled(true)
+  // Releases both the Wi-Fi scan radio and the Bluetooth discovery
+  // session together -- folded into one handler since QML only allows
+  // a single Component.onDestruction per object.
+  Component.onDestruction: {
+    if (root.scannerDevice) root.scannerDevice.scannerEnabled = false
+    if (root.btScannerAdapter) root.btScannerAdapter.discovering = false
+  }
+
+  // Plugins category's own real backend -- list/toggle/update/check,
+  // same PluginService.qml shape as ruixen.settings' own Plugins page
+  // (see services/PluginService.qml's own header comment for the one
+  // deliberate difference: self-lockout here is for ruixen.launcher,
+  // not ruixen.settings). Thin pass-through aliases/wrappers on root,
+  // same convention ruixen.settings' own Settings.qml uses so the rest
+  // of this file's own xxxItems/currentItems plumbing doesn't need to
+  // know a separate service object exists underneath.
+  PluginService { id: pluginService }
+
+  property alias pluginRows: pluginService.pluginRows
+  property alias pluginBusyId: pluginService.pluginBusyId
+  property alias pluginUpdateStatus: pluginService.pluginUpdateStatus
+  property alias pluginUpdateError: pluginService.pluginUpdateError
+  property alias pluginUpdateNeedsAcknowledge: pluginService.pluginUpdateNeedsAcknowledge
+  property alias pluginCheckStatus: pluginService.pluginCheckStatus
+  property alias pluginCheckError: pluginService.pluginCheckError
+  property alias pluginChangedIds: pluginService.pluginChangedIds
+  property alias pluginsUpToDate: pluginService.pluginsUpToDate
+  property alias pluginLastCommitSha: pluginService.lastCommitSha
+  property alias pluginLastCommitDate: pluginService.lastCommitDate
+  property alias ruixenRepoPath: pluginService.ruixenRepoPath
+  property alias uninstallConfirmPhrase: pluginService.uninstallConfirmPhrase
+  property alias uninstallConfirmInput: pluginService.uninstallConfirmInput
+
+  function refreshPlugins() { pluginService.refreshPlugins() }
+  function pluginIsProtected(row) { return pluginService.pluginIsProtected(row) }
+  function togglePluginEnabled(row) { pluginService.togglePluginEnabled(row) }
+
+  // Backs the Bar page's own Notch show/hidden control below -- direct
+  // request: "instead of having people run the disable cli command,
+  // allow Notch show or hidden as an option" right on the Bar page,
+  // next to Bar Layout. Not a second, separate visibility flag: this
+  // reads/writes the exact same enabled state the Plugins page's own
+  // "Ruixen Notch" row already toggles (pluginService.pluginRows,
+  // via omarchy plugin enable/disable), so the two controls can never
+  // drift out of sync with each other -- flipping either one updates
+  // both, since they share one source of truth.
+  readonly property var notchPluginRow: {
+    for (var i = 0; i < root.pluginRows.length; i++)
+      if (root.pluginRows[i].id === "ruixen.notch") return root.pluginRows[i]
+    return null
+  }
+
+  // On Hover option, added alongside Show/Hidden -- direct follow-up
+  // request. Hidden still goes through the plugin enable/disable
+  // above (unloads the whole service); this is a separate axis that
+  // only matters while the plugin stays enabled, read by
+  // ruixen.notch/Overlay.qml itself (a completely different plugin
+  // folder) off this small shared state file -- same
+  // Settings-writes/notch-reads split already established for
+  // avatar.json above and media-state.json (ruixen.media -> notch).
+  property string notchVisibilityMode: "always"
+  readonly property string notchVisibilityStatePath: Quickshell.env("HOME") + "/.local/state/ruixen/notch-visibility.json"
+
+  function loadNotchVisibilityMode(raw) {
+    try {
+      var parsed = JSON.parse(String(raw || "").trim() || "{}")
+      root.notchVisibilityMode = parsed && parsed.mode === "hover" ? "hover" : "always"
+    } catch (e) {
+      root.notchVisibilityMode = "always"
+    }
+  }
+
+  function setNotchVisibilityMode(mode) {
+    var value = mode === "hover" ? "hover" : "always"
+    root.notchVisibilityMode = value
+    notchVisibilityFile.setText(JSON.stringify({ mode: value }, null, 2) + "\n")
+  }
+
+  // Shared by both the Bar page's own Notch item below and its
+  // keyboard-nav twin in barItems -- one place deciding "show/hover/
+  // hidden" as a single 3-way id instead of duplicating the enabled +
+  // notchVisibilityMode logic in two spots that could drift apart.
+  function notchVisibilityCurrentId() {
+    if (root.notchPluginRow && !root.notchPluginRow.enabled) return "hidden"
+    return root.notchVisibilityMode === "hover" ? "hover" : "show"
+  }
+
+  function activateNotchVisibility(id) {
+    var row = root.notchPluginRow
+    if (id === "hidden") {
+      if (row && row.enabled) root.togglePluginEnabled(row)
+      return
+    }
+    // "show" or "hover" both need the plugin actually loaded -- hover
+    // detection is real-time, live QML, it cannot run while the
+    // service is unloaded the way Hidden leaves it.
+    if (row && !row.enabled) root.togglePluginEnabled(row)
+    root.setNotchVisibilityMode(id === "hover" ? "hover" : "always")
+  }
+
+  FileView {
+    id: notchVisibilityFile
+    path: root.notchVisibilityStatePath
+    watchChanges: true
+    atomicWrites: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.loadNotchVisibilityMode(text())
+    onLoadFailed: root.loadNotchVisibilityMode("")
+  }
+
+  // Cava audio visualizer -- direct request. Same Settings-writes/
+  // plugin-reads split as notchVisibilityMode above: this page only
+  // ever writes cava-visualizer.json, ruixen.cava/Overlay.qml (a
+  // completely separate, always-loaded plugin) is the sole reader.
+  //
+  // cavaInstalled -- direct follow-up: "if user enables it without
+  // canva does it error in silient?... if a user enable it without
+  // canva then you get instructions or info instead of non working
+  // menu?" It did fail silently: CavaFeed.qml's own spawn command is
+  // `command -v cava || exit 0`, so the process just exits instantly,
+  // forever, with zero indication anywhere -- the toggle would show
+  // "on" and nothing would ever render. Checked once at startup, same
+  // Process-based capability-check shape githubConnected already uses
+  // right above (gh auth status -> a real feature gated on a real
+  // check, not guessed at).
+  property bool cavaInstalled: false
+
+  Process {
+    id: cavaInstalledCheckProc
+    command: ["sh", "-c", "command -v cava"]
+    onExited: function(exitCode) { root.cavaInstalled = exitCode === 0 }
+  }
+
+  property bool cavaEnabled: false
+  // Bars vs Segments -- direct follow-up ("so for the segment, i guess
+  // its pretty much similar kinda vibe right" / "yup lets do it").
+  // Segments reuses every other knob here unchanged (Position/Bands/
+  // Height all still apply); this is the only new one.
+  property string cavaStyle: "bars"
+  // Bottom/310/64 -- direct follow-up after trying it live: "cool i
+  // guess at 310 i like it, buttom 310 and 64 bands as default."
+  property string cavaPosition: "bottom"
+  property int cavaBands: 64
+  // Real bass-on-both-edges/treble-in-the-center, not a plain left-to-
+  // right sweep -- direct follow-up after shipping the same fold on
+  // the compact notch's own mini cava first ("i think it looks better
+  // if we can get the mirror... looks better that way for aesthetic").
+  // Overlay.qml halves the real analyzed band count when this is on
+  // (each real band shown twice, mirrored) so Bands above still means
+  // "how many bars on screen" either way, not "how many real bands."
+  property bool cavaMirror: false
+  // A real pixel height, not a Small/Medium/Large preset -- direct
+  // follow-up: "the large is still way too small, maybe instead of
+  // small medium large we do scroll progress bar slider for height?"
+  // 40-400px range: 400 is roughly a third of a 1080p screen, already
+  // a dramatic amount of edge real estate for a decorative strip.
+  readonly property int cavaThicknessMin: 40
+  readonly property int cavaThicknessMax: 400
+  property int cavaThickness: 310
+  readonly property string cavaStatePath: Quickshell.env("HOME") + "/.local/state/ruixen/cava-visualizer.json"
+
+  function loadCavaState(raw) {
+    try {
+      var p = JSON.parse(String(raw || "").trim() || "{}")
+      root.cavaEnabled = !!(p && p.enabled)
+      root.cavaStyle = (p && ["bars", "segments", "wave"].indexOf(p.style) >= 0) ? p.style : "bars"
+      root.cavaPosition = (p && ["top", "bottom", "left", "right"].indexOf(p.position) >= 0) ? p.position : "bottom"
+      root.cavaBands = (p && [32, 48, 64, 96].indexOf(p.bands) >= 0) ? p.bands : 64
+      root.cavaMirror = !!(p && p.mirror)
+      var t = p && typeof p.thickness === "number" ? Math.round(p.thickness) : 310
+      root.cavaThickness = Math.max(root.cavaThicknessMin, Math.min(root.cavaThicknessMax, t))
+    } catch (e) {
+      root.cavaEnabled = false
+    }
+  }
+
+  function writeCavaState() {
+    cavaVisualizerFile.setText(JSON.stringify({
+      enabled: root.cavaEnabled, style: root.cavaStyle, position: root.cavaPosition,
+      bands: root.cavaBands, mirror: root.cavaMirror, thickness: root.cavaThickness
+    }, null, 2) + "\n")
+  }
+
+  function setCavaEnabled(v) { root.cavaEnabled = !!v; root.writeCavaState() }
+  function setCavaStyle(id) { root.cavaStyle = id; root.writeCavaState() }
+  function setCavaPosition(id) { root.cavaPosition = id; root.writeCavaState() }
+  function setCavaBands(n) { root.cavaBands = n; root.writeCavaState() }
+  function setCavaMirror(v) { root.cavaMirror = !!v; root.writeCavaState() }
+  function setCavaThickness(px) {
+    root.cavaThickness = Math.max(root.cavaThicknessMin, Math.min(root.cavaThicknessMax, Math.round(px)))
+    root.writeCavaState()
+  }
+
+  FileView {
+    id: cavaVisualizerFile
+    path: root.cavaStatePath
+    watchChanges: true
+    atomicWrites: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.loadCavaState(text())
+    onLoadFailed: root.loadCavaState("")
+  }
+
+  // Bar surface -- color ("theme"/"black") and material ("solid"/"glass")
+  // are independent axes. The new bar-surface.json file owns both; the
+  // older frame-appearance.json is still mirrored for compatibility because
+  // ruixen.notch currently reads it for the coupled notch/frame color.
+  // Was a Themed/Custom
+  // split with a 3-swatch color picker (OLED Black/Charcoal/White) --
+  // direct correction after live testing: "some themes uses white like
+  // lupine and few other light theme, this would make the notch
+  // unusable... remove white from the setting as an option then and
+  // just leave Black and Theme." ruixen.notch reads this exact same
+  // state file/mode, so a light custom swatch and Theme-mode-on-a-
+  // light-theme hit the identical failure -- simplified down to the two
+  // colors this repo's downstream consumers can actually support
+  // without a much bigger light-background rework, rather than trying
+  // to patch around just the one reported swatch.
+  property string frameColorMode: "black"
+  property string barSurfaceMaterial: "glass"
+  property string barIconTone: "accent"
+  // Issue #114 -- see Bar.qml's own frameEnabled/resolvedFrameEnabled
+  // comment for the full "why" (docked mode forces this on regardless
+  // of what's stored here).
+  property bool frameEnabled: true
+  property bool barSurfaceStateLoaded: false
+  readonly property string barSurfaceStatePath: Quickshell.env("HOME") + "/.local/state/ruixen/bar-surface.json"
+  readonly property string barIconToneStatePath: Quickshell.env("HOME") + "/.local/state/ruixen/bar-icon-tone.json"
+  readonly property string frameAppearanceStatePath: Quickshell.env("HOME") + "/.local/state/ruixen/frame-appearance.json"
+
+  function normalizeSurfaceColorMode(mode) { return mode === "theme" ? "theme" : "black" }
+  function normalizeSurfaceMaterial(material) { return material === "glass" ? "glass" : "solid" }
+  function normalizeIconTone(tone) { return tone === "accent" ? "accent" : "mono" }
+
+  function applyBarSurfaceState(colorMode, material, frameEnabled) {
+    root.frameColorMode = root.normalizeSurfaceColorMode(colorMode)
+    root.barSurfaceMaterial = root.normalizeSurfaceMaterial(material)
+    root.frameEnabled = frameEnabled !== false
+  }
+
+  function loadBarSurfaceState(raw) {
+    try {
+      var p = JSON.parse(String(raw || "").trim() || "{}")
+      root.applyBarSurfaceState(p && p.color, p && p.material, p && p.frameEnabled)
+      root.barSurfaceStateLoaded = true
+    } catch (e) {
+      root.barSurfaceStateLoaded = false
+      frameAppearanceFile.reload()
+    }
+  }
+
+  function writeBarSurfaceState() {
+    barSurfaceFile.setText(JSON.stringify({
+      version: 1,
+      color: root.frameColorMode,
+      material: root.barSurfaceMaterial,
+      frameEnabled: root.frameEnabled
+    }, null, 2) + "\n")
+  }
+
+  // Issue #114 -- docked mode forces the frame on regardless (see
+  // Bar.qml's own resolvedFrameEnabled), so this is a no-op while
+  // docked rather than persisting a preference that wouldn't visibly
+  // apply -- same "don't let a GUI control claim to do something it
+  // currently can't" reasoning setBarIconTone/setFrameColorMode don't
+  // need, since neither of those has a mode-dependent no-op case.
+  function setFrameEnabled(value) {
+    if (root.barMode === "docked") return
+    root.frameEnabled = !!value
+    root.writeBarSurfaceState()
+  }
+
+  function loadBarIconToneState(raw) {
+    try {
+      var p = JSON.parse(String(raw || "").trim() || "{}")
+      root.barIconTone = root.normalizeIconTone(p && p.tone)
+    } catch (e) {
+      root.barIconTone = "accent"
+    }
+  }
+
+  function writeBarIconToneState() {
+    barIconToneFile.setText(JSON.stringify({
+      version: 1,
+      tone: root.barIconTone
+    }, null, 2) + "\n")
+  }
+
+  // Old files from before this simplification (mode: "custom", customColor:
+  // "#...") degrade safely here too. This remains as the compatibility
+  // fallback/mirror for color, not material.
+  function loadFrameAppearanceState(raw) {
+    if (root.barSurfaceStateLoaded) return
+    try {
+      var p = JSON.parse(String(raw || "").trim() || "{}")
+      root.applyBarSurfaceState(p && p.mode, root.barSurfaceMaterial)
+    } catch (e) {
+      root.applyBarSurfaceState("black", root.barSurfaceMaterial)
+    }
+  }
+
+  function writeFrameAppearanceState() {
+    frameAppearanceFile.setText(JSON.stringify({ mode: root.frameColorMode }, null, 2) + "\n")
+  }
+
+  function setFrameColorMode(id) {
+    root.frameColorMode = root.normalizeSurfaceColorMode(id)
+    root.writeBarSurfaceState()
+    root.writeFrameAppearanceState()
+  }
+
+  function setBarSurfaceMaterial(id) {
+    root.barSurfaceMaterial = root.normalizeSurfaceMaterial(id)
+    root.writeBarSurfaceState()
+    barSurfaceMaterialReloadProc.command = ["bash", "-c", "hyprctl reload >/dev/null 2>&1 || true"]
+    barSurfaceMaterialReloadProc.running = true
+  }
+
+  function setBarIconTone(id) {
+    root.barIconTone = root.normalizeIconTone(id)
+    root.writeBarIconToneState()
+  }
+
+  FileView {
+    id: barSurfaceFile
+    path: root.barSurfaceStatePath
+    watchChanges: true
+    atomicWrites: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.loadBarSurfaceState(text())
+    onLoadFailed: {
+      root.barSurfaceStateLoaded = false
+      frameAppearanceFile.reload()
+    }
+  }
+
+  FileView {
+    id: frameAppearanceFile
+    path: root.frameAppearanceStatePath
+    watchChanges: true
+    atomicWrites: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.loadFrameAppearanceState(text())
+    onLoadFailed: root.loadFrameAppearanceState("")
+  }
+
+  FileView {
+    id: barIconToneFile
+    path: root.barIconToneStatePath
+    watchChanges: true
+    atomicWrites: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.loadBarIconToneState(text())
+    onLoadFailed: root.barIconTone = "accent"
+  }
+
+  // App Launcher's own "Launcher Mark" picker, below on the Bar page --
+  // direct request: "allow more glyph as an option... they call it
+  // launcher mark". Same Settings-writes/AppLauncher.qml-reads split
+  // as notch-visibility.json above, written to its own small state
+  // file -- AppLauncherGlyphs.js (this repo's own copy of the same
+  // module ruixen.applauncher/AppLauncher.qml reads) is the single
+  // source of truth for which ids exist and what character each one
+  // renders as.
+  property string appLauncherIconId: AppLauncherGlyphs.defaultIconId()
+  readonly property string appLauncherIconStatePath: Quickshell.env("HOME") + "/.local/state/ruixen/applauncher-icon.json"
+
+  function loadAppLauncherIconId(raw) {
+    try {
+      var parsed = JSON.parse(String(raw || "").trim() || "{}")
+      root.appLauncherIconId = (parsed && AppLauncherGlyphs.iconValid(parsed.icon))
+        ? parsed.icon : AppLauncherGlyphs.defaultIconId()
+    } catch (e) {
+      root.appLauncherIconId = AppLauncherGlyphs.defaultIconId()
+    }
+  }
+
+  function setAppLauncherIconId(id) {
+    if (!AppLauncherGlyphs.iconValid(id)) return
+    root.appLauncherIconId = id
+    appLauncherIconFile.setText(JSON.stringify({ icon: id }, null, 2) + "\n")
+  }
+
+  FileView {
+    id: appLauncherIconFile
+    path: root.appLauncherIconStatePath
+    watchChanges: true
+    atomicWrites: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.loadAppLauncherIconId(text())
+    onLoadFailed: root.loadAppLauncherIconId("")
+  }
+
+  function updateRuixenShell() { pluginService.updateRuixenShell() }
+  function checkForUpdates() { pluginService.checkForUpdates() }
+  function confirmFullUninstall() { pluginService.confirmFullUninstall() }
+
+  // Direct ask: "above the uninstall component, is it safe or possible
+  // to add an omarchy restart shell button?" -- yes: this exact command
+  // already fires from a live button elsewhere in this same file (see
+  // setCornerCurvature's own trailing restart, and the docked/bar-style
+  // toggle below), this plugin's own process included, same as the real
+  // install/update scripts always do unprompted at the end of a run. No
+  // confirmation gate, unlike Uninstall -- restarting is quick and
+  // non-destructive (no data loss, just the bar/launcher blinking back
+  // in for a couple seconds).
+  Process {
+    id: restartShellProc
+    command: ["bash", "-c", "omarchy restart shell >/dev/null 2>&1 || true"]
+  }
+  function restartOmarchyShell() { restartShellProc.running = true }
+
+  // Same real repo URL the version card already shows as plain text
+  // (aboutVersionContent in AboutPage.qml) -- direct follow-up: "can we
+  // do one Open on Github and then when user clicks on it opens the
+  // default browser with the link open". omarchy-launch-browser is the
+  // same real open-in-default-browser helper Clipboard History's own
+  // link/QR opening already uses, not a second mechanism.
+  readonly property string repoUrl: "https://github.com/gitcoder89431/ruixen-shell"
+  Process {
+    id: openRepoProc
+    command: ["omarchy-launch-browser", root.repoUrl]
+  }
+  function openRepoInBrowser() { openRepoProc.running = true }
+
+  // Keyboard-navigable subset of pluginRows -- protected rows (locked,
+  // no toggle to reach) are drawn but deliberately not part of
+  // currentItems, same "nothing there to interact with" reasoning empty
+  // states elsewhere in this file already use. Matched back to its full
+  // pluginRows position by id (not index) wherever a row visual is
+  // needed, since this list and the Repeater's own full model don't
+  // share indices once protected rows are filtered out.
+  readonly property var togglablePluginRows: root.pluginRows.filter(function(r) { return !root.pluginIsProtected(r) })
+
+  // Short status line above the Check/Update buttons -- direct
+  // request: "like a status line but short please... it can say Up to
+  // Date or Update Available". Empty until an update/check has actually
+  // happened this session -- before that, the Commit Version/Last
+  // Updated rows below cover it instead (their own direct follow-up:
+  // "kinda hard to see... split it so its Commit Version: and then
+  // Last Updated as two rows").
+  readonly property string pluginStatusLine: {
+    if (root.pluginUpdateStatus === "updating") return "Updating…"
+    if (root.pluginUpdateStatus === "interrupted") return "Update Interrupted"
+    if (root.pluginUpdateStatus === "error") return "Update Failed"
+    if (root.pluginCheckStatus === "checking") return "Checking for updates…"
+    if (root.pluginCheckStatus === "error") return "Check Failed"
+    if (root.pluginCheckStatus === "checked") return root.pluginsUpToDate ? "Up to Date" : "Update Available"
+    return ""
+  }
+
+  // Green/yellow, same real meaning the per-row pending dot already
+  // uses (SettingsContent's own pluginStatusDot below) -- not a new
+  // color invented just for this line.
+  readonly property color pluginStatusLineColor: {
+    if (root.pluginUpdateStatus === "interrupted") return "#e8c34a"
+    if (root.pluginUpdateStatus === "error" || root.pluginCheckStatus === "error") return "#e05252"
+    if (root.pluginCheckStatus === "checked") return root.pluginsUpToDate ? "#3ecf5b" : "#e8c34a"
+    return root.muted
+  }
+
+  Component.onCompleted: {
+    ensureAvatarStateDirProc.running = true
+    githubAuthCheckProc.running = true
+    cavaInstalledCheckProc.running = true
+  }
+
+  // Same 8 sections, same ids/labels/glyphs as ruixen.settings/
+  // Settings.qml's own root.sections -- confirmed by reading that file
+  // directly, not guessed, so this list reads as the same feature, not
+  // a fork of it. Glyph codepoints copied byte-for-byte from there too.
+  // `description` is this pass's own addition -- direct request:
+  // "instead of coming soon, just add a small one or two line
+  // description for each of the settings? bespoke eloquent tone sounds
+  // nice" -- one line each, replaced with real content once each
+  // section's actual toggles/inputs land.
+  // "Bar" is a deliberate deviation from ruixen.settings' own layout --
+  // direct request: "instead of doing the bar customization here i
+  // might do a left panel for Bar for bar management instead... Window
+  // Curvature, Window Spacing and Animation Style can go here in
+  // Profile but the Bar Layout ill probably save it for its own page."
+  // The real app bundles Bar Layout alongside Window Curvature/Spacing/
+  // Animation Style, all on its own single General/Profile page
+  // (confirmed by reading ruixen.settings/GeneralContent.qml directly)
+  // -- here Bar Layout gets split out into its own category instead,
+  // Profile keeps the rest. No real content for Bar yet, same
+  // plain-header-and-description placeholder every other not-yet-built
+  // category already gets.
+  readonly property var sections: [
+    { id: "general", label: "Profile", glyph: "",
+      description: "Your identity on this machine — display name, avatar, and the small touches that make Ruixen feel like yours." },
+    { id: "bar", label: "Bar", glyph: "",
+      description: "Layout, docking, and how the bar itself sits on your screen." },
+    // Label "Desktop", not "Visualizer" -- direct follow-up: "im
+    // thinking about renaming it to desktop? cause the visualizer is
+    // in the desktop right." Moved up here, right under Bar, per the
+    // same request. id stays "visualizer" -- an internal key, never
+    // shown, and already threaded through cavaEnabled/cavaPosition/
+    // visualizerOpen/etc. elsewhere in this file; renaming those for a
+    // label-only change would be needless churn.
+    { id: "visualizer", label: "Desktop", glyph: "",
+      description: "A live, edge-docked spectrum that reacts to whatever this machine is playing." },
+    { id: "launcher", label: "File Search", glyph: "",
+      description: "How this very launcher searches, ranks, and remembers what matters most the moment you reach for it." },
+    { id: "audio", label: "Audio", glyph: "",
+      description: "Volume, output routing, and the quieter details of how this machine sounds." },
+    { id: "wifi", label: "Wi-Fi", glyph: "",
+      description: "Known networks and the signal that keeps this machine reliably reachable." },
+    { id: "bluetooth", label: "Bluetooth", glyph: "",
+      description: "Paired devices and the wireless companions currently orbiting this machine." },
+    { id: "display", label: "Display", glyph: "",
+      description: "Brightness, Night Light, and display scale, tuned to how you actually look at this screen." },
+    { id: "plugins", label: "Plugins", glyph: "",
+      description: "Everything Ruixen has installed, kept updated, and quietly running." },
+    { id: "about", label: "About", glyph: "",
+      description: "Version, update status, and the fine print behind this shell." }
+  ]
+
+  // Filtered by label, same as ruixen.settings/Settings.qml's own
+  // filteredSections -- ported logic, not reinvented. Keeps each row's
+  // real position in root.sections (originalIndex) rather than the
+  // filtered array's own position, same reasoning as that file's own
+  // comment: openIndex should always point into the full list
+  // underneath, so a since-filtered-out opened category stays correct
+  // (just not visible in the list right now) instead of pointing at
+  // the wrong section entirely.
+  readonly property var filteredSections: {
+    var q = root.searchText.trim().toLowerCase()
+    var out = []
+    for (var i = 0; i < root.sections.length; i++) {
+      var s = root.sections[i]
+      if (q.length === 0 || s.label.toLowerCase().includes(q))
+        out.push({ id: s.id, label: s.label, glyph: s.glyph, originalIndex: i })
+    }
+    return out
+  }
+
+  // Each VISIBLE (filtered) section reshaped into the exact same
+  // result-row object shape every other ResultsList model in this
+  // plugin already uses (id/providerId/icon/label/breadcrumb/kind/
+  // providerName/score/sectionLabel) -- ResultRow itself never needs to
+  // know these came from Settings rather than a real provider.
+  // providerId "settings-category" isn't dispatched anywhere (this
+  // list's own onRowActivated below handles activation directly, the
+  // same way Launcher.qml's resultsList does for real results), it's
+  // just kept for shape-consistency/future-proofing.
+  readonly property var sectionRows: {
+    var rows = []
+    for (var i = 0; i < root.filteredSections.length; i++) {
+      var s = root.filteredSections[i]
+      rows.push({
+        id: "settings:" + s.id,
+        providerId: "settings-category",
+        icon: s.glyph,
+        label: s.label,
+        breadcrumb: "",
+        kind: "",
+        providerName: "",
+        score: 0,
+        // "Categories" -> "System" -- direct correction after floating a
+        // User/System split: every category here really is a system
+        // settings page, so one relabeled header reads right without
+        // the extra grouping work.
+        sectionLabel: "System"
+      })
+    }
+    return rows
+  }
+
+  // Keyboard cursor over the left list -- indexes into filteredSections
+  // (the CURRENT visible list), not root.sections, same distinction
+  // ruixen.settings' own sidebarFocusIndex draws. Up/Down move this; it
+  // does NOT by itself change what the right panel shows (see openIndex
+  // below), matching the user's own "then enter to go into the right
+  // panel" phrasing rather than a live-preview-on-hover model.
+  property int selectedIndex: 0
+  // Index into root.sections (the FULL list, unaffected by filtering).
+  // -1 means the right panel shows its own neutral empty state (kept
+  // as a fallback, e.g. an out-of-range value); in practice this
+  // starts on Profile (0) -- direct request: "we can land in the
+  // profile page" -- and Enter/a real row click move it from there,
+  // matching ResultsList's own rowActivated meaning everywhere else
+  // it's used.
+  property int openIndex: 0
+
+  // Up/Down do double duty depending on which level has focus. Enter
+  // OPENS a category (shows its content on the right) without also
+  // focusing it -- direct correction after the previous "Enter opens
+  // AND focuses" pass: "can we not do auto focus on the first item,
+  // sometime i just wanna glance through the menu item and i have to
+  // go down enter esc down enter esc everytime rn." Browsing every
+  // category is now just Down, Enter, Down, Enter... with no Escape
+  // ever required, since nothing auto-focuses while doing that. Tab
+  // is back as its own, single-purpose gesture (see focusRightPanel's
+  // own comment) -- not redundant with Enter this time, since Enter no
+  // longer does what Tab does.
+  function moveSelectionUp() {
+    if (root.rightFocused) { root.moveItemFocusUp(); return }
+    if (root.selectedIndex > 0) root.selectedIndex--
+  }
+  function moveSelectionDown() {
+    if (root.rightFocused) { root.moveItemFocusDown(); return }
+    if (root.selectedIndex < root.filteredSections.length - 1) root.selectedIndex++
+  }
+  function activateSelection() {
+    if (root.rightFocused) { root.activateFocusedOption(); return }
+    if (root.selectedIndex < root.filteredSections.length)
+      root.openIndex = root.filteredSections[root.selectedIndex].originalIndex
+  }
+
+  // --- Generic extension-content interface -- what Launcher.qml reads/
+  // calls through its own activeExtensionContent lookup instead of a
+  // per-call-site "activeExtensionId === ..." branch. moveSelectionUp/
+  // Down/activateSelection above are already part of it (every 2-panel
+  // or grid extension implements those three); everything below is
+  // this extension's own opt-in beyond that core. See
+  // activeExtensionContent's own comment in Launcher.qml for the full
+  // contract and why duck-typed existence checks, not a formal
+  // interface, is how QML does this.
+  readonly property bool prefersCompactWindow: true
+  readonly property bool interceptsArrowKeys: root.rightFocused
+  readonly property string searchPlaceholder: "Search Settings"
+  readonly property bool showsEnterHint: true
+
+  // Deep-link support -- direct follow-up: "our last setting menu had
+  // keybinds that opens directly to bluetooth wifi audio etc... do we
+  // need to update these doc or backend to support the new setting
+  // launcher?" Same real mechanism ruixen.settings' own Settings.qml
+  // already ports (sectionIndexFor there), so a keybind like
+  // `omarchy-shell shell summon ruixen.launcher
+  // '{"extension":"settings","section":"wifi"}'` keeps working the
+  // same way against this plugin instead. Called from Launcher.qml's
+  // own open(payloadJson) -- see its comment for why AFTER, not
+  // before, activeExtensionId is set (onActiveChanged's own "fresh
+  // state every time this extension is (re)entered" reset would
+  // otherwise stomp this right back to 0 a moment later). Sets both
+  // openIndex (what the right panel shows) and selectedIndex (the
+  // left list's own highlight) so the two agree -- an unmatched id is
+  // a silent no-op, same "malformed payload does nothing" convention
+  // ruixen.settings' own version already uses.
+  function openSectionById(id) {
+    for (var i = 0; i < root.sections.length; i++) {
+      if (root.sections[i].id === id) {
+        root.openIndex = i
+        root.selectedIndex = i
+        return
+      }
+    }
+  }
+
+  // --- Right-panel keyboard focus -- see moveSelectionUp's own
+  // comment above for the current interaction shape. Only meaningful
+  // while the open category actually has real items -- a plain
+  // header+description category has nothing to focus into.
+  property bool rightFocused: false
+  property int focusedItemIndex: 0
+  property int focusedOptionIndex: 0
+
+  // One entry per item card in the CURRENTLY OPEN category, top to
+  // bottom -- `options` is the plain list of ids Left/Right cycle
+  // through, `current` is whichever one is actually applied right now
+  // (used to seed the keyboard cursor when focusing a card), `activate`
+  // calls that item's own real setter. A plain data table per category
+  // here, not a hardcoded switch in every nav function below, so a new
+  // item (or a whole new category) is one more table entry, not a
+  // change to the navigation logic itself.
+  readonly property var profileItems: [
+    {
+      options: root.avatarCollections.map(function(c) { return c.id }),
+      current: root.avatarCollection,
+      // "custom" has no self-contained action the way every other
+      // entry does -- it needs a file first (same reasoning as the
+      // mouse-click branch below), so Enter opens the picker instead of
+      // calling selectAvatar("custom") with no filePath.
+      activate: function(id) {
+        // Issue #102 phase 6: avatarFileDialog now lives inside
+        // profilePage (ProfilePage.qml), exposed through its own alias.
+        if (id === "custom") profilePage.avatarFileDialog.openPicker()
+        else root.selectAvatar(id)
+      }
+    },
+    {
+      options: ["transparent", "frosted"],
+      current: root.glassProfile,
+      activate: function(id) { root.setGlassProfile(id) }
+    },
+    {
+      options: ["black", "themed"],
+      current: root.glassTintMode,
+      activate: function(id) { root.setGlassTintMode(id) }
+    },
+    {
+      options: ["rounded", "half", "sharp"],
+      current: root.cornerCurvature,
+      activate: function(id) { root.setCornerCurvature(id) }
+    },
+    {
+      options: ["comfy", "tight"],
+      current: root.spacingProfile,
+      activate: function(id) { root.setSpacingProfile(id) }
+    },
+    {
+      options: ["calm", "bubbly", "snappy"],
+      current: root.animationProfile,
+      activate: function(id) { root.setAnimationProfile(id) }
+    }
+  ]
+  readonly property var barItems: [
+    // Issue #114 follow-up, direct request: "move the settings toggle
+    // in the bar menu so the toggle is the top option... looks
+    // cleaner" -- swapped with Bar Layout below (was index 1, right
+    // under it; only these two swapped, nothing else renumbered).
+    {
+      kind: "toggle",
+      checked: root.frameEnabled,
+      activate: function() { root.setFrameEnabled(!root.frameEnabled) }
+    },
+    {
+      options: ["floating", "docked"],
+      current: root.barMode,
+      activate: function(id) { root.setBarMode(id) }
+    },
+    {
+      options: ["black", "theme"],
+      current: root.frameColorMode,
+      activate: function(id) { root.setFrameColorMode(id) }
+    },
+    {
+      options: ["glass", "solid"],
+      current: root.barSurfaceMaterial,
+      activate: function(id) { root.setBarSurfaceMaterial(id) }
+    },
+    {
+      options: ["accent", "mono"],
+      current: root.barIconTone,
+      activate: function(id) { root.setBarIconTone(id) }
+    },
+    {
+      options: ["show", "hover", "hidden"],
+      current: root.notchVisibilityCurrentId(),
+      activate: function(id) { root.activateNotchVisibility(id) }
+    },
+    // Direct follow-up: "that setting option i cant tab into and use
+    // dpad to select a new icon, i think we can add that". Same
+    // generic {options, current, activate} shape every other barItems/
+    // profileItems entry already uses -- Left/Right cycling and Enter-
+    // to-apply work identically here whether options has 2 entries or
+    // 111, since moveOptionLeft/moveOptionRight/activateSelected below
+    // only ever index into item.options.length, never assume a small
+    // fixed count.
+    {
+      options: AppLauncherGlyphs.iconIds(),
+      current: root.appLauncherIconId,
+      activate: function(id) { root.setAppLauncherIconId(id) }
+    }
+  ]
+
+  // Every real control on the Visualizer page, in the same order they're
+  // stacked -- one toggle (Enable), three segmented items (Style/
+  // Position/Bands), then a plain pixel-height slider (kind: "slider",
+  // same shape/step convention as Display's own Brightness) -- direct
+  // follow-up after Small/Medium/Large shipped: "the large is still
+  // way too small, maybe instead of small medium large we do scroll
+  // progress bar slider for height?"
+  readonly property var visualizerItems: [
+    {
+      kind: "toggle",
+      checked: root.cavaEnabled,
+      // Keyboard Enter respects the same gate the mouse/toggleEnabled
+      // path does below -- cava missing means this is a no-op, not
+      // just visually dimmed.
+      activate: function() { if (root.cavaInstalled) root.setCavaEnabled(!root.cavaEnabled) }
+    },
+    {
+      kind: "toggle",
+      checked: root.cavaMirror,
+      activate: function() { root.setCavaMirror(!root.cavaMirror) }
+    },
+    {
+      options: ["bars", "segments", "wave"],
+      current: root.cavaStyle,
+      activate: function(id) { root.setCavaStyle(id) }
+    },
+    {
+      options: ["top", "bottom", "left", "right"],
+      current: root.cavaPosition,
+      activate: function(id) { root.setCavaPosition(id) }
+    },
+    {
+      options: [32, 48, 64, 96],
+      current: root.cavaBands,
+      activate: function(id) { root.setCavaBands(id) }
+    },
+    {
+      kind: "slider",
+      adjust: function(delta) {
+        root.setCavaThickness(root.cavaThickness + delta * (root.cavaThicknessMax - root.cavaThicknessMin))
+      }
+    }
+  ]
+  // Every real control on the Launcher page, in the same order
+  // they're stacked -- direct report: "the tab kbd stuff not working
+  // on launcher setting" (currentItems had no branch for Launcher at
+  // all), then "well the togle doesnt work, i think i need to enter to
+  // toggle" (correct -- a first pass modeled each switch as a 2-option
+  // segmented item, which needed Left/Right to move a cursor onto the
+  // OTHER state before Enter would do anything, since Enter there
+  // means "commit whichever option the cursor already sits on," not
+  // "flip"). Two real item `kind`s here now, alongside the segmented
+  // kind profileItems/barItems use (implicit -- anything with an
+  // `options` array):
+  //   "toggle" -- Enter flips it directly, no cursor to pre-position.
+  //   "textEntry" -- Enter hands real Qt focus to the actual TextInput
+  //     (SettingsAddListItem.focusTextInput()) so typing just works
+  //     natively -- direct follow-up: "why wouldnt the text entry
+  //     work... i just tab and go to it with d pad then type and enter
+  //     to add." Left/Right/Up/Down do nothing special for either kind
+  //     while it's merely the highlighted item (see moveOptionLeft/
+  //     Right's own guards) -- a toggle has no options to cycle, and a
+  //     text field's Left/Right only mean anything once it actually
+  //     has real focus, at which point they're plain text-cursor
+  //     movement Qt already handles for free.
+  readonly property var launcherItems: {
+    var items = [
+      {
+        kind: "toggle",
+        checked: root.launcherSearchConfig.includeHome,
+        activate: function() { root.setLauncherIncludeHome(!root.launcherSearchConfig.includeHome) }
+      },
+      {
+        kind: "toggle",
+        checked: root.launcherSearchConfig.includeMountedRoots,
+        activate: function() { root.setLauncherIncludeMountedRoots(!root.launcherSearchConfig.includeMountedRoots) }
+      }
+    ]
+    for (var i = 0; i < root.mountChecklist.length; i++) {
+      items.push(root.mountToggleItem(root.mountChecklist[i]))
+    }
+    // Issue #102 phase 7: customRootsItem/excludedPathsItem/
+    // excludedNamesItem now live inside fileSearchPage
+    // (FileSearchPage.qml), exposed through its own aliases.
+    items.push({ kind: "textEntry", focus: function() { fileSearchPage.customRootsItem.focusTextInput() } })
+    items.push({ kind: "textEntry", focus: function() { fileSearchPage.excludedPathsItem.focusTextInput() } })
+    items.push({ kind: "textEntry", focus: function() { fileSearchPage.excludedNamesItem.focusTextInput() } })
+    return items
+  }
+
+  // Split out from launcherItems' own loop body so the closure below
+  // captures each mount's own `m.path` correctly -- a function
+  // declared directly inside a for-loop body closes over the loop
+  // variable itself, not its value at that iteration, and every
+  // resulting activate() would silently apply to whichever mount
+  // happened to be last.
+  function mountToggleItem(m) {
+    return {
+      kind: "toggle",
+      checked: !m.disabled,
+      activate: function() { root.toggleLauncherAutoRootDisabled(m.path) }
+    }
+  }
+
+  // Output's own item count (the combined volume/mute control, plus
+  // one per device) -- Input's items start right after these in
+  // audioItems below, so both this file and the two
+  // SettingsAudioChannelItem instances' own focus bindings need the
+  // exact same offset.
+  readonly property int outputItemCount: 1 + root.outputDevices.length
+
+  // Mute+slider is ONE combined item per channel (Left/Right adjusts
+  // volume, Enter toggles mute -- like a real volume knob: turn to
+  // adjust, press to mute), not two separate stops -- direct follow-
+  // up: "wanna do the tab kbd now?" Each device is its own "select"
+  // item (Enter sets it as the default, no options to cycle -- same
+  // direct-activate() shape "toggle" items already use, just a
+  // different real name so the intent reads clearly).
+  //
+  // The radio toggle sits first (index 0), same top-of-page slot Wi-Fi/
+  // Bluetooth's own radio occupies -- direct request: "on omarchy
+  // theres a toggle for on and off, we have this for bluetooth and
+  // wifi as the top option, can we have an audio on and off toggle
+  // too". Everything below it shifts down by exactly 1 from before.
+  readonly property var audioItems: {
+    var items = [{
+      kind: "toggle",
+      checked: root.anyAudible,
+      activate: function() { root.toggleAllMuted() }
+    }, root.volumeControlItem("output")]
+    for (var i = 0; i < root.outputDevices.length; i++) {
+      items.push(root.deviceSelectItem(root.outputDevices[i], "output"))
+    }
+    items.push(root.volumeControlItem("input"))
+    for (var j = 0; j < root.inputDevices.length; j++) {
+      items.push(root.deviceSelectItem(root.inputDevices[j], "input"))
+    }
+    return items
+  }
+
+  function volumeControlItem(channel) {
+    if (channel === "output") {
+      return {
+        kind: "volumeControl",
+        adjust: function(delta) { root.setOutputVolume(root.outputVolume + delta) },
+        activate: function() { root.toggleOutputMute() }
+      }
+    }
+    return {
+      kind: "volumeControl",
+      adjust: function(delta) { root.setInputVolume(root.inputVolume + delta) },
+      activate: function() { root.toggleInputMute() }
+    }
+  }
+
+  // Split out from audioItems' own loop bodies for the same closure
+  // reason mountToggleItem's own comment explains -- a function
+  // declared directly inside a for-loop body closes over the loop
+  // variable itself, not each iteration's value.
+  function deviceSelectItem(node, channel) {
+    return {
+      kind: "select",
+      activate: channel === "output"
+        ? function() { root.setDefaultOutput(node) }
+        : function() { root.setDefaultInput(node) }
+    }
+  }
+
+  // Night Light ("toggle", direct request: "the display setting seems
+  // a bit light ... what about Night Light with on or off toggle",
+  // moved to the top slot per direct follow-up: "put it as the top
+  // option above brightness"), then Brightness (kind: "slider" --
+  // Left/Right adjusts, nothing for Enter to commit since it already
+  // applies live), then Display Scale (a plain segmented item, same
+  // shape as Bar Layout/Window Curvature -- fits the existing model
+  // with no new kind needed). Empty entirely when brightnessAvailable
+  // is false, matching every card's own visibility gate below --
+  // nothing to navigate to. Night Light itself has no real dependency
+  // on backlight hardware (it's hyprsunset color temperature, not
+  // brightness), but bundling it under the same gate keeps this
+  // array's indexing fixed rather than conditional on two independent
+  // availability checks -- a real headless-brightness-but-wants-Night-
+  // Light machine is a follow-up for if one ever actually shows up,
+  // not a speculative case to design around now.
+  readonly property var displayItems: {
+    if (!root.brightnessAvailable) return []
+    return [
+      {
+        kind: "toggle",
+        checked: root.nightLightEnabled,
+        activate: function() { root.toggleNightLight() }
+      },
+      {
+        kind: "slider",
+        adjust: function(delta) { root.setBrightness(root.brightnessPercent + delta * 100) }
+      },
+      {
+        options: root.scalePresets,
+        current: root.displayScale,
+        activate: function(id) { root.setDisplayScale(id) }
+      }
+    ]
+  }
+
+  // Wi-Fi's own items -- the radio toggle, then (only while enabled)
+  // one "select" item per known network followed by one per available
+  // (unknown) network. Both row kinds use "select" -- activate() takes
+  // no args either way, same shape "select"/"toggle" already share; the
+  // only difference is what activate() itself does (connect/switch vs.
+  // connect-or-open-the-password-prompt), which is real backend logic,
+  // not a new keyboard-nav shape.
+  readonly property var wifiItems: {
+    var items = [
+      {
+        kind: "toggle",
+        checked: Networking.wifiEnabled,
+        activate: function() { root.toggleWifiRadio() }
+      },
+      {
+        kind: "select",
+        activate: function() { root.summonWifiQr() }
+      },
+      {
+        kind: "select",
+        activate: function() { root.summonSpeedTest() }
+      }
+    ]
+    if (!Networking.wifiEnabled) return items
+    for (var i = 0; i < root.knownWifiRows.length; i++) {
+      items.push(root.wifiKnownRowItem(root.knownWifiRows[i]))
+    }
+    for (var j = 0; j < root.otherWifiRows.length; j++) {
+      items.push(root.wifiOtherRowItem(root.otherWifiRows[j], j))
+    }
+    return items
+  }
+
+  // Split out from wifiItems' own loop bodies for the same closure
+  // reason mountToggleItem's own comment explains.
+  function wifiKnownRowItem(row) {
+    return {
+      kind: "select",
+      activate: function() { root.connectToWifi(row) }
+    }
+  }
+
+  // Unknown+secured rows: connectToWifi() itself decides whether this
+  // opens the password prompt or connects immediately (open network) --
+  // this item only needs to hand real Qt focus to the password field
+  // right after, and only when the prompt actually just opened for THIS
+  // row (connectToWifi() also closes an already-open prompt on a second
+  // press of the same row, which must NOT re-focus a field that no
+  // longer exists).
+  function wifiOtherRowItem(row, index) {
+    return {
+      kind: "select",
+      activate: function() {
+        root.connectToWifi(row)
+        if (root.wifiPasswordSsid === row.ssid) {
+          // Issue #102 phase 8: otherRepeater now lives inside wifiPage
+          // (WifiPage.qml), exposed through its own alias.
+          Qt.callLater(function() { wifiPage.otherRepeater.itemAt(index).focusPasswordInput() })
+        }
+      }
+    }
+  }
+
+  // Bluetooth's own items -- the radio toggle, then (only while
+  // enabled) one "select" item per paired device followed by one per
+  // available (unknown) device. Same "select" shape as Wi-Fi's own
+  // rows -- activate() takes no args, connectToWifi()'s Bluetooth
+  // equivalent (toggleBtConnection) decides what actually happens.
+  readonly property var btItems: {
+    var items = [{
+      kind: "toggle",
+      checked: root.btEnabled,
+      activate: function() { root.toggleBluetoothRadio() }
+    }]
+    if (!root.btEnabled) return items
+    for (var i = 0; i < root.knownBtRows.length; i++) {
+      items.push(root.btKnownRowItem(root.knownBtRows[i]))
+    }
+    for (var j = 0; j < root.otherBtRows.length; j++) {
+      items.push(root.btOtherRowItem(root.otherBtRows[j]))
+    }
+    return items
+  }
+
+  function btKnownRowItem(row) {
+    return {
+      kind: "select",
+      activate: function() { root.toggleBtConnection(row) }
+    }
+  }
+
+  // Enter twice pairs: the first arms the row (same as a mouse click),
+  // the second -- while still armed -- confirms the pair directly
+  // rather than mouse-click's own disarm-on-second-click, since Enter
+  // committing something real (not toggling back off) matches every
+  // other item's own keyboard convention in this file.
+  function btOtherRowItem(row) {
+    return {
+      kind: "select",
+      activate: function() {
+        if (root.btPairArmedAddress === row.address) root.confirmPairBtDevice(row)
+        else root.toggleBtConnection(row)
+      }
+    }
+  }
+
+  // Plugins' own items -- Check for Updates and Update (both "select",
+  // no-op via their own activate() guard whenever ruixenRepoPath is
+  // empty or an action is already in flight, same disabled-button
+  // reasoning the real page's own MouseArea.enabled gates use), then
+  // one "toggle" per non-protected plugin row.
+  readonly property var pluginItems: {
+    var items = [
+      {
+        kind: "select",
+        activate: function() {
+          if (root.ruixenRepoPath !== "" && root.pluginCheckStatus !== "checking") root.checkForUpdates()
+        }
+      },
+      {
+        kind: "select",
+        activate: function() {
+          if (root.ruixenRepoPath !== "" && root.pluginUpdateStatus !== "updating") root.updateRuixenShell()
+        }
+      }
+    ]
+    for (var i = 0; i < root.togglablePluginRows.length; i++) {
+      items.push(root.pluginToggleItem(root.togglablePluginRows[i]))
+    }
+    return items
+  }
+
+  function pluginToggleItem(row) {
+    return {
+      kind: "toggle",
+      checked: row.enabled,
+      activate: function() {
+        if (root.pluginBusyId === row.id) return
+        root.togglePluginEnabled(row)
+      }
+    }
+  }
+
+  // About's own four items -- Restart Shell and Open on GitHub (both
+  // "select", no confirm gate, see restartOmarchyShell's/
+  // openRepoInBrowser's own comments for why), the uninstall confirm
+  // field (kind "textEntry", same real Qt focus handoff Launcher's own
+  // add-list boxes use), and the Uninstall button itself ("select",
+  // no-op via its own activate() guard until ready, same disabled-
+  // button reasoning Plugins' own Check/Update items use). Order
+  // matches the two side-by-side buttons' own left-to-right position
+  // (AboutPage.qml's own restartShellItem/openGithubItem row), same
+  // left-then-right Tab order Plugins' own Check/Update row already
+  // establishes.
+  readonly property var aboutItems: {
+    return [
+      {
+        kind: "select",
+        activate: function() { root.restartOmarchyShell() }
+      },
+      {
+        kind: "select",
+        activate: function() { root.openRepoInBrowser() }
+      },
+      {
+        kind: "textEntry",
+        // Issue #102 phase 10: uninstallConfirmField now lives inside
+        // aboutPage (AboutPage.qml), exposed through its own alias.
+        focus: function() { aboutPage.uninstallConfirmField.forceActiveFocus() }
+      },
+      {
+        kind: "select",
+        activate: function() {
+          if (root.ruixenRepoPath !== "" && root.uninstallConfirmInput === root.uninstallConfirmPhrase)
+            root.confirmFullUninstall()
+        }
+      }
+    ]
+  }
+
+  // The single thing every nav function below actually reads --
+  // whichever category is open picks its own table, everything else
+  // (an empty header+description category) has nothing to navigate.
+  readonly property var currentItems: {
+    if (root.profileOpen) return root.profileItems
+    if (root.barOpen) return root.barItems
+    if (root.launcherOpen) return root.launcherItems
+    if (root.audioOpen) return root.audioItems
+    if (root.displayOpen) return root.displayItems
+    if (root.visualizerOpen) return root.visualizerItems
+    if (root.wifiOpen) return root.wifiItems
+    if (root.btOpen) return root.btItems
+    if (root.pluginsOpen) return root.pluginItems
+    if (root.aboutOpen) return root.aboutItems
+    return []
+  }
+
+  // Seeds the keyboard cursor to wherever the item's own currently
+  // applied option already sits, same "start where you already are"
+  // convention the dropdown's own seedDropdownSelection (Launcher.qml)
+  // established -- landing on option 0 regardless of the real value
+  // would put the cursor somewhere that doesn't match what's actually
+  // highlighted as current.
+  function seedFocusedOption() {
+    var item = root.currentItems[root.focusedItemIndex]
+    // Toggle/textEntry items have no `options` array at all -- nothing
+    // to seed a cursor position into, so this just stays at its
+    // harmless default.
+    if (!item || !item.options) { root.focusedOptionIndex = 0; return }
+    var idx = item.options.indexOf(item.current)
+    root.focusedOptionIndex = idx >= 0 ? idx : 0
+  }
+
+  // Tab's own, single job in this extension now -- drills into the
+  // currently-open category's item cards (a no-op via the
+  // currentItems.length guard for a plain header+description category
+  // with nothing to focus). Enter no longer calls this at all; see
+  // activateSelection's own comment.
+  function focusRightPanel() {
+    if (root.currentItems.length === 0) return
+    root.rightFocused = true
+    root.focusedItemIndex = 0
+    root.seedFocusedOption()
+    Qt.callLater(root.scrollToFocusedItem)
+  }
+
+  function blurToLeftPanel() {
+    root.rightFocused = false
+  }
+
+  // Up/Down between item cards while the right panel has focus --
+  // wraps at either end rather than dead-ending, same as the left
+  // category list already effectively does via filteredSections.
+  function moveItemFocusUp() {
+    if (root.currentItems.length === 0) return
+    root.focusedItemIndex = (root.focusedItemIndex - 1 + root.currentItems.length) % root.currentItems.length
+    root.seedFocusedOption()
+    Qt.callLater(root.scrollToFocusedItem)
+  }
+  function moveItemFocusDown() {
+    if (root.currentItems.length === 0) return
+    root.focusedItemIndex = (root.focusedItemIndex + 1) % root.currentItems.length
+    root.seedFocusedOption()
+    Qt.callLater(root.scrollToFocusedItem)
+  }
+
+  // Direct follow-up: "when i tab to the animation style, can the
+  // panel know to flick up or down depending on where the options
+  // are?" -- Tab can land on a card the Flickable hasn't scrolled to
+  // yet (Animation Style, the last one, sits below the fold at the
+  // panel's normal scroll position). Same "only scroll the minimum
+  // needed" shape a scrolloff implementation uses: nudge up if the
+  // card's top is above the visible top, nudge down if its bottom is
+  // below the visible bottom, otherwise leave contentY alone (a card
+  // already fully in view shouldn't jump for no reason). Qt.callLater
+  // in every caller -- a card's own height can depend on content that
+  // hasn't finished laying out in the same tick focus moved to it.
+  // Profile/Bar's own items are whole cards, direct children of
+  // rightContentColumn -- plain `.y` was enough. Launcher's items are
+  // individual SettingsToggleRow instances NESTED inside a card
+  // (launcherToggleItem) or a Repeater (mountRepeater), so their
+  // position relative to rightContentColumn has to go through
+  // mapToItem rather than a bare `.y` (which would only ever be
+  // relative to their own immediate parent).
+  function focusedItemVisual() {
+    if (root.profileOpen) {
+      // Issue #102 phase 6: every one of these now lives inside
+      // profilePage (ProfilePage.qml), exposed through its own aliases
+      // -- see that file's own header.
+      return [profilePage.profilePictureItem, profilePage.glassProfileItem, profilePage.glassTintItem,
+        profilePage.windowCurvatureItem, profilePage.windowSpacingItem, profilePage.animationStyleItem][root.focusedItemIndex]
+    }
+    if (root.barOpen) {
+      // Index 6 (appLauncherIconItem) is a special case -- direct
+      // report: "it kinda scroll me down but then im not able to see
+      // the top rows... can only see the bottom ones". scrollToFocusedItem()
+      // uses this return value's own height to decide how far to
+      // scroll; appLauncherIconItem is the WHOLE ~111-icon card
+      // (many rows tall), so scrolling to keep its bottom edge in
+      // view -- the only thing that generic logic can do with a card
+      // this size -- meant scrolling straight past the actually-
+      // focused tile to show the card's own bottom instead. Returning
+      // the specific focused TILE (iconRepeater.itemAt) instead gives
+      // scrollToFocusedItem() a small, correctly-positioned target to
+      // scroll to, the same as every other (much smaller) item here
+      // already gets for free.
+      // Issue #102 phase 5: every one of these now lives inside barPage
+      // (BarPage.qml), exposed through its own aliases -- see that
+      // file's own header. Issue #114 follow-up: Frame Border and Bar
+      // Layout swapped (0 and 1) per direct request to put the toggle
+      // first -- everything from index 2 on is untouched.
+      if (root.focusedItemIndex === 6) return barPage.iconRepeater.itemAt(root.focusedOptionIndex)
+      return [barPage.frameEnabledItem, barPage.barLayoutItem, barPage.frameColorModeItem,
+        barPage.surfaceMaterialItem, barPage.iconToneItem, barPage.notchVisibilityItem,
+        barPage.appLauncherIconItem][root.focusedItemIndex]
+    }
+    if (root.launcherOpen) {
+      // Issue #102 phase 7: every one of these now lives inside
+      // fileSearchPage (FileSearchPage.qml), exposed through its own
+      // aliases -- see that file's own header.
+      if (root.focusedItemIndex === 0) return fileSearchPage.includeHomeRow
+      if (root.focusedItemIndex === 1) return fileSearchPage.includeMountedRow
+      var mountIdx = root.focusedItemIndex - 2
+      if (mountIdx < root.mountChecklist.length) return fileSearchPage.mountRepeater.itemAt(mountIdx)
+      var textEntryIdx = mountIdx - root.mountChecklist.length
+      return [fileSearchPage.customRootsItem, fileSearchPage.excludedPathsItem, fileSearchPage.excludedNamesItem][textEntryIdx]
+    }
+    if (root.audioOpen) {
+      // Issue #102 phase 2: audioRadioRow/outputChannelItem/
+      // inputChannelItem now live inside audioPage (AudioPage.qml),
+      // exposed through its own aliases -- see that file's own header.
+      if (root.focusedItemIndex === 0) return audioPage.audioRadioRow
+      var audioIdx = root.focusedItemIndex - 1
+      if (audioIdx === 0) return audioPage.outputChannelItem.volumeRowItem
+      if (audioIdx < root.outputItemCount) return audioPage.outputChannelItem.deviceRowAt(audioIdx - 1)
+      var inputIdx = audioIdx - root.outputItemCount
+      if (inputIdx === 0) return audioPage.inputChannelItem.volumeRowItem
+      return audioPage.inputChannelItem.deviceRowAt(inputIdx - 1)
+    }
+    if (root.displayOpen) {
+      // Issue #102 phase 3: nightLightRow/brightnessItem/
+      // displayScaleItem now live inside displayPage (DisplayPage.qml),
+      // exposed through its own aliases -- see that file's own header.
+      return [displayPage.nightLightRow, displayPage.brightnessItem, displayPage.displayScaleItem][root.focusedItemIndex]
+    }
+    if (root.visualizerOpen) {
+      // Issue #102 phase 4: cavaEnableRow/cavaMirrorRow/cavaStyleItem/
+      // cavaPositionItem/cavaBandsItem/cavaThicknessItem now live inside
+      // visualizerPage (VisualizerPage.qml), exposed through its own
+      // aliases -- see that file's own header.
+      return [visualizerPage.cavaEnableRow, visualizerPage.cavaMirrorRow, visualizerPage.cavaStyleItem,
+        visualizerPage.cavaPositionItem, visualizerPage.cavaBandsItem, visualizerPage.cavaThicknessItem][root.focusedItemIndex]
+    }
+    if (root.wifiOpen) {
+      // Issue #102 phase 8: every one of these now lives inside
+      // wifiPage (WifiPage.qml), exposed through its own aliases --
+      // see that file's own header.
+      if (root.focusedItemIndex === 0) return wifiPage.wifiRadioRow
+      if (root.focusedItemIndex === 1) return wifiPage.wifiQrButton
+      if (root.focusedItemIndex === 2) return wifiPage.wifiSpeedTestButton
+      var knownIdx = root.focusedItemIndex - 3
+      if (knownIdx < root.knownWifiRows.length) return wifiPage.knownRepeater.itemAt(knownIdx)
+      var otherIdx = knownIdx - root.knownWifiRows.length
+      return wifiPage.otherRepeater.itemAt(otherIdx)
+    }
+    if (root.btOpen) {
+      // Issue #102 phase 9: every one of these now lives inside
+      // bluetoothPage (BluetoothPage.qml), exposed through its own
+      // aliases -- see that file's own header.
+      if (root.focusedItemIndex === 0) return bluetoothPage.btRadioRow
+      var knownBtIdx = root.focusedItemIndex - 1
+      if (knownBtIdx < root.knownBtRows.length) return bluetoothPage.knownBtRepeater.itemAt(knownBtIdx)
+      var otherBtIdx = knownBtIdx - root.knownBtRows.length
+      return bluetoothPage.otherBtRepeater.itemAt(otherBtIdx)
+    }
+    if (root.pluginsOpen) {
+      // Issue #102 phase 1: pluginCheckButton/pluginUpdateButton/
+      // pluginRepeater now live inside pluginsPage (PluginsPage.qml),
+      // exposed through its own checkButton/updateButton/repeater
+      // aliases specifically so this shared, cross-section coordinator
+      // can still reach them -- see that file's own header.
+      if (root.focusedItemIndex === 0) return pluginsPage.checkButton
+      if (root.focusedItemIndex === 1) return pluginsPage.updateButton
+      var togIdx = root.focusedItemIndex - 2
+      var target = root.togglablePluginRows[togIdx]
+      if (!target) return null
+      for (var i = 0; i < root.pluginRows.length; i++) {
+        if (root.pluginRows[i].id === target.id) return pluginsPage.repeater.itemAt(i)
+      }
+      return null
+    }
+    if (root.aboutOpen) {
+      // Issue #102 phase 10: all four now live inside aboutPage
+      // (AboutPage.qml), exposed through its own aliases -- see that
+      // file's own header.
+      return [aboutPage.restartShellButton, aboutPage.openGithubButton, aboutPage.uninstallConfirmRow, aboutPage.uninstallButtonRow][root.focusedItemIndex]
+    }
+    return null
+  }
+
+  function scrollToFocusedItem() {
+    var item = root.focusedItemVisual()
+    if (!item) return
+    var pos = item.mapToItem(rightContentColumn, 0, 0)
+    var itemTop = rightContentColumn.y + pos.y
+    var itemBottom = itemTop + item.height
+    if (itemTop < rightPaneScroll.contentY) {
+      rightPaneScroll.contentY = Math.max(0, itemTop - 8)
+    } else if (itemBottom > rightPaneScroll.contentY + rightPaneScroll.height) {
+      rightPaneScroll.contentY = Math.min(rightPaneScroll.contentHeight - rightPaneScroll.height, itemBottom + 8 - rightPaneScroll.height)
+    }
+  }
+
+  // 5% per press -- same step the real slider's own scroll-wheel
+  // handler already uses (AudioContent.qml's own wheel step, ported
+  // verbatim), so keyboard and scroll always move volume by the same
+  // amount.
+  readonly property real volumeStep: 0.05
+
+  function moveOptionLeft() {
+    if (!root.rightFocused) return
+    var item = root.currentItems[root.focusedItemIndex]
+    if (!item) return
+    if (item.kind === "volumeControl" || item.kind === "slider") { item.adjust(-root.volumeStep); return }
+    // Toggle/select/textEntry items have nothing to cycle -- a plain
+    // no-op, not an error, while one of those is the focused item.
+    if (!item.options || item.options.length === 0) return
+    root.focusedOptionIndex = (root.focusedOptionIndex - 1 + item.options.length) % item.options.length
+  }
+
+  function moveOptionRight() {
+    if (!root.rightFocused) return
+    var item = root.currentItems[root.focusedItemIndex]
+    if (!item) return
+    if (item.kind === "volumeControl" || item.kind === "slider") { item.adjust(root.volumeStep); return }
+    if (!item.options || item.options.length === 0) return
+    root.focusedOptionIndex = (root.focusedOptionIndex + 1) % item.options.length
+  }
+
+  // Generic extension-content interface (see the property block above
+  // moveOptionLeft/Right's own comment) -- plain forwards, so this
+  // file's own left/right handling keeps the name that actually
+  // describes what it does here (shifting a focused option's value),
+  // while Launcher.qml's dispatch still only ever has one pair of
+  // names to call across every extension.
+  function moveSelectionLeft() { root.moveOptionLeft() }
+  function moveSelectionRight() { root.moveOptionRight() }
+
+  // Enter's meaning depends on the focused item's own kind -- a
+  // toggle/volume-control/select item all act directly with no args
+  // (flip a switch, toggle mute, or pick this device -- none of them
+  // have a cursor pre-positioned first), a text entry hands off real
+  // Qt focus so typing works, and everything else (every segmented
+  // item) commits whichever option the cursor currently sits on.
+  function activateFocusedOption() {
+    var item = root.currentItems[root.focusedItemIndex]
+    if (!item) return
+    if (item.kind === "toggle" || item.kind === "volumeControl" || item.kind === "select") { item.activate(); return }
+    if (item.kind === "textEntry") { item.focus(); return }
+    // A plain slider (Brightness) has nothing for Enter to commit --
+    // Left/Right already applies the value directly, live.
+    if (item.kind === "slider") return
+    item.activate(item.options[root.focusedOptionIndex])
+  }
+
+  // No stale keyboard focus surviving a category switch -- landing on
+  // a different category (a click, or Enter on a new left-panel row)
+  // always starts back on the left panel's own list, never mid-way
+  // into whatever the PREVIOUS category's right-panel cursor happened
+  // to be on.
+  onOpenIndexChanged: {
+    root.rightFocused = false
+    root.focusedItemIndex = 0
+    rightPaneScroll.contentY = 0
+    // Fresh mount list every time Launcher is (re)opened -- a drive
+    // plugged in or removed since the last visit should show up
+    // without needing a full shell restart, same reasoning
+    // FileSearchProvider.qml's own refreshRoots() already applies.
+    if (root.launcherOpen) root.refreshLauncherDiscoveredMounts()
+  }
+
+  // Fresh cursor on every new query, same as every other search
+  // surface in this plugin (onQueryChanged/onFilesModeChanged) -- a
+  // stale selectedIndex from before a keystroke could otherwise land
+  // past the end of a now-shorter filtered list, or highlight a
+  // visually different row than the one that was actually highlighted
+  // a moment ago.
+  onSearchTextChanged: root.selectedIndex = 0
+
+  // Fresh state every time the extension is (re)entered -- same
+  // "no stale cursor from last time" convention onFilesModeChanged/
+  // onOpenedChanged already apply elsewhere in this plugin.
+  onActiveChanged: {
+    if (root.active) {
+      root.selectedIndex = 0
+      root.openIndex = 0
+      // Explicit, not left to onOpenIndexChanged alone -- openIndex
+      // may already BE 0 from a previous visit (no change event to
+      // react to), which would otherwise leave a stale right-panel
+      // focus active the moment this extension reopens.
+      root.rightFocused = false
+      root.focusedItemIndex = 0
+      rightPaneScroll.contentY = 0
+      // Same "fetch once" gate ruixen.settings' own onOpenedChanged
+      // uses -- fastfetch is not free enough to re-run every time this
+      // extension is (re)entered.
+      if (root.hardwareName === "") identityProc.running = true
+      if (root.omarchyVersion === "") omarchyVersionProc.running = true
+      // Unlike hardwareName above, these two are cheap AND can
+      // genuinely change out from under this extension between visits
+      // (the real ruixen.settings panel, or a CLI run of
+      // ruixen-lookfeel.sh, changing curvature) -- refreshed on every
+      // entry, unconditionally, same as ruixen.settings' own
+      // onOpenedChanged does for both.
+      cornerCurvatureReadProc.running = true
+      spacingProfileReadProc.running = true
+      animationProfileReadProc.running = true
+      glassProfileReadProc.running = true
+      glassTintModeReadProc.running = true
+      barModeReadProc.running = true
+      // Same "can genuinely change between visits" reasoning as the
+      // reads just above -- a dependency can get uninstalled, or the
+      // shell IPC can go down, while this extension sits closed.
+      healthCheckProc.running = true
+      root.refreshPlugins()
+      pluginService.refreshRepoPath()
+    }
+    // Releases the Wi-Fi scan radio and Bluetooth discovery the moment
+    // this extension closes -- both read root.active itself to decide
+    // the real device/adapter vs. null.
+    root.setScannerEnabled(true)
+    root.setBtScannerEnabled(true)
+  }
+
+  ExtensionTwoPanel {
+    id: panel
+    anchors.fill: parent
+    anchors.leftMargin: root.compactMode ? -8 : 0
+    detailRatio: root.compactMode ? 1 : 0.6
+  }
+
+  Binding {
+    target: panel.leftPane
+    property: "visible"
+    value: !root.compactMode
+  }
+
+  // Reparented into panel's own left slot (see ExtensionTwoPanel.qml's
+  // own header comment for why a slot Item + `parent:` beats a Loader/
+  // Component here) -- every binding below is a plain, direct binding
+  // off this file's own root, exactly like Launcher.qml's real
+  // resultsList instantiation.
+  ResultsList {
+    parent: panel.leftPane
+    anchors.fill: parent
+    // 4px top breathing room -- direct follow-up ("i guess we can space
+    // some space?"), the header sat flush against the pane's own top
+    // edge with zero gap. Same 4px the main landing resultsList already
+    // uses below its own filtersBar (see its own comment: enough to read
+    // as deliberate without reading as too much empty space).
+    anchors.topMargin: 4
+    model: root.sectionRows
+    // Icon+label only, no meta/kind/keybind columns -- the exact same
+    // reduced row Search Files itself renders through this same flag,
+    // which is the whole point: this isn't a look-alike, it's the same
+    // component in the same mode.
+    filesMode: true
+    selectedIndex: root.selectedIndex
+    textColor: root.textColor
+    mutedColor: root.muted
+    accentColor: root.accent
+    fontFamily: root.fontFamily
+    onRowHovered: (idx) => { root.selectedIndex = idx }
+    onRowActivated: (idx) => {
+      root.selectedIndex = idx
+      if (idx < root.filteredSections.length)
+        root.openIndex = root.filteredSections[idx].originalIndex
+    }
+  }
+
+  // Same "typo'd query, empty sidebar" edge case ruixen.settings' own
+  // empty state covers -- 8 rows is rare to filter down to nothing,
+  // but not impossible.
+  Text {
+    parent: panel.leftPane
+    anchors.centerIn: parent
+    width: parent.width - 16
+    visible: root.filteredSections.length === 0
+    horizontalAlignment: Text.AlignHCenter
+    wrapMode: Text.WordWrap
+    text: "No matches"
+    font.family: root.fontFamily
+    font.pixelSize: 11
+    color: root.muted
+  }
+
+  // Fallback only -- openIndex starts on Profile (0) now and every
+  // activation/click keeps it in range, so this shouldn't normally be
+  // reachable, but it's cheap insurance against an out-of-range value
+  // rather than rendering nothing at all.
+  Column {
+    parent: panel.rightPane
+    anchors.centerIn: parent
+    spacing: 6
+    visible: root.openIndex < 0 || root.openIndex >= root.sections.length
+
+    Text {
+      anchors.horizontalCenter: parent.horizontalCenter
+      text: ""
+      font.family: root.fontFamily
+      font.pixelSize: 22
+      color: root.muted
+    }
+    Text {
+      anchors.horizontalCenter: parent.horizontalCenter
+      text: "Select a category and press Enter"
+      font.family: root.fontFamily
+      font.pixelSize: 12
+      color: root.muted
+    }
+  }
+
+  // True while Profile specifically is open -- checked by id, not the
+  // bare index 0, so this stays correct even if sections' own order
+  // ever changes.
+  readonly property bool profileOpen: root.openIndex >= 0
+    && root.openIndex < root.sections.length
+    && root.sections[root.openIndex].id === "general"
+  readonly property bool barOpen: root.openIndex >= 0
+    && root.openIndex < root.sections.length
+    && root.sections[root.openIndex].id === "bar"
+  readonly property bool launcherOpen: root.openIndex >= 0
+    && root.openIndex < root.sections.length
+    && root.sections[root.openIndex].id === "launcher"
+  readonly property bool audioOpen: root.openIndex >= 0
+    && root.openIndex < root.sections.length
+    && root.sections[root.openIndex].id === "audio"
+  readonly property bool displayOpen: root.openIndex >= 0
+    && root.openIndex < root.sections.length
+    && root.sections[root.openIndex].id === "display"
+  readonly property bool visualizerOpen: root.openIndex >= 0
+    && root.openIndex < root.sections.length
+    && root.sections[root.openIndex].id === "visualizer"
+  readonly property bool wifiOpen: root.openIndex >= 0
+    && root.openIndex < root.sections.length
+    && root.sections[root.openIndex].id === "wifi"
+  readonly property bool btOpen: root.openIndex >= 0
+    && root.openIndex < root.sections.length
+    && root.sections[root.openIndex].id === "bluetooth"
+  readonly property bool pluginsOpen: root.openIndex >= 0
+    && root.openIndex < root.sections.length
+    && root.sections[root.openIndex].id === "plugins"
+  readonly property bool aboutOpen: root.openIndex >= 0
+    && root.openIndex < root.sections.length
+    && root.sections[root.openIndex].id === "about"
+
+  // Every category's right-panel content, Profile included, scrolls as
+  // ONE unit -- direct request: "we need the right panel to be able to
+  // scroll down with mouse wheel" (Profile's own 4 stacked item cards
+  // can run past the panel's fixed viewport height). A plain Flickable,
+  // same "no overscroll bounce" convention ResultsList.qml/ruixen.
+  // settings' own detail Flickable already use -- Column, not manual
+  // anchor-chaining between siblings, so contentHeight is just the
+  // Column's own height and a short/plain category (header +
+  // description only, no item cards) needs no special-casing: Column
+  // already skips each `visible: false` item card's own space, exactly
+  // like it did as anchor-chained siblings before.
+  Flickable {
+    id: rightPaneScroll
+    parent: panel.rightPane
+    anchors.fill: parent
+    contentWidth: width
+    // rightContentColumn's own y (20, matching its x inset) plus a
+    // matching 20 at the bottom -- direct report: "it doesnt scroll
+    // down enough, im only seeeing half of the last item". This was
+    // rightContentColumn.height alone, which is only the COLUMN's own
+    // stacked height -- it doesn't know about the 20px it's offset
+    // down by, so the Flickable thought the content ended 20px (plus,
+    // with no bottom inset at all, the last item sat flush against
+    // that miscalculated edge) before it actually does.
+    contentHeight: rightContentColumn.y + rightContentColumn.height + 20
+    boundsBehavior: Flickable.StopAtBounds
+    clip: true
+
+    Column {
+      id: rightContentColumn
+      x: 20
+      y: 20
+      width: parent.width - 40
+      // One uniform gap between every stacked element (header down
+      // through the last item card) -- simpler than the two slightly
+      // different gaps (16 header-to-first-card, 12 card-to-card) the
+      // previous anchor-chained version used, and the difference
+      // wasn't something anyone asked to preserve.
+      spacing: 16
+
+  // No more per-category header (label + description) above the item
+  // cards here -- direct follow-up: "its kinda cluttering, i think we
+  // dont need that and can just start with options without the header
+  // and subtitle". The left panel's own row already names which
+  // category is open; repeating that plus a description right above
+  // the first option was redundant with it. sections[].description
+  // itself stays on the data (not dead: kept for a stated future
+  // search use -- "itll be good for searching for them later too"),
+  // just no longer rendered anywhere.
+  //
+  ProfilePage {
+    id: profilePage
+    settingsRoot: root
+  }
+
+  BarPage {
+    id: barPage
+    settingsRoot: root
+  }
+
+  FileSearchPage {
+    id: fileSearchPage
+    settingsRoot: root
+  }
+
+  AudioPage {
+    id: audioPage
+    settingsRoot: root
+  }
+
+  DisplayPage {
+    id: displayPage
+    settingsRoot: root
+  }
+
+  VisualizerPage {
+    id: visualizerPage
+    settingsRoot: root
+  }
+
+  WifiPage {
+    id: wifiPage
+    settingsRoot: root
+  }
+
+  BluetoothPage {
+    id: bluetoothPage
+    settingsRoot: root
+  }
+
+  PluginsPage {
+    id: pluginsPage
+    settingsRoot: root
+  }
+
+  AboutPage {
+    id: aboutPage
+    settingsRoot: root
+  }
+    }
+  }
+}

@@ -1,0 +1,2348 @@
+import "../../../ShellConfig.js" as ShellConfig
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Effects
+import Quickshell
+import Quickshell.Io
+import Quickshell.Widgets
+import Quickshell.Networking
+import Quickshell.Bluetooth
+import Quickshell.Services.Pipewire
+import qs.Commons
+import "NotificationModel.js" as NotificationModel
+
+// This dashboard tab's default view, informed by looking at how other
+// Omarchy Quickshell shells structure a similar widgets tab: four
+// columns -- player | quick controls + calendar | notification history
+// | volume/brightness/mic dials. Deliberately NOT wired to real
+// backends beyond what's trivial (the calendar is just Date math,
+// genuinely correct) -- everything else here is a static visual
+// reference for deciding what's worth actually hooking up later. Plain
+// QML primitives throughout (Rectangle/Text/Canvas), no external
+// styling/design-token system, since none exists in this project.
+//
+// Compressed to fit this notch's own 900x344 dashboard size, not a
+// straight copy of any other shell's own dashboard dimensions.
+Item {
+  id: root
+
+  signal agentsRequested()
+  Timer {
+    id: agentsMenuDelay
+    interval: 200
+    onTriggered: Quickshell.execDetached(["omarchy-shell", "omarchy.agents", "open"])
+  }
+  property var shell: null
+  // Whether the dashboard panel itself is currently open -- see this
+  // property's own comment at its Overlay.qml call site for why this
+  // file needs it now (gating the nightlight status poll below).
+  property bool panelExpanded: false
+  property color textColor: "#ffffff"
+  property color muted: Qt.rgba(1, 1, 1, 0.5)
+  property color accent: "#3ecf5b"
+  property string fontFamily: "JetBrainsMono Nerd Font"
+  property bool themeSurfaceMode: false
+  property bool accentDashboardHeaders: false
+  readonly property color accentForeground: "#000000"
+  readonly property color dashboardHeaderText: accentDashboardHeaders ? accent : textColor
+  readonly property color dashboardSurface: themeSurfaceMode ? Qt.rgba(textColor.r, textColor.g, textColor.b, 0.05) : Qt.rgba(1, 1, 1, 0.05)
+  // Now the LIGHTER of the calendar/notification pair's two surfaces,
+  // used for the pills/cards nested inside PaneFilled/calendarPane --
+  // was the outer panel's own color before a direct request to swap
+  // which of the two reads darker ("swap them so the darker one is
+  // the larger section panel and the lighter one are the nested stuff
+  // in it"). The name is legacy from when it WAS the outer "board"
+  // surface; left as is rather than renaming every call site.
+  //
+  // Direct report, live on an installed dark theme ("the expanded
+  // notch panel for notifications and calendar is using the wrong
+  // surface, its like white... the kanban expanded notch surfaces are
+  // fine there with those"): the comment below ("White is the only
+  // tint direction that can actually read lighter than whatever's
+  // already been darkened underneath it") is true ONLY when textColor
+  // itself is dark -- i.e. a LIGHT theme, which is what this was
+  // tuned/tested against (the stock light Omarchy themes this repo
+  // ships theme-overlays for). On a DARK theme, textColor is already
+  // light, so Kanban's own cardSurface (Overlay.qml) branches on the
+  // SAME surfaceLuminance(textColor) < 0.5 check this now matches --
+  // white only when textColor reads dark; textColor's own tint
+  // otherwise, same direction dashboardSurface already uses
+  // unconditionally above (correct there since it's a single,
+  // non-nested layer with no "must read lighter than an already-
+  // darkened parent" requirement to break). dashboardTextLuminance
+  // duplicates Overlay.qml's own surfaceLuminance formula rather than
+  // sharing it -- same "independent resolution" convention AGENTS.md
+  // already documents for this coupled-surface area (ruixen.bar's
+  // frameColor/resolvedFrameColor): each consumer computes its own
+  // answer from properties it already receives, not a shared function
+  // reached across plugin/file boundaries.
+  readonly property real dashboardTextLuminance: 0.299 * textColor.r + 0.587 * textColor.g + 0.114 * textColor.b
+  readonly property bool dashboardNeedsWhiteTint: themeSurfaceMode && dashboardTextLuminance < 0.5
+  // Tints toward WHITE, not textColor, in Theme mode AND a light theme
+  // (dashboardNeedsWhiteTint) -- this is rendered ON TOP of
+  // PaneFilled/calendarPane's own already-tinted fill
+  // (dashboardSurfaceStrong), not directly on the raw notch surface.
+  // Nesting a second textColor-tint on top of a first one (the
+  // pre-swap approach) always shifts further in the SAME direction,
+  // i.e. darker still on a light theme -- proven live: it rendered as
+  // 221 next to the outer's own 233, in that direction, the opposite
+  // of "lighter nested" no matter how small the second alpha was made.
+  // White is the only tint direction that can actually read lighter
+  // than whatever's already been darkened underneath it, on a light
+  // theme specifically. Black mode's own fallback (dashboardSurface,
+  // unchanged) already tinted toward white for the same reason -- this
+  // just makes Theme mode consistent with that for a light theme,
+  // instead of being the one branch still going the wrong way; a dark
+  // theme falls through to dashboardSurface's own already-correct
+  // textColor-tint instead (see dashboardNeedsWhiteTint's own comment).
+  readonly property color dashboardBoardSurface: dashboardNeedsWhiteTint ? Qt.rgba(1, 1, 1, 0.5) : dashboardSurface
+  readonly property color dashboardSurfaceRaised: themeSurfaceMode ? Qt.rgba(textColor.r, textColor.g, textColor.b, 0.08) : Qt.rgba(1, 1, 1, 0.08)
+  // dashboardSurfaceStrong is now PaneFilled/calendarPane's own outer
+  // panel color (see those, and the swap comment on dashboardBoardSurface
+  // below), per direct request to swap which of the two is the darker.
+  // Its OLD Black-mode value here was a literal solid "#000000" --
+  // fine as a NESTED sub-panel sitting on top of an already-lighter
+  // outer pane, invisible now that it IS the outer pane sitting
+  // directly on the notch's own equally-black background (Black mode
+  // resolves the notch itself to literal "#000000" too -- direct
+  // report: "the panel section behind the calendar and notification is
+  // black so cant see that panel layer anymore"). A faint white tint
+  // instead -- same direction dashboardBoardSurface's own Black-mode
+  // value already tints, just a smaller alpha, so stacking the nested
+  // pills/cards (dashboardBoardSurface, 0.05) on top of this still
+  // lightens further like before, keeping this the darker of the two.
+  readonly property color dashboardSurfaceStrong: themeSurfaceMode ? Qt.rgba(textColor.r, textColor.g, textColor.b, 0.075) : Qt.rgba(1, 1, 1, 0.1)
+  // Notification cards -- nested inside a PaneFilled panel that's now
+  // solid black in Black mode (see dashboardSurfaceStrong above), so
+  // this can no longer fall back to that same color without the cards
+  // disappearing into it. Falls back to dashboardBoardSurface instead
+  // (the lighter of the two, now that they're swapped) -- same
+  // direction as every other nested surface in this file.
+  //
+  // Theme mode tints toward white now too, on a LIGHT theme only (same
+  // dashboardNeedsWhiteTint this now shares with dashboardBoardSurface
+  // above) -- and painted TWICE at the same bounds (notificationRowBase
+  // + notificationRowChrome, see their own comment on why), which
+  // compounds two translucent layers into a stronger effective tint
+  // than either alone. 0.65, matching Kanban's own cardSurface fix
+  // (Overlay.qml) for the identical reason: this row also carries a
+  // MultiEffect drop shadow (shadowOpacity 0.38) behind its base layer,
+  // which bleeds through the card's own translucent fill and renders
+  // meaningfully darker than plain double-layer alpha math alone
+  // predicts -- confirmed live on Kanban's cards first (0.2 read darker
+  // than its column, 0.4 read equal, 0.65 finally read lighter), ported
+  // here since the structure is identical (same shadowOpacity, same
+  // double-paint base+chrome). On a DARK theme (dashboardNeedsWhiteTint
+  // false), this was unconditionally inheriting that same white tint
+  // via dashboardBoardSurface -- the actual reported bug. Kanban's own
+  // cardSurface keeps a real textColor-tint for that case instead
+  // ("that direction already lightens correctly on its own" -- no
+  // shadow-bleed compensation needed, the problem that 0.65 solves only
+  // exists in the white-on-light-theme direction), 0.055 specifically;
+  // matched here rather than falling through to dashboardBoardSurface's
+  // own smaller-but-still-wrong-direction value.
+  readonly property color dashboardCardSurface: dashboardNeedsWhiteTint
+    ? Qt.rgba(1, 1, 1, 0.65)
+    : (themeSurfaceMode ? Qt.rgba(textColor.r, textColor.g, textColor.b, 0.055) : dashboardBoardSurface)
+  readonly property color dashboardBorder: themeSurfaceMode ? Qt.rgba(textColor.r, textColor.g, textColor.b, 0.12) : Qt.rgba(1, 1, 1, 0.14)
+  // Same themeSurfaceMode-conditional tint as dashboardSurface* above,
+  // generalized for the handful of one-off tonal surfaces below (seek/
+  // dial progress tracks, the brightness bar's own track) that don't
+  // fit the small named-token vocabulary those already cover.
+  function surfaceTint(alpha) {
+    return root.themeSurfaceMode ? Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, alpha) : Qt.rgba(1, 1, 1, alpha)
+  }
+
+  // Media passthrough -- reads the same root-level properties Overlay.qml
+  // itself already computes from ruixen.media, just handed down instead
+  // of recomputed here. sendMediaAction is a plain function reference
+  // (Overlay.qml's own root.sendMediaAction), not a live service object
+  // -- see that file's own comment for why (ruixen-shell issue #39:
+  // Omarchy v4.0.3 restricts shell.firstPartyServiceFor() to a fixed
+  // allowlist "ruixen.media" was never going to be in).
+  property var sendMediaAction: null
+  property var sendMediaSeek: null
+  property bool hasMedia: false
+  property bool isPlaying: false
+  property bool canSeek: false
+  property string playIcon: ""
+  property string title: ""
+  property string artist: ""
+  property string album: ""
+  property string artUrl: ""
+  property real progressRatio: 0
+  property real trackPosition: 0
+  property real trackLength: 0
+  property string userHost: ""
+  property string displayedTitle: ""
+  // Real DND state passthrough, same first-party service the collapsed
+  // notch's own bell already reads -- was undefined here, the
+  // notification header's bell was purely decorative.
+  property bool dnd: false
+  // Overlay.qml's own sendDndAction(action) function, threaded down so
+  // this card's own bell can toggle DND the same way the collapsed
+  // notch's own bell does -- see Overlay.qml's dnd property comment
+  // (ruixen-shell issue #42/#38) for why this goes through the real
+  // "notifications" IPC target rather than a first-party service
+  // handle.
+  property var sendDndAction: null
+  // The notch's own notification-history service (Overlay.qml's own
+  // NotificationService instance), handed down whole -- Column 3 below
+  // calls clearAll()/activate() on it directly, not just reads flattened
+  // values off it.
+  property var notificationHistory: null
+  // Real brightness passthrough -- Overlay.qml owns the actual
+  // omarchy-monitor-state/omarchy-brightness-display CLI calls (no
+  // "service" kind on omarchy.monitor to read directly), this just
+  // gets the current value and a setter function handed down. Was a
+  // hardcoded property real value: 0.8 on the bar itself before, purely
+  // decorative.
+  property real brightnessPercent: 50
+  property bool brightnessAvailable: false
+  property var setBrightness: null
+
+  // Passthrough -- Overlay.qml owns the actual readlink polling (its own
+  // playerPill has the identical wallpaper-as-idle-background pattern,
+  // one real resolution shared by both instead of two). See its own
+  // comment for why this needs to be a resolved real path, not the
+  // symlink path directly.
+  property string resolvedWallpaperPath: ""
+
+  // Idle-state artist placeholder -- a small ROW of braille cells with
+  // one lit dot scanning back and forth (Cylon/KITT-scanner style),
+  // not one single big spinner glyph. First attempt used ONE braille
+  // character bumped to 16px+bold to be legible at all -- per direct
+  // follow-up ("taking too much space... multiple braille patterns
+  // looping in one row, not really a big braille... like ascii art
+  // pattern"), that was the wrong shape of animation entirely. This
+  // builds a fixed-width string of brailleCells characters every tick,
+  // one "lit" cell (full block) at the scanning position and dim
+  // resting dots everywhere else, so it reads as a small loading-bar
+  // ASCII animation at the SAME 10px size the album/artist lines
+  // already use, instead of a single oversized glyph.
+  readonly property int brailleCells: 6
+  property int brailleStep: 0
+  // Ping-pong 0..brailleCells-1..0 instead of wrapping, so the lit
+  // dot visibly scans back and forth rather than jump-cutting.
+  readonly property int braillePeriod: (brailleCells - 1) * 2
+  readonly property int brailleActiveIndex: {
+    var p = brailleStep % braillePeriod
+    return p < brailleCells ? p : braillePeriod - p
+  }
+  readonly property string brailleSpinner: {
+    var s = ""
+    for (var i = 0; i < brailleCells; i++)
+      s += (i === brailleActiveIndex ? "\u28ff" : "\u2812")
+    return s
+  }
+
+  Timer {
+    interval: 1000
+    repeat: true
+    running: !root.hasMedia
+    onTriggered: root.brailleStep++
+  }
+
+  // Quick-controls backends -- wifi/bluetooth are real global Quickshell
+  // singletons (not gated behind Omarchy's plugin registry at all).
+  readonly property var bluetoothAdapter: Bluetooth.defaultAdapter
+
+  // nightlight/idle used to be Omarchy first-party "service" kind
+  // plugins read via shell.firstPartyServiceFor() -- ruixen-shell issue
+  // #43/#38: Omarchy v4.0.3 restricts that call to a fixed 4-item
+  // allowlist, and this file (kind: ["overlay","service"], not "bar")
+  // was never going to have bar capabilities to use it even for the
+  // two ids that ARE in the allowlist. Both are now read/controlled via
+  // omarchy-shell's own real "nightlight"/"idle" IPC targets instead
+  // (confirmed directly against /usr/share/omarchy/shell/plugins/
+  // services/{nightlight,idle}/Service.qml, not guessed) -- untouched
+  // by the v4.0.3 restriction, since that only gates the in-process
+  // firstPartyServiceFor() object handoff, not omarchy-shell's own IPC
+  // surface.
+  property bool nightlightEnabled: false
+  property bool stayAwakeEnabled: false
+
+  // Idle/stay-awake IS backed by a real on-disk flag file (its mere
+  // existence means stay-awake is on) -- confirmed live:
+  // ~/.local/state/omarchy/indicators/stay-awake. Watched directly,
+  // same pattern Overlay.qml's own barHidden already uses for a
+  // different Omarchy toggle file, so this reacts immediately even if
+  // stay-awake is toggled from somewhere other than this dashboard.
+  readonly property string omarchyStateHome: Quickshell.env("HOME")
+
+  FileView {
+    id: stayAwakeFlagFile
+    path: root.omarchyStateHome + "/.local/state/omarchy/indicators/stay-awake"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.stayAwakeEnabled = true
+    onLoadFailed: root.stayAwakeEnabled = false
+  }
+
+  // Nightlight has no on-disk state at all (Omarchy's own service
+  // derives it live from `hyprctl hyprsunset temperature`), so this
+  // polls its real status instead -- gated on panelExpanded, same "only
+  // pay the cost while actually visible" reasoning Overlay.qml's own
+  // brightnessStateProc Timer already uses for the exact same shape of
+  // problem.
+  Process {
+    id: nightlightStatusProc
+    command: ["omarchy-shell", "nightlight", "status"]
+    running: false
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        try {
+          var parsed = JSON.parse(String(text || "").trim() || "{}")
+          root.nightlightEnabled = parsed.enabled === true
+        } catch (e) {
+          // Leave nightlightEnabled at its last known value rather than
+          // flipping it to a guessed default on a transient parse
+          // failure.
+        }
+      }
+    }
+  }
+
+  Timer {
+    interval: 5000
+    running: root.panelExpanded
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: if (!nightlightStatusProc.running) nightlightStatusProc.running = true
+  }
+
+  function sendNightlightAction(action) {
+    if (nightlightActionProc.running) return
+    nightlightActionProc.command = ["omarchy-shell", "nightlight", String(action)]
+    nightlightActionProc.running = true
+  }
+
+  Process {
+    id: nightlightActionProc
+    running: false
+    // Refresh right after acting, same as any other write-then-read
+    // control -- don't wait up to 5s for the next poll to reflect a
+    // change the user just made themselves.
+    onExited: if (!nightlightStatusProc.running) nightlightStatusProc.running = true
+  }
+
+  // wantStayAwake is the TOGGLE's own new switch state, not the IPC
+  // target's own "idle enabled" concept -- confirmed live, not
+  // guessed, that these are inverted: Omarchy's own idle service
+  // defines idleEnabled as `stayAwakeStateLoaded && !stayAwake` (see
+  // its real Service.qml), and calling its `enable` IPC method
+  // empirically turned stayAwake OFF while `disable` turned it ON.
+  // So wanting stay-awake ON means calling "disable" here, not
+  // "enable" -- named this way so the call site below reads correctly
+  // without the reader having to hold that inversion in their head.
+  function sendIdleAction(wantStayAwake) {
+    if (idleActionProc.running) return
+    idleActionProc.command = ["omarchy-shell", "idle", wantStayAwake ? "disable" : "enable"]
+    idleActionProc.running = true
+  }
+
+  Process {
+    id: idleActionProc
+    running: false
+  }
+
+  // Real speaker/mic levels for the two Dial widgets below -- same
+  // Pipewire singleton the real Display/audio panel reads
+  // (Quickshell.Services.Pipewire, confirmed by reading their own
+  // Panel.qml directly). Read-only per direct request ("dial looks
+  // complicated so maybe we dont need to adjust it but it does need to
+  // show actual dial live as i use the keyboard to adjust it") -- these
+  // are live QML property bindings, not a polled snapshot, so they
+  // update on their own the instant a hardware volume key (or anything
+  // else) changes the real value, no Timer/Process needed at all.
+  readonly property var audioSink: Pipewire.defaultAudioSink
+  readonly property var audioSource: Pipewire.defaultAudioSource
+  readonly property real speakerVolume: audioSink && audioSink.audio ? Math.min(1, audioSink.audio.volume) : 0
+  readonly property real micVolume: audioSource && audioSource.audio ? Math.min(1, audioSource.audio.volume) : 0
+
+  // Direct live report: "the volume control audio doesnt do anything
+  // when i scroll the dial only mute work". Reading audioSink/
+  // audioSource straight off Pipewire.defaultAudioSink/
+  // defaultAudioSource (above) is enough for the READ side (volume/
+  // muted both display correctly), but Quickshell's own PipeWire
+  // service only keeps a node's writable properties (setAverageVolume,
+  // the actual thing volume: = ... calls under the hood) fully live
+  // for nodes explicitly registered with a PwObjectTracker -- without
+  // one, .audio.volume writes silently don't propagate. .audio.muted's
+  // own toggle happens to still work untracked (a simpler property),
+  // which is exactly why only the dial's click (mute) worked and the
+  // scroll (volume) did nothing. ruixen.launcher/extensions/settings/SettingsContent.qml's
+  // own Audio page already tracks its own output/input device lists
+  // this same way -- same fix, just for the two live default-device
+  // properties here instead of a full enumerated list. Filtered for
+  // null since audioSink/audioSource are genuinely absent before
+  // Pipewire finishes enumerating devices at startup.
+  PwObjectTracker {
+    objects: [root.audioSink, root.audioSource].filter(function(n) { return n !== null })
+  }
+
+  // The PwObjectTracker above got the node reachable/ready, but writing
+  // audio.volume directly still had zero real-world effect (confirmed
+  // live, traced down to PipeWire itself -- not this repo's QML). This
+  // machine's default sink exposes `device.routes`, meaning the real
+  // volume control lives on the parent Device's Route, not the Node's
+  // own props -- a raw `pw-cli set-param Props channelVolumes` on the
+  // node reproduced the exact same silent no-op. Quickshell's Pipewire
+  // QML module has no Device/Route API at all (checked its own
+  // qmltypes), so there's no way to reach the real control from QML.
+  // wpctl IS route-aware and is what actually moves the real mixer, so
+  // volume writes shell out to it instead -- muted keeps writing
+  // straight to audio.muted since that already worked correctly.
+  function sendVolumeStep(sink, steps) {
+    if (steps === 0) return
+    var proc = sink ? sinkVolumeProc : sourceVolumeProc
+    if (proc.running) return
+    var target = sink ? "@DEFAULT_AUDIO_SINK@" : "@DEFAULT_AUDIO_SOURCE@"
+    var pct = Math.abs(steps) * 5
+    proc.command = ["wpctl", "set-volume", target, pct + "%" + (steps > 0 ? "+" : "-"), "-l", "1.0"]
+    proc.running = true
+  }
+
+  Process { id: sinkVolumeProc; running: false }
+  Process { id: sourceVolumeProc; running: false }
+
+  function formatTime(seconds) {
+    var value = Math.max(0, Math.floor(Number(seconds) || 0))
+    var minutes = Math.floor(value / 60)
+    var rest = value % 60
+    return minutes + ":" + String(rest).padStart(2, "0")
+  }
+
+  // Shared "pane" look -- OLED-black fill (transparent over the notch's
+  // own black background) with a visible grey outline, instead of a
+  // filled tonal card. Reads as a thick border framing each column
+  // rather than a lighter grey block sitting on black -- per direct
+  // feedback that this looked cleaner than the earlier filled version.
+  component Pane: Rectangle {
+    radius: ShellConfig.radius
+    color: "transparent"
+    border.color: root.dashboardBorder
+    border.width: 1.5
+    clip: true
+  }
+
+  // Quick-control toggle button -- accent-filled with black text/glyph
+  // when on (same "primary" treatment the calendar's today-cell and the
+  // active tab already use), grey tonal when off. In Accent icon-tone
+  // mode the inactive glyphs still use the theme accent; Mono keeps the
+  // old plain text color. The agent glyph is the one exception left
+  // non-interactive (see below) -- active always false, no onActivated
+  // wired.
+  component QuickToggle: Rectangle {
+    id: qt
+    property string glyph: ""
+    property bool active: false
+    property int size: 32
+    signal activated()
+
+    width: size
+    height: size
+    radius: ShellConfig.radius
+    color: active ? root.accent : root.dashboardSurfaceRaised
+    Behavior on color { ColorAnimation { duration: 120 } }
+
+    Text {
+      anchors.centerIn: parent
+      text: qt.glyph
+      color: qt.active ? root.accentForeground : (root.accentDashboardHeaders ? root.accent : root.textColor)
+      font.family: root.fontFamily
+      font.pixelSize: qt.size * 0.4
+    }
+
+    MouseArea {
+      anchors.fill: parent
+      hoverEnabled: true
+      cursorShape: Qt.PointingHandCursor
+      onClicked: qt.activated()
+    }
+  }
+
+  // Kept as the original filled tonal card -- notifications stays grey
+  // per direct feedback, the one column that didn't switch to Pane's
+  // black+border look above.
+  component PaneFilled: Rectangle {
+    radius: ShellConfig.radius
+    // Swapped with the nested pills/rows inside it, per direct
+    // request: the large section panel now takes the stronger/darker
+    // tone, the nested stuff inside it (header pills, cards) takes the
+    // lighter one that used to be here -- reverse of the original
+    // "grey outer, black nested" design.
+    color: root.dashboardSurfaceStrong
+    clip: true
+  }
+
+  // Half-circle progress ring, arcing over the top of the album art
+  // disc. A draggable/dashed/handle-indicator ring built on
+  // QtQuick.Shapes (PathAngleArc/PathPolyline) is a lot more machinery
+  // than this notch needs for a read-only progress display, so this is
+  // a plain Canvas instead, same technique WavyLine already uses
+  // elsewhere in this file (a sine perturbation redrawn every frame),
+  // just applied to an arc's radius instead of a straight line's y.
+  // startAngle/spanAngle: 180deg -> +180deg sweep = the top half of the
+  // circle, left-to-right through 12 o'clock -- not arbitrary, that's
+  // what "arcs over the top" means geometrically in canvas angle
+  // convention (0 = 3 o'clock, clockwise).
+  component CircularSeek: Canvas {
+    id: seek
+    property real value: 0
+    // Was a hardcoded Qt.rgba(1,1,1,0.15) -- same light-theme problem
+    // as tipColor below, same fix (root.surfaceTint, see Overlay.qml).
+    property color trackColor: root.surfaceTint(0.15)
+    property color progressColor: root.accent
+    property real ringWidth: 4
+    // ruixen-shell: was a hardcoded "#ffffff" -- read fine on this
+    // notch's original OLED-black-only surface, invisible against a
+    // light Theme-mode surface once ruixen-shell#89 stopped forcing
+    // black. root.textColor is already the correctly readable color for
+    // whatever surface is actually active (see Overlay.qml's own
+    // textColor), same fix already shipped for KanbanContent's
+    // doneProgressCard tip.
+    property color tipColor: root.textColor
+    property bool wavy: false
+    readonly property real startAngle: Math.PI
+    readonly property real spanAngle: Math.PI
+    property real wavePhase: 0
+
+    onValueChanged: requestPaint()
+    onWidthChanged: requestPaint()
+    onHeightChanged: requestPaint()
+    onWavePhaseChanged: requestPaint()
+    // Real bug, per direct report ("seems to be hardcoded to purple or
+    // not updating") -- progressColor is bound to root.accent (theme-
+    // linked), but Canvas.onPaint is a plain JS function, not a
+    // reactive binding: changing the THEME alone (accent color, no
+    // value/size change) never re-ran onPaint, so the ring kept
+    // whatever color it was last actually painted with. Only looked
+    // "fine" here because wavePhase changes constantly while playing,
+    // masking it with a repaint every frame anyway -- the Dial
+    // component (speaker/mic, no such constant animation) showed the
+    // same bug much more plainly, which is what actually surfaced it.
+    onProgressColorChanged: requestPaint()
+    // Same class of stuck-color bug as progressColor above, now that
+    // tipColor is theme-linked (root.textColor) instead of a fixed
+    // constant -- a theme switch alone must also repaint the tip.
+    onTipColorChanged: requestPaint()
+    // trackColor is theme-linked too now (root.surfaceTint) -- same
+    // repaint requirement.
+    onTrackColorChanged: requestPaint()
+
+    FrameAnimation {
+      running: seek.wavy && seek.visible
+      onTriggered: seek.wavePhase = (Date.now() / 300.0) % (Math.PI * 2)
+    }
+
+    onPaint: {
+      var ctx = getContext("2d")
+      ctx.reset()
+      ctx.clearRect(0, 0, width, height)
+      if (width <= 0 || height <= 0) return
+
+      var cx = width / 2
+      var cy = height / 2
+      // Extra -9 beyond ringWidth keeps the tip's thick outer edge
+      // clear of the canvas boundary. -6 wasn't enough -- the tip's
+      // sideways extent (at the arc's 9/3 o'clock start/end points)
+      // was landing within ~1.25px of the canvas edge and visibly
+      // clipping there.
+      var r = Math.min(width, height) / 2 - seek.ringWidth - 9
+
+      ctx.lineWidth = seek.ringWidth
+      // Native round cap on both the progress and track strokes -- see
+      // the gap math below for why this no longer needs "butt" +
+      // hand-drawn fake circles.
+      ctx.lineCap = "round"
+
+      // Track -- ONLY the unplayed remainder, not the full span. The
+      // wavy progress stroke's radius wobbles around r (the sine
+      // perturbation), so a full-span grey arc drawn underneath it
+      // peeked through in slivers wherever the wave's radius differed
+      // from the plain track's -- a "tail" of grey bleeding around the
+      // wave. Same fix the linear compact-notch WavyLine already uses:
+      // its Canvas width IS parent.width * progressRatio, so the dim
+      // track only ever covers what's actually unplayed. Matched here
+      // by drawing the grey arc from endAngle onward instead of the
+      // full sweep.
+      var clamped = Math.max(0, Math.min(1, seek.value))
+      var endAngle = seek.startAngle + seek.spanAngle * clamped
+
+      // Gap around the tip -- a flat trim only clears a tip that's the
+      // SAME width as the ring itself. This tip is deliberately thicker
+      // (ringWidth * 1.5, per an earlier direct request for "pretty
+      // thick"), so a flat trim doesn't clear it -- the tip's own body
+      // was overlapping back into the trimmed region and covering the
+      // wave's rounded end, reading as if the cap were clipped/pointy.
+      // Trim computed from the actual rendered widths instead of a
+      // flat constant: half the ring's own cap bleed + half the tip's
+      // width + the actual desired daylight gap.
+      var tipLineWidth = seek.ringWidth * 1.5
+      var desiredGap = 2
+      var gapPx = seek.ringWidth / 2 + tipLineWidth / 2 + desiredGap
+      var gapRad = gapPx / r
+      // Clamped -- without this, ctx.arc's start angle could land past
+      // its own end angle near value: 1 (endAngle + gapRad exceeding
+      // the ring's own true terminus), which draws the long way around
+      // instead of nothing.
+      var trackStartAngle = Math.min(seek.startAngle + seek.spanAngle, endAngle + gapRad)
+      ctx.strokeStyle = seek.trackColor
+      ctx.beginPath()
+      ctx.arc(cx, cy, r, trackStartAngle, seek.startAngle + seek.spanAngle)
+      ctx.stroke()
+
+      // Progress -- up to value, accent, wavy (a sine ripple on the
+      // radius) only while actually playing. Trimmed short of the
+      // tip's true position (endAngle) by gapRad, same as the track
+      // above.
+      var progressEndAngle = Math.max(seek.startAngle, endAngle - gapRad)
+      ctx.strokeStyle = seek.progressColor
+      ctx.beginPath()
+      var steps = 48
+      for (var i = 0; i <= steps; i++) {
+        var t = i / steps
+        var angle = seek.startAngle + (progressEndAngle - seek.startAngle) * t
+        var rr = r
+        if (seek.wavy) rr += Math.sin(angle * 16 + seek.wavePhase) * 2.5
+        var x = cx + rr * Math.cos(angle)
+        var y = cy + rr * Math.sin(angle)
+        if (i === 0) ctx.moveTo(x, y)
+        else ctx.lineTo(x, y)
+      }
+      ctx.stroke()
+
+      // Tip -- a thick radial tick at the current progress position
+      // (a fat line straddling the track radius, not a dot on top of
+      // it). Always drawn now, even at value: 0 (clamped === 0 just means it sits
+      // right at the arc's own start point) -- per direct request to
+      // keep it visible at the head of the ring in the idle/no-media
+      // state too, instead of disappearing entirely.
+      {
+        var tipOffset = 6
+        var tipR1 = r - tipOffset
+        var tipR2 = r + tipOffset
+        var tx1 = cx + tipR1 * Math.cos(endAngle)
+        var ty1 = cy + tipR1 * Math.sin(endAngle)
+        var tx2 = cx + tipR2 * Math.cos(endAngle)
+        var ty2 = cy + tipR2 * Math.sin(endAngle)
+        ctx.lineWidth = seek.ringWidth * 1.5
+        ctx.lineCap = "round"
+        ctx.strokeStyle = seek.tipColor
+        ctx.beginPath()
+        ctx.moveTo(tx1, ty1)
+        ctx.lineTo(tx2, ty2)
+        ctx.stroke()
+      }
+    }
+  }
+
+  RowLayout {
+    anchors.fill: parent
+    // 8px -- tightened from 12, looser than this row's own column
+    // rhythm otherwise.
+    spacing: 8
+
+    // ---- Column 1: player -------------------------------------------
+    // Own bespoke background instead of the shared Pane -- a fully
+    // transparent card (no visible border) plus a blurred-album-art
+    // backdrop, not a flat black+border card like the other 3 columns.
+    // Reuses the same blur/backgroundArt trick the collapsed notch
+    // view already uses.
+    // ClippingRectangle, not a plain Rectangle -- the same gotcha
+    // documented below for the album art disc applies here too: plain
+    // Rectangle.clip only clips children to the bounding BOX, it does
+    // not follow radius. That left the sharp-edge accent ring's outer
+    // boundary as a literal square (playerCard's full rectangular
+    // bounds) while its inner boundary (from innerAreaMask) was
+    // correctly rounded -- the mismatch read as "straight corners" on
+    // the border specifically, even though playerCard's own radius:10
+    // was set correctly the whole time.
+    ClippingRectangle {
+      id: playerCard
+      Layout.preferredWidth: 210
+      Layout.maximumWidth: 210
+      Layout.fillHeight: true
+      radius: ShellConfig.radius
+      // Genuinely transparent -- no fill at all, opacity and border
+      // both forced to 0. No separate card layer here means this area
+      // shows straight through
+      // to the notch's own shared black base (notchBg, one file over in
+      // Overlay.qml) when there's no art, and the blurred art itself is
+      // the only "fill" once there is.
+      color: "transparent"
+
+      // Blur the track's own art when playing, otherwise blur the
+      // actual desktop wallpaper file -- there's always something to
+      // blur, never a blank/plain background. Not a live compositor
+      // blur-through to whatever's behind the notch (that was the
+      // wrong target entirely) -- this player never shows real
+      // desktop, just blurred art OR a blurred static wallpaper image,
+      // same MultiEffect either way.
+      // root.resolvedWallpaperPath (see its own comment above) rather than
+      // the symlink path directly -- a genuinely different URL each time
+      // the wallpaper changes, so the Image elements below actually
+      // refetch instead of staying on whatever loaded first. Falls back
+      // to the raw symlink path only until the first readlink resolves.
+      readonly property string wallpaperPath: root.resolvedWallpaperPath !== ""
+        ? "file://" + root.resolvedWallpaperPath
+        : "file://" + Quickshell.env("HOME") + "/.local/state/omarchy/current/background"
+      readonly property string playerBgSource: root.artUrl !== "" ? root.artUrl : wallpaperPath
+
+      Image {
+        id: playerBgArt
+        anchors.fill: parent
+        source: playerCard.playerBgSource
+        sourceSize: Qt.size(64, 64)
+        fillMode: Image.PreserveAspectCrop
+        asynchronous: true
+        visible: false
+      }
+
+      MultiEffect {
+        anchors.fill: parent
+        source: playerBgArt
+        blurEnabled: true
+        blurMax: 32
+        blur: 1.0
+        // 0.25 -- was 0.35, a guess that read too strong.
+        opacity: 0.25
+      }
+
+      // Sharp-edge accent ring: a SECOND, full-resolution (unblurred)
+      // copy of the same art/wallpaper layered on top, masked with
+      // MultiEffect's own maskInverted: true against an inset opaque
+      // rectangle -- inverted means the mask hides the interior and
+      // only lets the sharp image show in the thin ring OUTSIDE that
+      // inset, a crisp border around the edge, blurred everywhere
+      // inside it. Inset is half this card's own corner radius (5px,
+      // since playerCard.radius is 10) rather than a flat pixel
+      // constant, so the ring stays proportionate if the card's own
+      // radius ever changes. maskThresholdMin/maskSpreadAtMin both
+      // default to 0.0 (a hard mask edge, per MultiEffect's own docs)
+      // -- nudged up slightly here for a softer ring edge, tuned
+      // live against this exact card rather than copied.
+      Image {
+        id: playerBgArtFull
+        anchors.fill: parent
+        source: playerCard.playerBgSource
+        sourceSize: Qt.size(256, 256)
+        fillMode: Image.PreserveAspectCrop
+        asynchronous: true
+        visible: false
+      }
+
+      Item {
+        id: ringCutoutMask
+        anchors.fill: parent
+        visible: false
+        layer.enabled: true
+
+        readonly property real inset: playerCard.radius / 2
+
+        Rectangle {
+          x: ringCutoutMask.inset
+          y: ringCutoutMask.inset
+          width: parent.width - 2 * ringCutoutMask.inset
+          height: parent.height - 2 * ringCutoutMask.inset
+          radius: playerCard.radius - ringCutoutMask.inset
+          color: "#ffffff"
+        }
+      }
+
+      MultiEffect {
+        anchors.fill: parent
+        source: playerBgArtFull
+        maskEnabled: true
+        maskSource: ringCutoutMask
+        maskInverted: true
+        maskThresholdMin: 0.35
+        maskSpreadAtMin: 0.4
+      }
+
+      // Plain Item + a centered inner ColumnLayout, not two fillHeight
+      // spacers -- those didn't split evenly (ColumnLayout's flex-space
+      // distribution isn't a clean 50/50 with this many mixed fixed/
+      // flexible children), leaving the disc pinned near the top and
+      // the transport row glued to the bottom edge. anchors.centerIn
+      // is simple and predictable: centers the whole content block as
+      // one group, no fighting flex-space math.
+      Item {
+        anchors.fill: parent
+
+        ColumnLayout {
+          anchors.centerIn: parent
+          width: parent.width - 8
+          spacing: 8
+
+        // Disc + progress ring share one square container, both
+        // centered -- the ring's radius is bigger than the disc's, so
+        // it arcs over the disc's own top edge like a halo instead of
+        // sitting as a separate row underneath.
+        // Sizing history: 100/80 -> 140/110 (bigger, per request) ->
+        // 180/110 (gap opened up, per request) -> 190/130 here (gap
+        // pulled back in by growing the DISC instead of the ring --
+        // ring container barely changed, per "progress bar is almost
+        // fine, just make the album art circle bigger to get closer").
+        //
+        // A crop wrapper was tried once already for the TOP of this
+        // container and reverted -- the thick tip swings up into that
+        // zone depending on progress angle, so cropping it was unsafe
+        // at every playback position. The BOTTOM is different: the
+        // ring's sweep (startAngle: PI, spanAngle: PI, i.e. angle in
+        // [PI, 2*PI]) has sin(angle) <= 0 throughout that whole range,
+        // so cx/cy math never places the ring OR its tip below the
+        // container's own vertical center, at any progress value --
+        // only the disc's own lower half lives down there, and the
+        // disc's position doesn't move with progress at all. Safe to
+        // crop unconditionally: disc bottom sits at a fixed 160 (95
+        // center + 65 radius) inside the 190-tall square, so a 165px
+        // wrapper trims the genuinely-always-empty 25px below it
+        // without risking clipping the disc itself under any state.
+        // Always visible now, even with nothing playing -- per direct
+        // feedback ("keep all the stuff shown so it doesnt get
+        // jumpy"), the whole card used to disappear down to just a
+        // title line when there was no active player, then pop back
+        // to full size the moment something started playing. Falls
+        // back to the desktop wallpaper (playerCard.playerBgSource
+        // already resolves that) instead of the track art when idle.
+        Item {
+          Layout.preferredWidth: 190
+          Layout.preferredHeight: 165
+          Layout.alignment: Qt.AlignHCenter
+          clip: true
+
+          Item {
+            width: 190
+            height: 190
+
+            CircularSeek {
+              id: circularSeekItem
+              anchors.fill: parent
+              value: circularSeekArea.pressed ? circularSeekArea.previewRatio : root.progressRatio
+              wavy: root.isPlaying
+              ringWidth: 5
+
+              MouseArea {
+                id: circularSeekArea
+                anchors.fill: parent
+                enabled: root.hasMedia && root.canSeek && root.trackLength > 0 && root.sendMediaSeek !== null
+                cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                property real previewRatio: 0
+                function ratioFromMouse(mouse) {
+                  var cx = width / 2
+                  var cy = height / 2
+                  var dx = mouse.x - cx
+                  var dy = mouse.y - cy
+                  var dist = Math.sqrt(dx * dx + dy * dy)
+                  // Ring radius is ~81px (95 - 5 - 9). Accept clicks between 40px and 115px.
+                  if (dist < 40 || dist > 115) return -1
+                  // Atan2: 9 o'clock is -PI, 12 o'clock is -PI/2, 3 o'clock is 0
+                  var angle = Math.atan2(dy, dx)
+                  var ratio = 0
+                  if (angle <= 0) {
+                    ratio = (angle + Math.PI) / Math.PI
+                  } else {
+                    ratio = dx < 0 ? 0 : 1
+                  }
+                  return Math.max(0, Math.min(1, ratio))
+                }
+                onPressed: function(mouse) {
+                  var r = ratioFromMouse(mouse)
+                  if (r >= 0) previewRatio = r
+                }
+                onPositionChanged: function(mouse) {
+                  if (pressed) {
+                    var r = ratioFromMouse(mouse)
+                    if (r >= 0) previewRatio = r
+                  }
+                }
+                onReleased: function(mouse) {
+                  var r = ratioFromMouse(mouse)
+                  var finalRatio = r >= 0 ? r : previewRatio
+                  root.sendMediaSeek(finalRatio * root.trackLength)
+                }
+
+                // Direct follow-up: "the seeker click works now but can
+                // we add wheel scroll here too for the seeker" -- same
+                // Util.wheelSteps accumulator/5%-per-notch convention
+                // the brightness slider and volume dials already use in
+                // this file, and the same 5s-per-notch step the compact
+                // notch's own seeker wheel handler uses (Overlay.qml),
+                // for consistency between the two.
+                property real seekWheelAccumulator: 0
+                onWheel: function(wheel) {
+                  var steps = Util.wheelSteps(seekWheelAccumulator, wheel.angleDelta.y)
+                  seekWheelAccumulator = steps.remainder
+                  if (steps.steps !== 0) {
+                    var target = Math.max(0, Math.min(root.trackLength, root.trackPosition + steps.steps * 5))
+                    root.sendMediaSeek(target)
+                  }
+                }
+              }
+            }
+
+            // ClippingRectangle, not a plain Rectangle -- confirmed the
+            // hard way: plain QtQuick Rectangle.clip only clips children
+            // to the bounding BOX, it does not follow radius, regardless
+            // of how high radius is set. Quickshell's own ClippingRectangle
+            // (Quickshell.Widgets) is the fix for exactly this reason.
+            ClippingRectangle {
+              width: 130
+              height: 130
+              anchors.centerIn: parent
+              radius: width / 2
+              color: "transparent"
+
+              Image {
+                id: playerArtImage
+                anchors.fill: parent
+                source: playerCard.playerBgSource
+                sourceSize: Qt.size(260, 260)
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+
+                // Slow vinyl-style spin while actually playing -- per
+                // direct request ("would look nice but not a quick
+                // spin though"), so real turntable speed
+                // (~1.8s/revolution) is deliberately not used.
+                // Rotates this Image itself, NOT the parent
+                // ClippingRectangle -- rotating the clip rectangle
+                // rotated its own rasterized circular mask along with
+                // it, which isn't re-antialiased per-frame, so the
+                // circle's edge turned visibly blocky at in-between
+                // angles ("weird clipping or antialias issue... looks
+                // blocky at certain turn"). The clip circle is a
+                // square image exactly inscribing it (130x130 image
+                // in a 65-radius clip, tangent at every angle by
+                // construction), so a full rotation of the square
+                // never uncovers a corner regardless of angle -- only
+                // this layer's own pixels move, the static clip edge
+                // stays smooth throughout.
+                RotationAnimation on rotation {
+                  running: root.isPlaying
+                  loops: Animation.Infinite
+                  from: 0
+                  to: 360
+                  duration: 28000
+                  // Stopping the animation freezes rotation at whatever angle
+                  // it was mid-spin -- it doesn't reset the property. Without
+                  // this, the wallpaper fallback that replaces the album art
+                  // when nothing's playing inherits that stale angle instead
+                  // of sitting upright.
+                  onRunningChanged: if (!running) playerArtImage.rotation = 0
+                }
+              }
+            }
+          }
+        }
+
+        // Title + album + artist as three centered lines (title bold,
+        // TWO secondary lines dimmer -- album was missing entirely
+        // before, not just the ordering being off).
+        // leftMargin/rightMargin -- long titles/artists were eliding
+        // (or just wrapping) right up against playerCard's own edge,
+        // only ~4px of natural clearance from the card's rounded
+        // corner. 10px each side gives real breathing room before the
+        // ellipsis, per direct feedback ("text looks ugly when it
+        // gets so close to the edge").
+        ColumnLayout {
+          Layout.fillWidth: true
+          Layout.leftMargin: 10
+          Layout.rightMargin: 10
+          Layout.alignment: Qt.AlignHCenter
+          spacing: 2
+
+          // Placeholder title/album/artist below (not root.displayedTitle,
+          // which is "user@host" -- meant for the collapsed notch's own
+          // fallback, not this dashboard) -- fixed, made-up text so the
+          // whole 3-line block stays visible and sized identically
+          // whether or not anything's actually playing, matching the
+          // "no jumpiness" goal above.
+          Text {
+            Layout.fillWidth: true
+            text: root.hasMedia ? root.title : "Nothing Playing"
+            color: root.accentDashboardHeaders ? root.accent : root.textColor
+            font.family: root.fontFamily
+            font.pixelSize: 12
+            font.bold: true
+            horizontalAlignment: Text.AlignHCenter
+            elide: Text.ElideRight
+          }
+
+          Text {
+            Layout.fillWidth: true
+            visible: root.hasMedia ? root.album !== "" : true
+            text: root.hasMedia ? root.album : "Enjoy the Silence"
+            color: root.accentDashboardHeaders ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.72) : root.muted
+            font.family: root.fontFamily
+            font.pixelSize: 10
+            horizontalAlignment: Text.AlignHCenter
+            elide: Text.ElideRight
+          }
+
+          Text {
+            Layout.fillWidth: true
+            visible: root.hasMedia ? root.artist !== "" : true
+            text: root.hasMedia ? root.artist : root.brailleSpinner
+            color: root.accentDashboardHeaders ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.62) : root.muted
+            font.family: root.fontFamily
+            font.pixelSize: 10
+            horizontalAlignment: Text.AlignHCenter
+            elide: Text.ElideRight
+          }
+        }
+
+        // No Layout.fillWidth here -- a plain Row doesn't center its
+        // own children, it just left-packs them from x=0. fillWidth
+        // stretched the Row to the card's full width while the icons
+        // stayed left-anchored inside it; Layout.alignment only
+        // centers the Row ITSELF within the parent, which only works
+        // if the Row is sized to its own content instead of stretched.
+        // Icon sizes scaled up to match the album art disc's own
+        // growth (80 -> 130 across earlier passes) -- play/pause
+        // grown to a 44x44 dimension (previously 34, undersized for
+        // how big the disc got since), prev/next and spacing scaled
+        // by the same ~1.3x factor.
+        Row {
+          Layout.alignment: Qt.AlignHCenter
+          spacing: 22
+
+          Text {
+            anchors.verticalCenter: parent.verticalCenter
+            text: "\udb81\udcae"
+            color: root.accentDashboardHeaders ? root.accent : root.textColor
+            font.family: root.fontFamily
+            font.pixelSize: 18
+            MouseArea {
+              anchors.fill: parent
+              anchors.margins: -6
+              cursorShape: Qt.PointingHandCursor
+              onClicked: if (root.sendMediaAction) root.sendMediaAction("previous")
+            }
+          }
+
+          // Play/pause -- bigger, tonal accent-filled chip. Rounded
+          // SQUARE, not a circle -- same radius:size/4 proportion
+          // QuickToggle uses for the wifi/bluetooth quick-controls
+          // buttons, per direct request to match that shape instead of
+          // a fully-round button. Prev/next stay plain glyphs with no
+          // background.
+          Rectangle {
+            anchors.verticalCenter: parent.verticalCenter
+            width: 44
+            height: 44
+            radius: ShellConfig.radius
+            color: root.accent
+
+            Text {
+              anchors.centerIn: parent
+              // Plain square-outline (md-square_outline, U+F0763) in
+              // the genuinely idle state instead of the play triangle
+              // -- a stop symbol reads as "stopped", not "ready to
+              // play something that isn't there". First attempt used
+              // md-stop_circle_outline (a square-in-a-circle) -- per
+              // direct follow-up ("looks weird with the circle, just
+              // use the square icon"), dropped the circle wrapper
+              // entirely for a plain hollow square.
+              text: root.hasMedia ? root.playIcon : "\udb81\udf63"
+              color: root.accentForeground
+              font.family: root.fontFamily
+              font.pixelSize: 20
+            }
+
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: if (root.sendMediaAction) root.sendMediaAction("playPause")
+            }
+          }
+
+          Text {
+            anchors.verticalCenter: parent.verticalCenter
+            text: "\udb81\udcad"
+            color: root.accentDashboardHeaders ? root.accent : root.textColor
+            font.family: root.fontFamily
+            font.pixelSize: 18
+            MouseArea {
+              anchors.fill: parent
+              anchors.margins: -6
+              cursorShape: Qt.PointingHandCursor
+              onClicked: if (root.sendMediaAction) root.sendMediaAction("next")
+            }
+          }
+        }
+
+        // Duration text: formatTime(position) + " / " +
+        // formatTime(length), muted. topMargin on top of the
+        // ColumnLayout's own 8px spacing, per direct feedback --
+        // wanted a bit more separation here specifically, not a
+        // blanket increase to every gap in the column.
+        Text {
+          Layout.alignment: Qt.AlignHCenter
+          Layout.topMargin: 10
+          text: root.hasMedia
+            ? (root.formatTime(root.trackPosition) + " / " + root.formatTime(root.trackLength))
+            : "--:-- / --:--"
+          color: root.accentDashboardHeaders ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.62) : root.muted
+          font.family: root.fontFamily
+          font.pixelSize: 9
+        }
+        }
+      }
+    }
+
+    // ---- Column 2: quick controls + calendar -------------------------
+    ColumnLayout {
+      Layout.preferredWidth: 250
+      Layout.maximumWidth: 250
+      Layout.fillHeight: true
+      spacing: 8
+
+      // Quick controls; Agents opens the existing usage/limits panel via public IPC.
+      Pane {
+        Layout.fillWidth: true
+        Layout.preferredHeight: 60
+        // Thicker/more visible frame than the other Panes, per direct
+        // request -- overrides the shared component's default 1.5px.
+        border.width: 2.5
+        radius: ShellConfig.radius
+
+        Row {
+          anchors.centerIn: parent
+          spacing: 8
+
+          QuickToggle {
+            size: 40
+            glyph: "\udb81\udda9"
+            active: Networking.wifiEnabled
+            onActivated: Networking.wifiEnabled = !Networking.wifiEnabled
+          }
+
+          QuickToggle {
+            size: 40
+            glyph: "\udb80\udcaf"
+            active: root.bluetoothAdapter ? root.bluetoothAdapter.enabled : false
+            // Not adapter.enabled = !adapter.enabled: that writes BlueZ's
+            // Powered directly, which nothing persists, so it comes back
+            // on at next boot. omarchy-bluetooth-power moves the rfkill
+            // soft block instead (same helper omarchy.bluetooth's own
+            // panel uses) -- systemd-rfkill restores that across reboots.
+            onActivated: {
+              if (!root.bluetoothAdapter) return
+              Quickshell.execDetached(["omarchy-bluetooth-power", root.bluetoothAdapter.enabled ? "off" : "on"])
+            }
+          }
+
+          QuickToggle {
+            size: 40
+            glyph: "\udb81\udda8"
+            active: root.nightlightEnabled
+            onActivated: root.sendNightlightAction("toggle")
+          }
+
+          QuickToggle {
+            size: 40
+            glyph: "\udb81\udeca"
+            active: root.stayAwakeEnabled
+            // Wants the NEW state, not a toggle-by-side-effect -- see
+            // sendIdleAction's own comment for the real (inverted)
+            // mapping to the underlying enable/disable IPC calls.
+            onActivated: root.sendIdleAction(!root.stayAwakeEnabled)
+          }
+
+          QuickToggle {
+            size: 40
+            glyph: "\udb85\udea3"
+            onActivated: {
+              root.agentsRequested()
+              agentsMenuDelay.restart()
+            }
+          }
+        }
+      }
+
+      // Calendar -- genuinely functional (plain Date math, no backend
+      // needed), unlike everything else in this file. Prev/next month
+      // arrows work; today's cell is highlighted.
+      //
+      // Layered panel structure: outer frame is grey ("pane"), with
+      // the title text, each chevron, and the whole day-grid as their
+      // own separate BLACK sub-panels nested inside it -- the grey
+      // only ever shows as the gutter around/between those black
+      // panels, never as a fill behind text itself. The current week
+      // row gets a grey ("pane") highlight inside the black day-grid.
+      Rectangle {
+        id: calendarPane
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        radius: ShellConfig.radius
+        // Swapped, same as PaneFilled above -- outer pane is now the
+        // darker/stronger surface, its nested header pills and
+        // day-grid below take the lighter one it used to have.
+        color: root.dashboardSurfaceStrong
+        clip: true
+
+        property int monthShift: 0
+        readonly property date viewingDate: {
+          var base = new Date()
+          return new Date(base.getFullYear(), base.getMonth() + monthShift, 1)
+        }
+        readonly property date today: new Date()
+
+        // Monday-first 6x7 grid, padded with leading/trailing days from
+        // the adjacent months so every week row stays full.
+        // currentWeekRow: which row (if any) contains today, -1 when
+        // viewing a different month.
+        readonly property var calendarData: {
+          var first = viewingDate
+          var year = first.getFullYear()
+          var month = first.getMonth()
+          var firstWeekday = (first.getDay() + 6) % 7 // 0=Mon
+          var daysInMonth = new Date(year, month + 1, 0).getDate()
+          var prevMonthDays = new Date(year, month, 0).getDate()
+          var cells = []
+          // Leading days -- the tail end of the previous month, shown
+          // muted (inMonth: false) instead of left blank.
+          for (var i = 0; i < firstWeekday; i++) {
+            cells.push({ day: String(prevMonthDays - firstWeekday + 1 + i), inMonth: false, isToday: false })
+          }
+          for (var d = 1; d <= daysInMonth; d++) {
+            var isToday = monthShift === 0 && d === today.getDate()
+            cells.push({ day: String(d), inMonth: true, isToday: isToday })
+          }
+          // Trailing days -- the start of next month, same muted
+          // treatment.
+          var nextDay = 1
+          while (cells.length % 7 !== 0) {
+            cells.push({ day: String(nextDay), inMonth: false, isToday: false })
+            nextDay++
+          }
+          var rows = []
+          var currentWeekRow = -1
+          for (var r = 0; r < cells.length; r += 7) {
+            var row = cells.slice(r, r + 7)
+            if (row.some(function(c) { return c.isToday })) currentWeekRow = rows.length
+            rows.push(row)
+          }
+          return { weeks: rows, currentWeekRow: currentWeekRow }
+        }
+        readonly property var weeks: calendarData.weeks
+        readonly property int currentWeekRow: calendarData.currentWeekRow
+        // Monday-first index (0=Mon..6=Sun) matching the M T W T F S S
+        // label order -- JS getDay() is Sunday-first (0=Sun), so +6 %7
+        // shifts it. -1 (never matches) when viewing a different month,
+        // same guard isToday already uses for the day cells.
+        readonly property int currentDayOfWeek: monthShift === 0 ? (today.getDay() + 6) % 7 : -1
+
+        ColumnLayout {
+          id: calendarColumn
+          anchors.fill: parent
+          anchors.margins: 4
+          spacing: 4
+
+          // Header row -- title pill fills the remaining width, each
+          // chevron is its own fixed-width pill, all black at rest,
+          // all the same height. Chevrons fill solid accent with a
+          // black glyph on hover (same active/hover-fill pattern as
+          // the Kanban add button) -- direct request, signals they're
+          // clickable the same way everything else in this plugin's
+          // hover language already does.
+          // Header grown 28px -> 36px (title 13px -> 16px, chevron
+          // pills 28px -> 36px, glyphs 14px -> 16px) and the day-grid
+          // below shrunk to compensate -- per direct feedback, the
+          // weekday label row was drawing too much attention next to
+          // this comparatively small header.
+          RowLayout {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 36
+            Layout.maximumHeight: 36
+            spacing: 4
+
+            Rectangle {
+              Layout.fillWidth: true
+              Layout.fillHeight: true
+              radius: ShellConfig.radius
+              color: root.dashboardBoardSurface
+
+              Text {
+                anchors.centerIn: parent
+                text: calendarPane.viewingDate.toLocaleDateString(Qt.locale(), "MMMM yyyy")
+                color: root.dashboardHeaderText
+                font.family: root.fontFamily
+                font.pixelSize: 16
+                font.bold: true
+              }
+            }
+
+            Rectangle {
+              Layout.preferredWidth: 36
+              Layout.fillHeight: true
+              radius: ShellConfig.radius
+              color: prevMonthMouse.containsMouse ? root.accent : root.dashboardBoardSurface
+
+              Text {
+                anchors.centerIn: parent
+                text: "\udb80\udd41"
+                color: prevMonthMouse.containsMouse ? "#000000" : root.accent
+                font.family: root.fontFamily
+                font.pixelSize: 16
+              }
+
+              MouseArea {
+                id: prevMonthMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: calendarPane.monthShift -= 1
+              }
+            }
+
+            Rectangle {
+              Layout.preferredWidth: 36
+              Layout.fillHeight: true
+              radius: ShellConfig.radius
+              color: nextMonthMouse.containsMouse ? root.accent : root.dashboardBoardSurface
+
+              Text {
+                anchors.centerIn: parent
+                text: "\udb80\udd42"
+                color: nextMonthMouse.containsMouse ? "#000000" : root.accent
+                font.family: root.fontFamily
+                font.pixelSize: 16
+              }
+
+              MouseArea {
+                id: nextMonthMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: calendarPane.monthShift += 1
+              }
+            }
+          }
+
+          // Day-grid -- one black sub-panel holding the weekday labels
+          // and all 6 week rows. Sized to its actual content
+          // instead of Layout.fillHeight -- fillHeight let it stretch
+          // to whatever leftover height calendarPane had, and
+          // ColumnLayout spread that leftover space out as visible gaps
+          // between every week row instead of just trailing space
+          // ("too hamburger"). Row/cell size bumped (20px -> 30px rows,
+          // 20px -> 26px "today" circle) to actually use most of
+          // calendarPane's available height instead of leaving a big
+          // block of empty grey space below a small fixed-size grid.
+          // Shrunk 268px -> 230px alongside the header growing above --
+          // weekday labels, row height, today-circle, and day-number
+          // size all pulled back a notch so this panel reads calmer
+          // next to the now-bigger header, per direct feedback ("M T W
+          // T F takes too much of the attention"). That overshot: the
+          // header grew +8px (28->36) but this only shrank by the OLD
+          // pre-header-growth amount, opening a real ~30px grey gap
+          // below the day-grid within calendarPane -- confirmed by
+          // sampling actual rendered pixel colors down the column
+          // (grey #2E363C starting well past where the black panel
+          // should have ended). 230 -> 260 restores calendarColumn's
+          // total content height back to what it was before any of
+          // this pass (margins 8 + header 36 + spacing 4 + 260 = 308,
+          // matching the original 8 + 28 + 4 + 268 = 308 exactly) --
+          // the header's own growth is now actually compensated for
+          // instead of guessed at via font-size nudges.
+          Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 260
+            Layout.maximumHeight: 260
+            Layout.alignment: Qt.AlignTop
+            radius: ShellConfig.radius
+            color: root.dashboardBoardSurface
+
+            ColumnLayout {
+              anchors.fill: parent
+              anchors.margins: 6
+              spacing: 6
+
+              // Weekday labels and every week row below both use
+              // RowLayout with 7 fillWidth columns now, instead of a
+              // plain Row of fixed-20px cells centered in the panel --
+              // the fixed-width version left big empty gutters on both
+              // sides once the day-grid panel became as wide as the
+              // rest of this card (looked like the calendar itself was
+              // "skinny" inside a wider black panel).
+              RowLayout {
+                Layout.fillWidth: true
+                spacing: 2
+
+                Repeater {
+                  model: ["M", "T", "W", "T", "F", "S", "S"]
+                  Text {
+                    required property string modelData
+                    required property int index
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
+                    text: modelData
+                    color: root.accentDashboardHeaders ? root.accent : (index === calendarPane.currentDayOfWeek ? root.textColor : root.muted)
+                    font.family: root.fontFamily
+                    // Bumped back up a touch (10px -> 12px) -- the
+                    // 230px day-grid shrink left it ending a bit early
+                    // within calendarPane, per direct feedback.
+                    font.pixelSize: 12
+                    font.bold: true
+                  }
+                }
+              }
+
+              // Divider between the weekday labels and the day grid --
+              // inset (leftMargin/rightMargin: 8) instead of running
+              // edge-to-edge.
+              Rectangle {
+                Layout.fillWidth: true
+                Layout.leftMargin: 8
+                Layout.rightMargin: 8
+                Layout.preferredHeight: 1
+                color: root.dashboardBorder
+              }
+
+              Repeater {
+                model: calendarPane.weeks
+
+                Rectangle {
+                  required property var modelData
+                  required property int index
+                  Layout.fillWidth: true
+                  Layout.preferredHeight: 26
+                  radius: ShellConfig.radius
+                  color: index === calendarPane.currentWeekRow ? root.dashboardSurfaceRaised : "transparent"
+
+                  RowLayout {
+                    anchors.fill: parent
+                    spacing: 2
+
+                    Repeater {
+                      model: parent.parent.modelData
+
+                      // fillWidth on the column keeps all 7 days evenly
+                      // spread across the full row width; the "today"
+                      // highlight stays a fixed 20x20 circle centered
+                      // inside its (now wider) column instead of
+                      // stretching into an ellipse.
+                      Item {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+
+                        Rectangle {
+                          anchors.centerIn: parent
+                          width: 22
+                          height: 22
+                          radius: ShellConfig.radius
+                          color: parent.modelData.isToday ? root.accent : "transparent"
+
+                          Text {
+                            anchors.centerIn: parent
+                            text: parent.parent.modelData.day
+                            color: parent.parent.modelData.isToday ? root.accentForeground : (parent.parent.modelData.inMonth ? (root.accentDashboardHeaders ? root.accent : root.textColor) : root.muted)
+                            font.family: root.fontFamily
+                            font.pixelSize: 10
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // ---- Column 3: notification history (static placeholder) --------
+    PaneFilled {
+      Layout.fillWidth: true
+      Layout.fillHeight: true
+
+      ColumnLayout {
+        anchors.fill: parent
+        // Even 10px on all sides now -- the topMargin used to be
+        // trimmed to 6 because the header row sat too far from the
+        // card's top edge with the old placeholder content below it;
+        // direct follow-up once real notification rows were in
+        // ("the title top row is so close to the card edge, the
+        // buttom one has better padding, its not balanced") found the
+        // opposite now true, so back to matching the other 3 sides.
+        anchors.margins: 10
+        spacing: 8
+
+        RowLayout {
+          Layout.fillWidth: true
+          // 32px -- was 26, visibly smaller than felt right next to
+          // the rest of this panel's proportions.
+          Layout.preferredHeight: 32
+          Layout.maximumHeight: 32
+          spacing: 6
+
+          // Fills the remaining width instead of hugging the text --
+          // not a snug-fit pill.
+          // radius: 10, not height/2 -- these 3 header pills were still
+          // full capsules from the earlier "pill" pass even after the
+          // rows below were changed to a regular rounded rect; that
+          // shape mismatch (a full 16px-radius arc receding into the
+          // header vs. the rows' flatter 10px corners) is almost
+          // certainly what read as "the top row is closer to the edge"
+          // even with the margin now genuinely even on all sides --
+          // matching the shape removes the illusion.
+          Rectangle {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            radius: ShellConfig.radius
+            color: root.dashboardBoardSurface
+
+            Text {
+              anchors.centerIn: parent
+              text: "Notifications"
+              color: root.dashboardHeaderText
+              font.family: root.fontFamily
+              font.pixelSize: 14
+              font.bold: true
+            }
+          }
+
+          // DND bell -- mirrors the collapsed notch's own bell glyph,
+          // reading the same real dnd state. Now clickable too, calling
+          // the exact same setDoNotDisturb() the collapsed notch's own
+          // bell already calls on the real first-party service. Accent
+          // (theme token) when notifications are live, the same fixed
+          // red the collapsed notch's own bell uses when silenced --
+          // kept as a fixed semantic color rather than theme-linked,
+          // same reasoning as accent itself before it got theme-linked:
+          // "DND active" needs to read as alarm/urgent regardless of
+          // theme, not blend into it.
+          //
+          // Real glyph bug caught while adding the hover fill below:
+          // "\udb80\udc9b" (what this was always set to, for BOTH
+          // states) decodes to md-bell_off -- the CROSSED bell -- not
+          // plain md-bell. So the "notifications are live" state was
+          // silently showing a slashed bell the whole time, just in
+          // accent instead of red; only the color actually changed.
+          // Fixed by swapping to the real md-bell glyph ("\udb80\udc9a",
+          // one codepoint over) when not silenced, matching what the
+          // icon has claimed to show all along.
+          //
+          // Filled solid red + black glyph while active (silenced) --
+          // same active/hover-fill language as the calendar chevrons
+          // and the Kanban add button, not just a color swap on a
+          // transparent background. Hovering while NOT yet silenced
+          // previews that same red fill (still the plain bell, since
+          // nothing's silenced yet) so the "click to silence" affordance
+          // reads the same way everywhere else in this plugin does.
+          Rectangle {
+            readonly property bool filled: root.dnd || dndBellArea.containsMouse
+            Layout.preferredWidth: 32
+            Layout.fillHeight: true
+            radius: ShellConfig.radius
+            color: filled ? "#e05252" : root.dashboardBoardSurface
+
+            Text {
+              anchors.centerIn: parent
+              text: root.dnd ? "\udb80\udc9b" : "\udb80\udc9a"
+              color: parent.filled ? "#000000" : root.accent
+              font.family: root.fontFamily
+              font.pixelSize: 16
+            }
+
+            MouseArea {
+              id: dndBellArea
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: if (root.sendDndAction) root.sendDndAction("toggleDnd")
+            }
+          }
+
+          // Clear-all "broom" -- wired to the real service's own
+          // clearAll() (the first-party history
+          // itself is left alone -- see NotificationService.qml's own
+          // comment on why). Fixed orange (not theme-linked, same
+          // "state semantic" reasoning as the bell's red above) --
+          // deliberately different from the bell's red so "DND active"
+          // and "clear/destructive action" don't share one color. Solid
+          // fill + black glyph on hover now, same pattern as the
+          // calendar chevrons -- this is a stateless action button (no
+          // "active" state the way the bell has), so fill is hover-only.
+          Rectangle {
+            Layout.preferredWidth: 32
+            Layout.fillHeight: true
+            radius: ShellConfig.radius
+            color: clearNotificationsArea.containsMouse ? "#e0a050" : root.dashboardBoardSurface
+
+            Text {
+              anchors.centerIn: parent
+              text: "\udb80\udce2"
+              color: clearNotificationsArea.containsMouse ? "#000000" : "#e0a050"
+              font.family: root.fontFamily
+              font.pixelSize: 16
+            }
+
+            MouseArea {
+              id: clearNotificationsArea
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: if (root.notificationHistory) root.notificationHistory.clearAll()
+            }
+          }
+        }
+
+        // Real history, in place of the earlier "does it fit, does it
+        // look right" placeholder. A plain JS array binds directly as
+        // a ListView model -- this card only ever shows a handful of
+        // rows, so a more elaborate in-place row-sync optimization
+        // (worthwhile for a much longer flyout list) isn't needed
+        // here.
+        ListView {
+          id: notificationList
+          Layout.fillWidth: true
+          Layout.fillHeight: true
+          clip: true
+          spacing: 4
+          model: root.notificationHistory ? root.notificationHistory.entries : []
+          visible: count > 0
+          // Direct follow-up: "theres like an overscroll effect on it
+          // when scroll up or down can we disable that" -- same fix
+          // ruixen.settings' own detail panel Flickable already uses.
+          boundsBehavior: Flickable.StopAtBounds
+
+          // Drives each row's own "2m" / "3h" label. One timer for the
+          // whole list is plenty -- these are coarse, scanned ages, not
+          // a live-updating clock.
+          property double now: Date.now()
+          Timer {
+            running: true
+            interval: 30000
+            repeat: true
+            onTriggered: notificationList.now = Date.now()
+          }
+
+          // Each row is a solid OLED-black card, always visible rather
+          // than transparent-until-hovered ("so we can see each
+          // notification clearer") -- a regular rounded rectangle (see
+          // the row Rectangle's own radius comment below), not the
+          // stadium/pill shape first tried here, and a real 2-line body
+          // instead of eliding to one. Hover swaps the unread dot into a
+          // dismiss "x" in that same slot (notificationIndicatorSlot
+          // below) -- tried in the relative-time label's own slot
+          // first, moved here per direct follow-up so the age stays
+          // always readable and the already-secondary/glanceable dot is
+          // the one that gives way. No longer tints the row itself on
+          // hover at all -- an earlier pass looked "too compact" and
+          // had "a new alignment on its own" for the dismiss control.
+          delegate: Item {
+            id: notificationRow
+            required property var modelData
+            // Computed directly from modelData (a plain string
+            // comparison), not from the Image element's own `source`
+            // -- Image.source is a `url`-typed property, and comparing
+            // a url against a plain "" string is exactly the kind of
+            // implicit-coercion edge case that looked right on paper
+            // but reserved the thumbnail band's height for every row
+            // live, image or not.
+            readonly property bool hasImage: NotificationModel.imageUrl(modelData) !== ""
+            // A typical card's padding is the same on every side and
+            // doesn't change with content -- one constant, used for both
+            // the top and bottom gap (image or not), instead of the
+            // former hardcoded 8/2 split.
+            readonly property int cardPadding: 10
+            width: notificationList.width
+            // A typical card hugs its own content instead of being a
+            // fixed box: short notifications get a smaller card, long
+            // ones get a bigger card, but the padding around the content
+            // stays the same either way. Height is the thumbnail band
+            // (0 when absent) plus top/bottom padding plus however tall
+            // the text column actually is -- not a hardcoded number.
+            height: notificationThumbnailArea.height + cardPadding + notificationContentColumn.implicitHeight + cardPadding
+            // Direct follow-up: "the text re clipping under the card
+            // pills now, dont use that much curve on this pill make it
+            // like regular curve like the calendar" -- radius: height/2
+            // on a 56px-tall row made the two end-caps full semicircles
+            // (28px each), eating into the 12px text margins near the
+            // left/right edges. A regular rounded-rectangle radius,
+            // matching calendarPane's own (10, a few hundred lines up
+            // in this same file) rather than a literal stadium/pill,
+            // leaves the text margins genuinely clear.
+            Rectangle {
+              id: notificationRowBase
+              anchors.fill: parent
+              radius: ShellConfig.radius
+              color: root.dashboardCardSurface
+              layer.enabled: root.themeSurfaceMode
+              layer.smooth: true
+              layer.effect: MultiEffect {
+                shadowEnabled: true
+                shadowColor: "#000000"
+                shadowOpacity: 0.38
+                shadowBlur: 0.22
+                shadowHorizontalOffset: 0
+                shadowVerticalOffset: 3
+              }
+            }
+
+            Rectangle {
+              id: notificationRowChrome
+              anchors.fill: parent
+              radius: notificationRowBase.radius
+              color: root.dashboardCardSurface
+            }
+
+            // Direct follow-up chain: image made edge-to-edge with a
+            // plain clip (previous commit) left the top two corners
+            // visibly squared where the image sits flush against them
+            // -- "just make them have the curve corner still". Back to
+            // a MultiEffect mask (same technique as the avatar/player
+            // art elsewhere in this plugin), but the likely real reason
+            // the FIRST mask attempt "looked a bit wierd": it rounded
+            // all 4 corners uniformly, including the bottom two, which
+            // aren't at any card edge -- the image flows straight into
+            // the text below there, so a rounded bottom edge left two
+            // small triangles of the card's own black background
+            // visibly poking through where the image's corners curved
+            // inward but nothing behind it did. topLeftRadius/
+            // topRightRadius here (Qt's own per-corner Rectangle
+            // properties, already used elsewhere in this repo -- see
+            // Overlay.qml's own bottomLeftRadius/bottomRightRadius on
+            // the notch shape, or Bar.qml's topLeftRadius) round only
+            // the two corners that actually meet this row's own curve;
+            // the bottom stays flat, flush with the text area below it.
+            Item {
+              id: notificationThumbnailArea
+              anchors.top: parent.top
+              anchors.left: parent.left
+              anchors.right: parent.right
+              height: notificationRow.hasImage ? 60 : 0
+              visible: notificationRow.hasImage
+
+              Image {
+                id: notificationThumbnailImage
+                anchors.fill: parent
+                source: NotificationModel.imageUrl(notificationRow.modelData)
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+                sourceSize: Qt.size(320, 120)
+                visible: false
+              }
+
+              Rectangle {
+                id: notificationThumbnailMask
+                anchors.fill: parent
+                topLeftRadius: ShellConfig.radius
+                topRightRadius: ShellConfig.radius
+                bottomLeftRadius: 0
+                bottomRightRadius: 0
+                color: "#ffffff"
+                visible: false
+                layer.enabled: true
+              }
+
+              MultiEffect {
+                anchors.fill: parent
+                source: notificationThumbnailImage
+                maskEnabled: true
+                maskSource: notificationThumbnailMask
+                maskThresholdMin: 0.5
+                maskThresholdMax: 1.0
+              }
+            }
+
+            ColumnLayout {
+              id: notificationContentColumn
+              // notificationThumbnailArea, not notificationThumbnailImage
+              // -- the Image lives one branch deeper (inside that Item),
+              // so anchoring to it directly was an invalid cross-branch
+              // anchor (only a parent or a true sibling is legal). It
+              // failed silently at runtime (confirmed via journalctl:
+              // "Cannot anchor to an item that isn't a parent or
+              // sibling").
+              //
+              // No bottom anchor any more -- the column sizes to its own
+              // content (implicitHeight) and the row's own height above
+              // is derived FROM that, not the other way around, so a
+              // short body no longer leaves dead space before the card's
+              // bottom edge.
+              anchors.left: parent.left
+              anchors.right: parent.right
+              anchors.top: notificationThumbnailArea.bottom
+              anchors.leftMargin: 12
+              anchors.rightMargin: 12
+              anchors.topMargin: notificationRow.cardPadding
+              spacing: 2
+
+              RowLayout {
+                id: notificationHeaderRow
+                Layout.fillWidth: true
+                spacing: 6
+
+                // Unread/read dot, replaced by a dismiss "x" on hover --
+                // direct follow-up: keeping the relative-age label
+                // ("27m") always readable and swapping the secondary,
+                // already-glanceable dot instead. dismissNotificationArea
+                // (below, a sibling of this RowLayout so it z-orders
+                // above notificationRowArea) is what's actually
+                // clickable; this slot is the visual half of that pair.
+                //
+                // Direct follow-up: "clicking on a notification, it
+                // goes into like a muted mode? can you still show the
+                // color dot on the row title like secondary token or
+                // something so its not just a huge emprty space" --
+                // the dot used to disappear entirely once read (visible
+                // only for unread), leaving this slot blank. Now always
+                // shown (still hidden by the "x" on hover, same as
+                // before) -- accent while unread, root.muted once read,
+                // so a read row keeps the same anchor point instead of
+                // a gap.
+                Item {
+                  id: notificationIndicatorSlot
+                  Layout.preferredWidth: 10
+                  Layout.preferredHeight: 10
+
+                  Rectangle {
+                    anchors.centerIn: parent
+                    width: 6
+                    height: 6
+                    radius: 3
+                    color: notificationRow.modelData.unread === true ? root.accent : root.muted
+                    visible: !notificationRowArea.containsMouse
+                  }
+
+                  Text {
+                    anchors.centerIn: parent
+                    visible: notificationRowArea.containsMouse
+                    text: "\u2715"
+                    font.pixelSize: 10
+                    color: dismissNotificationArea.containsMouse ? Qt.lighter("#e05252", 1.25) : "#e05252"
+                  }
+                }
+
+                Text {
+                  Layout.fillWidth: true
+                  text: NotificationModel.appLabel(notificationRow.modelData)
+                  color: notificationRow.modelData.unread ? root.textColor : root.muted
+                  font.family: root.fontFamily
+                  font.pixelSize: 10
+                  font.bold: notificationRow.modelData.unread === true
+                  elide: Text.ElideRight
+                }
+
+                Text {
+                  text: NotificationModel.relativeTime(notificationRow.modelData.timestamp, notificationList.now)
+                  color: root.muted
+                  font.family: root.fontFamily
+                  font.pixelSize: 10
+                }
+              }
+
+              Text {
+                Layout.fillWidth: true
+                // No fillHeight -- sizes to its own actual content (1 or
+                // 2 lines), so the card doesn't reserve extra dead space
+                // below a short message.
+                text: NotificationModel.bodyText(notificationRow.modelData) || notificationRow.modelData.summary
+                color: root.muted
+                font.family: root.fontFamily
+                font.pixelSize: 10
+                wrapMode: Text.WordWrap
+                maximumLineCount: 2
+                elide: Text.ElideRight
+              }
+            }
+
+            // Direct follow-up: "in addition to x to delete then i
+            // guess right click to clear as well" -- right-click
+            // anywhere on the row is a second, faster way to reach the
+            // same forgetOne() the hover "x" already calls, same
+            // acceptedButtons/mouse.button branch this plugin's own
+            // pluginpins widget already uses for its own left/right
+            // click split.
+            MouseArea {
+              id: notificationRowArea
+              anchors.fill: parent
+              hoverEnabled: true
+              acceptedButtons: Qt.LeftButton | Qt.RightButton
+              cursorShape: Qt.PointingHandCursor
+              onClicked: function(mouse) {
+                if (!root.notificationHistory) return
+                if (mouse.button === Qt.RightButton) {
+                  root.notificationHistory.forgetOne(notificationRow.modelData.key)
+                } else {
+                  root.notificationHistory.activate(notificationRow.modelData.key)
+                }
+              }
+            }
+
+            // The actual dismiss hit target -- declared after (so on
+            // top of/above in hit-testing) the full-row MouseArea
+            // above, centered on notificationIndicatorSlot (the unread
+            // dot's own position) rather than the row's right end.
+            MouseArea {
+              id: dismissNotificationArea
+              visible: notificationRowArea.containsMouse
+              enabled: notificationRowArea.containsMouse
+              // notificationIndicatorSlot lives two branches deeper
+              // (RowLayout > ColumnLayout), so a direct anchor to it was
+              // invalid (only a parent or true sibling is legal) and
+              // failed silently at runtime -- confirmed via journalctl:
+              // "Cannot anchor to an item that isn't a parent or
+              // sibling". mapToItem translates its center into
+              // notificationRow's own coordinate space instead, which
+              // works across any branch and stays live since it reads
+              // each ancestor's own x/y/width/height during evaluation.
+              width: 20
+              height: 20
+              x: notificationIndicatorSlot.mapToItem(notificationRow, notificationIndicatorSlot.width / 2, notificationIndicatorSlot.height / 2).x - width / 2
+              y: notificationIndicatorSlot.mapToItem(notificationRow, notificationIndicatorSlot.width / 2, notificationIndicatorSlot.height / 2).y - height / 2
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: if (root.notificationHistory) root.notificationHistory.forgetOne(notificationRow.modelData.key)
+            }
+
+            // Dark/black mode keeps the old frame; theme-surface mode
+            // drops it and relies on the base card's shadow for depth.
+            // The frame remains an overlay, not a border on the base,
+            // so thumbnails cannot paint over it in the dark path.
+            Rectangle {
+              anchors.fill: parent
+              topLeftRadius: ShellConfig.radius
+              topRightRadius: ShellConfig.radius
+              bottomLeftRadius: ShellConfig.radius
+              bottomRightRadius: ShellConfig.radius
+              antialiasing: true
+              color: "transparent"
+              visible: !root.themeSurfaceMode
+              // Literal black again, not root.dashboardSurfaceStrong --
+              // that token now means "the outer panel's own faint
+              // lightening tint" (see its own comment), not "a crisp
+              // dark frame," since the panel/nested swap. This border's
+              // own job is unrelated to that: a solid dark edge around
+              // the notification card, same as it always was.
+              border.color: "#000000"
+              border.width: 1.5
+            }
+          }
+        }
+
+        Item {
+          Layout.fillWidth: true
+          Layout.fillHeight: true
+          visible: notificationList.count === 0
+
+          Column {
+            anchors.centerIn: parent
+            spacing: 8
+
+            Text {
+              anchors.horizontalCenter: parent.horizontalCenter
+              text: "\udb80\udf2a"
+              color: root.accentDashboardHeaders ? root.accent : root.muted
+              font.family: root.fontFamily
+              font.pixelSize: 42
+            }
+
+            Text {
+              anchors.horizontalCenter: parent.horizontalCenter
+              text: "No notifications"
+              color: root.muted
+              font.family: root.fontFamily
+              font.pixelSize: 10
+            }
+          }
+        }
+      }
+    }
+
+    // ---- Column 4: volume / brightness / mic dials (static) ---------
+    ColumnLayout {
+      // 70 -> 78, matching the left-rail tab bar's own width bump --
+      // per direct request to grow both rails together.
+      Layout.preferredWidth: 78
+      Layout.maximumWidth: 78
+      Layout.fillHeight: true
+      // 8px column spacing.
+      spacing: 8
+
+      // Round tonal badge wrapping icon + ring together: a tonal panel
+      // containing both the Canvas ring AND the icon Text as children,
+      // not a bare ring floating on the card background like this was
+      // before. Per direct request ("wrap/frame the tonal badge so the
+      // mic icon and the progress bar is together... inside a round
+      // tonal badge"). Ring inset bumped 3px -> 8px (ring radius is a
+      // fixed 16 inside a 48px box, i.e. width/2 - 8) -- 3px sat the
+      // ring almost flush against the badge's own edge.
+      component Dial: Rectangle {
+        id: dialRoot
+        property string glyph: ""
+        // Shown/colored instead of glyph while muted -- per direct
+        // request ("clicking on the mic and audio... toggles mute...
+        // we get a red no sound icon or red no mic icon").
+        property string mutedGlyph: ""
+        property bool muted: false
+        property real value: 0.7
+        signal activated()
+        // Steps positive (up) or negative (down), one per 5% notch --
+        // matches Omarchy's own audio panel scroll convention exactly
+        // (see /usr/share/omarchy/shell/plugins/panels/audio/Panel.qml's
+        // onWheelMoved, same 0.05 step and Util.wheelSteps accumulator).
+        signal wheelStepped(int steps)
+        property real wheelAccumulator: 0
+
+        // What actually gets drawn/painted -- 0 while muted regardless
+        // of the real value ("the audio volume goes to 0"), the real
+        // value otherwise. Muting in Pipewire doesn't change the
+        // underlying volume level (unmuting restores it exactly, the
+        // correct OS behavior), so this is purely a DISPLAY override,
+        // not a write to the real value.
+        readonly property real effectiveValue: muted ? 0 : value
+
+        // Canvas onPaint is a plain JS function, not a reactive
+        // binding -- it never re-runs on its own just because a
+        // property it happens to read (value) changes elsewhere. Was
+        // fine when value was a static hardcoded number that never
+        // changed after startup; now that it's bound to a live
+        // Pipewire volume (see root.speakerVolume/micVolume), this
+        // explicit repaint is required or the ring only ever reflects
+        // whatever the volume happened to be at first paint, per
+        // direct request ("it does need to show actual dial live as i
+        // use the keyboard to adjust it"). Triggers off effectiveValue
+        // now, not value directly, so toggling muted repaints too.
+        onEffectiveValueChanged: dialCanvas.requestPaint()
+
+        // Same class of bug, found later via direct report ("seems to
+        // be hardcoded to purple or not updating") after a theme
+        // switch: the progress arc's color reads root.accent directly
+        // inside onPaint, but nothing triggered a repaint when accent
+        // itself changed (only value changes did). Unlike the player
+        // ring (which gets constant repaints from its own wavePhase
+        // animation while playing, masking the same bug there), this
+        // dial has no such incidental trigger, so it visibly got stuck
+        // on whatever accent was active at its last real paint --
+        // looked hardcoded, wasn't. Mirrored into a local property
+        // specifically so its own onChanged signal gives Canvas a
+        // trigger to hook -- root.accent itself has no such hook from
+        // inside a Canvas.onPaint, which is plain JS, not a binding.
+        property color ringAccent: root.accent
+        onRingAccentChanged: dialCanvas.requestPaint()
+        // Same mirrored-property treatment as ringAccent above, for the
+        // tip's own color -- was a hardcoded "#ffffff" (fine on the old
+        // OLED-black-only surface, invisible against a light Theme-mode
+        // surface after ruixen-shell#89). root.textColor is already
+        // correct for whatever surface is actually active.
+        property color tipColor: root.textColor
+        onTipColorChanged: dialCanvas.requestPaint()
+        // Ring track color, same mirrored-property treatment -- was a
+        // hardcoded Qt.rgba(1,1,1,0.15), same light-theme problem as
+        // tipColor above.
+        property color trackColor: root.surfaceTint(0.15)
+        onTrackColorChanged: dialCanvas.requestPaint()
+        // 48 -> 56, matching the left-rail tab bar's own bump -- also
+        // grows the ring radius (width/2-8) and makes the tip's gap
+        // relatively easier to see, both per direct request.
+        Layout.preferredWidth: 56
+        Layout.preferredHeight: 56
+        Layout.alignment: Qt.AlignHCenter
+        radius: width / 2
+        color: root.dashboardSurfaceRaised
+
+        // Not a full circle -- a gapped circular indicator, in the
+        // same spirit as Material 3's own gap-style circular progress
+        // pattern: a 45deg gap on each side, starting at ~7:30 on a
+        // clock face and sweeping 270deg clockwise back around to
+        // ~4:30, leaving the gap sitting at the bottom of the badge
+        // (baseStartAngle = 90deg + gapAngle, totalAngle = 360deg -
+        // 2*gapAngle), per direct request ("doesnt have like a full
+        // circle... goes from i guess 4 o'clock to 7 o'clock").
+        Canvas {
+          id: dialCanvas
+          anchors.fill: parent
+          onPaint: {
+            var ctx = getContext("2d")
+            ctx.reset()
+            var cx = width / 2, cy = height / 2, r = width / 2 - 8
+            var startAngle = Math.PI / 2 + Math.PI / 4
+            var totalSweep = Math.PI * 2 - Math.PI / 2
+            var endAngle = startAngle + dialRoot.effectiveValue * totalSweep
+            // Gap around the tip: a flat 6px arc-length-to-radians
+            // conversion (gapRad = 6/r, the standard formula for
+            // converting a desired pixel gap at a given radius into
+            // radians), the FULL 6px applied on each side, not halved
+            // like the player ring's CircularSeek above needs for its
+            // own thicker tip. Native RoundCap, no fake endpoint
+            // circles, no compensation for the cap's own bleed --
+            // previous passes here kept inventing a bigger and bigger
+            // "gapPx" plus manually-drawn circles instead of just
+            // using this one real number.
+            var handleSpacing = 6
+            var gapRad = handleSpacing / r
+            // Clamped -- without this, ctx.arc's start angle could land
+            // past its own end angle near value: 1 (endAngle + gapRad
+            // exceeding the ring's own true terminus), which draws the
+            // long way around (nearly a full circle) instead of
+            // nothing. Same fix already applied to the player card's
+            // own CircularSeek track arc above -- confirmed live: the
+            // mic dial hit this exact edge routinely since Pipewire mic
+            // gain commonly boosts past 100%, and effectiveValue clamps
+            // display at exactly 1.0 whenever it does.
+            var trackStartAngle = Math.min(startAngle + totalSweep, endAngle + gapRad)
+            ctx.lineWidth = 3
+            ctx.lineCap = "round"
+            ctx.strokeStyle = dialRoot.trackColor
+            ctx.beginPath()
+            ctx.arc(cx, cy, r, trackStartAngle, startAngle + totalSweep)
+            ctx.stroke()
+
+            ctx.strokeStyle = dialRoot.ringAccent
+            ctx.beginPath()
+            var dialProgressEnd = Math.max(startAngle, endAngle - gapRad)
+            ctx.arc(cx, cy, r, startAngle, dialProgressEnd)
+            ctx.stroke()
+
+            // Thick tip at the current value, same treatment as the
+            // player card's own CircularSeek tip -- a fat radial tick,
+            // not a dot, in dialRoot.tipColor (root.textColor, ruixen-
+            // shell#89) for contrast against the accent arc. Was a
+            // hardcoded white; readable on any surface now instead of
+            // just the old OLED-black-only one.
+            // Deliberately thicker than the ring itself (not reusing
+            // the same lineWidth for both) per direct request ("pretty
+            // thick"), matching how the bigger player ring's tip
+            // already reads chunkier than its own track.
+            //
+            // Always drawn now, even at effectiveValue: 0 -- per direct
+            // request ("when they are on silence or mute, keep the tip
+            // head at the 0% position") -- was guarded on `> 0` before,
+            // so muting/zero volume made it vanish entirely instead of
+            // sitting at the start. Same fix already applied to
+            // CircularSeek's own tip earlier for the idle/no-media
+            // case, same reasoning here.
+            {
+              // Shortened -- r-3/r+5 (an 8px span) stuck out too far
+              // past the ring, per direct feedback.
+              var tipR1 = r - 2
+              var tipR2 = r + 3
+              var tx1 = cx + tipR1 * Math.cos(endAngle)
+              var ty1 = cy + tipR1 * Math.sin(endAngle)
+              var tx2 = cx + tipR2 * Math.cos(endAngle)
+              var ty2 = cy + tipR2 * Math.sin(endAngle)
+              ctx.lineWidth = 5
+              ctx.lineCap = "round"
+              ctx.strokeStyle = dialRoot.tipColor
+              ctx.beginPath()
+              ctx.moveTo(tx1, ty1)
+              ctx.lineTo(tx2, ty2)
+              ctx.stroke()
+            }
+          }
+        }
+
+        Text {
+          anchors.centerIn: parent
+          text: dialRoot.muted ? dialRoot.mutedGlyph : dialRoot.glyph
+          // Same fixed red used for DND-active elsewhere in this file
+          // (#e05252) -- a semantic "muted/off" color, not theme-linked,
+          // same reasoning as the bell's own red.
+          color: dialRoot.muted ? "#e05252" : (root.accentDashboardHeaders ? root.accent : root.textColor)
+          font.family: root.fontFamily
+          // Matches the left-rail tab bar's own glyph size (20px,
+          // bumped alongside it from 18) -- was 14 originally, read
+          // small next to it, per direct feedback.
+          font.pixelSize: 20
+        }
+
+        MouseArea {
+          anchors.fill: parent
+          cursorShape: Qt.PointingHandCursor
+          onClicked: dialRoot.activated()
+          onWheel: function(wheel) {
+            var steps = Util.wheelSteps(dialRoot.wheelAccumulator, wheel.angleDelta.y)
+            dialRoot.wheelAccumulator = steps.remainder
+            if (steps.steps !== 0) dialRoot.wheelStepped(steps.steps)
+          }
+        }
+      }
+
+      // Rail restructured to mirror the left tab bar's own header/
+      // footer pattern, per direct request: brightness icon pinned as
+      // the rail's HEADER (top, no spacer above it), speaker+mic
+      // dials pinned as the FOOTER (bottom, no spacer below them),
+      // and the brightness bar sits in the middle, centered in
+      // whatever space is left by a fillHeight spacer on each side --
+      // same "header content, spacer, footer content" shape the tab
+      // bar already uses for its settings gear, just with a middle
+      // element added here.
+      //
+      // Brightness keeps its own icon+bar shape (icon on top, a
+      // vertical bar below it, NOT a circular dial like speaker/mic
+      // get) -- this reorder doesn't change that shape, just where
+      // the pieces sit in the column.
+      // 38 -> 56, matching the left-rail TabButton and the Dial badges
+      // below exactly (both 56x56, radius 14) -- per direct request to
+      // match the tonal badge sizing across the whole rail. Glyph left
+      // at 20px unchanged: it was already sized for a 56px badge's own
+      // proportion (20/56, the same ratio TabButton/Dial use), just
+      // oversized relative to the old smaller 38px frame.
+      Rectangle {
+        Layout.alignment: Qt.AlignHCenter
+        Layout.preferredWidth: 56
+        Layout.preferredHeight: 56
+        radius: ShellConfig.radius
+        color: root.dashboardSurfaceRaised
+
+        Text {
+          anchors.centerIn: parent
+          text: "\udb80\udcdf"
+          color: root.accentDashboardHeaders ? root.accent : root.textColor
+          font.family: root.fontFamily
+          font.pixelSize: 20
+        }
+      }
+
+      // Same gap+tip language as the Dial's own ring -- a white tip
+      // straddling a small gap at the current value, much clearer on
+      // a straight bar than the small circular dial.
+      //
+      // Layout.fillHeight, not a fixed preferredHeight sandwiched
+      // between two spacers -- per direct follow-up ("isnt filling in
+      // between header and footer... just like a small bar in the
+      // middle"), the bar itself is now the flexible element that
+      // consumes the actual leftover space between the icon above and
+      // the dials below, instead of floating at a fixed 56px with
+      // empty spacer gaps on both sides. valueY/gapPx below already
+      // reference `height` reactively, so this needs no other changes
+      // -- they recompute correctly at whatever height fillHeight
+      // resolves to.
+      // No longer draws the dim track itself directly (color:
+      // transparent) -- per direct feedback ("the tail has it but the
+      // head doesnt have the cap"), the track was still spanning the
+      // bar's FULL height uncut, so it ran right up against the tip's
+      // own top edge with zero separation while the fill (already
+      // explicitly trimmed short below the tip) had a real gap. Track
+      // is now its own explicitly-trimmed Rectangle too, stopping
+      // short ABOVE the tip by the same gapPx the fill already stops
+      // short below it -- a real, symmetric gap on both sides now,
+      // not just one.
+      Rectangle {
+        id: brightnessBar
+        Layout.alignment: Qt.AlignHCenter
+        Layout.preferredWidth: 7
+        Layout.fillHeight: true
+        radius: 3
+        color: "transparent"
+
+        // Real value now, per direct request ("can this actually
+        // control the brightness?") -- was a hardcoded 0.8. root.setBrightness
+        // is Overlay.qml's own function (ultimately shells out to
+        // omarchy-brightness-display), handed down as a plain function-
+        // typed property since omarchy.monitor has no service kind to
+        // call a real method on directly.
+        property real value: root.brightnessPercent / 100
+        // Distance from the bar's own top edge to the value line --
+        // both track and fill stop short of it by gapPx, the tip sits
+        // centered right on it, straddling into both gaps.
+        readonly property real valueY: height * (1 - value)
+        // Bumped 4 -> 8 alongside the tip's own growth (5px -> 7px
+        // tall) -- the trim needs to clear the tip's now-bigger
+        // half-height (3.5px) with real margin, or the "gap" ends up
+        // a sub-pixel sliver again, same lesson as the dial's tip.
+        readonly property real gapPx: 8
+
+        Rectangle {
+          anchors.left: parent.left
+          anchors.right: parent.right
+          anchors.top: parent.top
+          height: Math.max(0, parent.valueY - parent.gapPx)
+          radius: 3
+          color: root.surfaceTint(0.15)
+        }
+
+        Rectangle {
+          anchors.left: parent.left
+          anchors.right: parent.right
+          anchors.bottom: parent.bottom
+          height: Math.max(0, parent.height - parent.valueY - parent.gapPx)
+          radius: 3
+          color: root.accent
+        }
+
+        // Sticks out further past the bar's own edges (+4 -> +12) and
+        // grown a bit taller (5 -> 7) -- per direct feedback it read
+        // too small/subtle before.
+        Rectangle {
+          anchors.horizontalCenter: parent.horizontalCenter
+          y: parent.valueY - height / 2
+          width: parent.width + 12
+          height: 7
+          radius: 3.5
+          // Was a hardcoded white, invisible against a light Theme-mode
+          // surface after ruixen-shell#89 -- root.textColor is already
+          // correct for whatever surface is actually active, same fix
+          // as the dial/seek tips above.
+          color: root.textColor
+        }
+
+        // Click/drag to actually set brightness -- the bar was purely
+        // a static readout until now. Width 24 (wider than the 7px bar
+        // itself, a comfortable grab target) but height matches the
+        // bar's own exactly (no vertical margin), so mouse.y maps
+        // directly to a 0..1 ratio with no extra offset math needed.
+        MouseArea {
+          width: 24
+          height: parent.height
+          anchors.centerIn: parent
+          enabled: root.brightnessAvailable
+          cursorShape: Qt.PointingHandCursor
+          preventStealing: true
+
+          function updateFromY(y) {
+            var ratio = 1 - Math.max(0, Math.min(1, y / height))
+            if (root.setBrightness) root.setBrightness(Math.round(ratio * 100))
+          }
+
+          onPressed: mouse => updateFromY(mouse.y)
+          onPositionChanged: mouse => { if (pressed) updateFromY(mouse.y) }
+
+          // Direct report: "the wheel on my mouse... adjusting it
+          // anymore, working fine with audio and mic level" -- this
+          // MouseArea was only ever built for click/drag, it never had
+          // an onWheel handler at all (unlike Dial's own MouseArea
+          // above, which audio/mic both use). Same Util.wheelSteps
+          // accumulator and 5%-per-notch convention as those two, just
+          // driving root.setBrightness with a percent instead of a
+          // 0..1 volume.
+          property real wheelAccumulator: 0
+          onWheel: function(wheel) {
+            var steps = Util.wheelSteps(wheelAccumulator, wheel.angleDelta.y)
+            wheelAccumulator = steps.remainder
+            if (steps.steps !== 0 && root.setBrightness)
+              root.setBrightness(Math.max(0, Math.min(100, Math.round(root.brightnessPercent) + steps.steps * 5)))
+          }
+        }
+      }
+
+      Dial {
+        glyph: "\udb81\udd7e"
+        mutedGlyph: "\udb81\udd81"
+        muted: root.audioSink && root.audioSink.audio ? root.audioSink.audio.muted : false
+        value: root.speakerVolume
+        onActivated: if (root.audioSink && root.audioSink.audio) root.audioSink.audio.muted = !root.audioSink.audio.muted
+        onWheelStepped: function(steps) { root.sendVolumeStep(true, steps) }
+      }
+      Dial {
+        glyph: "\udb80\udf6c"
+        mutedGlyph: "\udb80\udf6d"
+        muted: root.audioSource && root.audioSource.audio ? root.audioSource.audio.muted : false
+        value: root.micVolume
+        onActivated: if (root.audioSource && root.audioSource.audio) root.audioSource.audio.muted = !root.audioSource.audio.muted
+        onWheelStepped: function(steps) { root.sendVolumeStep(false, steps) }
+      }
+    }
+  }
+}

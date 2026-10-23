@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+# Runs every test in this directory and reports one final pass/fail
+# summary -- what CI runs (.github/workflows/ci.yml) and what local
+# development should run before pushing. See dev/README.md's own
+# "Running tests" section for what each individual script covers.
+set -Eeuo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
+suites=(
+  "$script_dir/lint-shell.sh"
+  "$script_dir/qml-lint.sh"
+  "$script_dir/validate-manifests.sh"
+  "$script_dir/js-model-tests.sh"
+  "$script_dir/shell-json-merge.sh"
+  "$script_dir/superseded-ids-contract.sh"
+  "$script_dir/looknfeel-preserve.sh"
+  "$script_dir/looknfeel-stable-path.sh"
+  "$script_dir/looknfeel-choice-persist.sh"
+  "$script_dir/curvature-half-option.sh"
+  "$script_dir/notch-kanban-gui.sh"
+  "$script_dir/shelf-plugin.sh"
+  "$script_dir/docs-links.sh"
+  "$script_dir/notch-theme-switcher.sh"
+  "$script_dir/glass-profile-contract.sh"
+  "$script_dir/glass-tint-contract.sh"
+  "$script_dir/bar-surface-contract.sh"
+  "$script_dir/bar-icon-tone-contract.sh"
+  "$script_dir/uninstall-bar-restore.sh"
+  "$script_dir/merge-uninstall-bar.sh"
+  "$script_dir/uninstall-preserve-thirdparty.sh"
+  "$script_dir/uninstall-plugin-sweep.sh"
+  "$script_dir/uninstall-backup-cleanup.sh"
+  "$script_dir/uninstall-clone-restore-sweep.sh"
+  "$script_dir/uninstall-pristine-reset.sh"
+  "$script_dir/uninstall-failure-aggregation.sh"
+  "$script_dir/install-lifecycle.sh"
+  "$script_dir/install-rollback.sh"
+  "$script_dir/install-shared-wallpaper-files.sh"
+  "$script_dir/lifecycle-journal-recovery.sh"
+  "$script_dir/lifecycle-flag-parsing.sh"
+  "$script_dir/settings-update-interruption.sh"
+  "$script_dir/settings-update-worker.sh"
+  "$script_dir/install-restart-detached-tail.sh"
+  "$script_dir/install-theme-overlays.sh"
+  "$script_dir/lifecycle-lock.sh"
+  "$script_dir/wallpaper-discovery-format.sh"
+  "$script_dir/wallpaper-sidebar-style.sh"
+  "$script_dir/wallpaper-effects.sh"
+  "$script_dir/wallpaper-rotation.sh"
+  "$script_dir/update-safety.sh"
+  "$script_dir/gif-poster-fallback.sh"
+  "$script_dir/poster-cache-pruning.sh"
+  "$script_dir/no-hardcoded-omarchy-shell-path.sh"
+  "$script_dir/bar-style-mode.sh"
+  "$script_dir/frame-enabled-toggle.sh"
+  "$script_dir/bar-popup-clearance.sh"
+  "$script_dir/bar-right-side-groups.sh"
+  "$script_dir/bar-docked-left-inset.sh"
+  "$script_dir/chrome-surface-refactor.sh"
+  "$script_dir/avatar-custom-gif.sh"
+  "$script_dir/plugin-enable-placement.sh"
+  "$script_dir/pluginpins-model.sh"
+  "$script_dir/peripherals-status.sh"
+  "$script_dir/media-status-relay.sh"
+  "$script_dir/launcher-open-defer.sh"
+  "$script_dir/launcher-settings-search-clear.sh"
+  "$script_dir/launcher-settings-about-actions.sh"
+  "$script_dir/launcher-extensions-frecency.sh"
+  "$script_dir/launcher-extension-search-discoverability.sh"
+  "$script_dir/launcher-extension-registry-consistency.sh"
+  "$script_dir/launcher-clipboard-extension.sh"
+  "$script_dir/launcher-cliamp-extension.sh"
+  "$script_dir/launcher-theme-browser-extension.sh"
+  "$script_dir/launcher-kanban-extension.sh"
+  "$script_dir/cava-missing-dependency.sh"
+  "$script_dir/notch-media-viz-mode.sh"
+  "$script_dir/cava-idle-quiesce.sh"
+  "$script_dir/idle-polling-gating.sh"
+  "$script_dir/cava-state-contract.sh"
+  "$script_dir/idle-nightlight-relay.sh"
+  "$script_dir/notification-relay.sh"
+  "$script_dir/app-launcher-relay.sh"
+  "$script_dir/notch-bar-hidden-sync.sh"
+  "$script_dir/workspaces-pill-strict.sh"
+  "$script_dir/cliamp-idle-timeout.sh"
+  "$script_dir/notch-wallpaper-grid-preview.sh"
+  "$script_dir/notch-wallpaper-shuffle-jump.sh"
+  "$script_dir/notch-rotation-chip-width.sh"
+  "$script_dir/wallpaper-rotation-video.sh"
+  "$script_dir/wallpaper-manual-pick-rotation.sh"
+  "$script_dir/wallpaper-generation-guard.sh"
+  "$script_dir/launcher-wallpaper-shuffle-extension.sh"
+  "$script_dir/bar-drag-protected-slots.sh"
+  "$script_dir/bar-left-pluginpins-pill.sh"
+  "$script_dir/repair-drift-detection.sh"
+  "$script_dir/ruixen-doctor-state-dir.sh"
+  "$script_dir/ruixen-doctor-looknfeel.sh"
+  "$script_dir/uninstall-dry-run.sh"
+  "$script_dir/install-dry-run.sh"
+  "$script_dir/update-dry-run.sh"
+  "$script_dir/update-check-json.sh"
+)
+
+overall_status=0
+for suite in "${suites[@]}"; do
+  printf '\n##### %s #####\n' "$(basename "$suite")"
+  if ! "$suite"; then
+    overall_status=1
+  fi
+done
+
+printf '\n'
+if [[ "$overall_status" -eq 0 ]]; then
+  printf 'All test suites passed.\n'
+else
+  printf 'One or more test suites FAILED -- see above.\n' >&2
+fi
+exit "$overall_status"

@@ -1,0 +1,108 @@
+import QtQuick
+import qs.Commons
+import qs.Ui
+
+BarWidget {
+  id: root
+  moduleName: "ruixen.weather"
+
+  function injectPanel() {
+    var target = panelLoader.item
+    if (!target) return
+    if ("bar" in target) target.bar = root.bar
+    if ("settings" in target) target.settings = root.settings
+    if ("anchorItem" in target) target.anchorItem = button
+    if ("hostWidget" in target) target.hostWidget = root
+  }
+
+  function refresh() {
+    if (panelLoader.item && panelLoader.item.refresh) panelLoader.item.refresh()
+  }
+
+  function togglePanel() {
+    if (panelLoader.item && panelLoader.item.toggle) panelLoader.item.toggle()
+  }
+
+  // Shape contract for shell.summon/hide/toggle routing (Bar.findPanelWidget
+  // requires open/close/opened on the bar-widget root). Open maps to the
+  // panel's hotkey path so summoning suppresses the center hover reveal,
+  // matching what the old per-plugin IpcHandler did.
+  readonly property bool opened: panelLoader.item ? panelLoader.item.opened === true : false
+
+  function open() {
+    if (panelLoader.item && panelLoader.item.openFromHotkey) panelLoader.item.openFromHotkey()
+  }
+
+  function close() {
+    if (panelLoader.item && panelLoader.item.close) panelLoader.item.close()
+  }
+
+  // Forwarded so this widget can stand in for the panel as the bar's popout
+  // identity: Bar.requestPopout prefers closeForPopoutSwitch over close, and
+  // KeyboardPanel reads popoutSwitchClosing back off its owner.
+  readonly property bool popoutSwitchClosing: panelLoader.item ? panelLoader.item.popoutSwitchClosing === true : false
+
+  function closeForPopoutSwitch() {
+    if (panelLoader.item) panelLoader.item.closeForPopoutSwitch()
+  }
+
+  visible: panelLoader.item && panelLoader.item.label !== ""
+  implicitWidth: button.implicitWidth
+  implicitHeight: button.implicitHeight
+
+  onBarChanged: injectPanel()
+  onSettingsChanged: injectPanel()
+
+  Loader {
+    id: panelLoader
+    active: true
+    source: Qt.resolvedUrl("Panel.qml")
+    visible: false
+    onLoaded: {
+      root.injectPanel()
+      Qt.callLater(root.injectPanel)
+    }
+  }
+
+  BarIconButton {
+    id: button
+    anchors.fill: parent
+    bar: root.bar
+    text: panelLoader.item ? panelLoader.item.label : ""
+    // No iconForeground override here on purpose, direct live follow-up
+    // ("since we cant change the clock color, lets make the weather back
+    // to before without the accent too then cause the separator is
+    // already accent in this group"): weather shares clockPill with
+    // omarchy.clock, a stock widget whose own color can't be overridden
+    // without cloning it (see ruixen.power's own clone for why that's a
+    // real undertaking, deliberately not done for clock). Weather alone
+    // picking up Icon Tone's accent while clock stays on the plain theme
+    // color read as mismatched within the same pill -- reverted to the
+    // plain default (matches clock) so the two agree; the divider
+    // between them keeps its own Color.accent unchanged, that one was
+    // never in question.
+    // Stock used statusSlot (narrower, meant for the denser center
+    // cluster next to the clock/indicators). Matched to iconSlot here so
+    // it doesn't look undersized next to the other icon-style widgets
+    // in the bar (stay-awake, quick actions, etc).
+    slotSize: Style.bar.iconSlot
+    // Matching the slot wasn't enough on its own -- the weather glyph set
+    // (Model.js's iconForCode) has noticeably less ink within its
+    // character box than the Font Awesome/MDI glyphs used elsewhere
+    // (coffee, bell), so it read as smaller even at the same font size.
+    // Bumped to compensate.
+    fontSize: Style.bar.iconFont + 4
+    // Was suppressed ("the panel is the detail view") -- direct request
+    // for consistency with the other bar groups (app launcher, settings/
+    // more actions), which all show a hover label despite also opening a
+    // panel on click.
+    tooltipText: "Weather"
+
+    onPressed: function(b) {
+      if (!root.bar) return
+      if (b === Qt.RightButton) root.bar.run("omarchy-notification-send \"$(omarchy-weather-status)\"")
+      else if (b === Qt.MiddleButton) root.refresh()
+      else root.togglePanel()
+    }
+  }
+}

@@ -1,0 +1,403 @@
+-- Change the default Omarchy look'n'feel.
+
+-- https://wiki.hypr.land/Configuring/Basics/Variables/#general
+-- hl.config({
+--   general = {
+--     -- No gaps between windows or borders.
+--     gaps_in = 0,
+--     gaps_out = 0,
+--     border_size = 0,
+--
+--     -- Change to niri-like side-scrolling layout.
+--     layout = "scrolling",
+--   },
+-- })
+
+-- Direct request ("for the border thickness, is there abit more
+-- thinner?") -- Omarchy's own default is 2 (confirmed live via
+-- `hyprctl getoption general:border_size`, not assumed), never
+-- overridden by this file until now. 1 is the thinnest non-zero
+-- border Hyprland supports; going to 0 would remove the border
+-- entirely, which isn't what was asked for here.
+--
+-- gaps_out: same right/bottom/left = 20 already proven out in
+-- looknfeel.square.lua, brought over here as the shared baseline
+-- (direct follow-up, after living with square's own bump for a while:
+-- "in the sharp mode we added some padding and it seems to be a much
+-- better baseline for all"). ruixen.frame-widget's own fixed 6px
+-- border frames the screen in every variant, not just square -- the
+-- stock 10px gap it used to leave here read as tight/clipping against
+-- that frame (or ruixen.bar's own wing decoration in docked mode) the
+-- same way it did before square's own fix, just less obviously so with
+-- rounded corners' natural taper softening it.
+--
+-- Top stays 10 HERE (this file's own static baseline) -- direct
+-- follow-up chain: "i do super shift space and the topbar autohides...
+-- it gets too close to the top edge compare to bottom edge" first
+-- landed a static bump to 20, which then turned out to overcorrect the
+-- much more common bar-VISIBLE case ("that kinda messed up... it
+-- looks like we created extra padding now the top is more than the
+-- bottom"). gaps_out.top sits BELOW the bar's own exclusiveZone
+-- reservation, not instead of it -- 10 is what actually reads balanced
+-- once the bar's own real height is already accounted for, but the
+-- exact same 10 reads too tight once that reservation disappears
+-- (ExclusionMode.Ignore while hidden). No single static value gets
+-- both right, so this stays the bar-VISIBLE baseline and
+-- ruixen.bar/Bar.qml's own syncGapsOutForTopBarVisibility() pushes a
+-- live `hyprctl eval` override to 20 for exactly as long as the bar is
+-- actually hidden, reverting the moment it's shown again -- see that
+-- function's own comment for the full mechanism. Deliberately NOT
+-- applied to looknfeel.default.lua -- stock Omarchy-look mode stays
+-- exactly what Omarchy itself intended, untouched by this repo.
+--
+-- gaps_in (Comfy/Tight) -- direct follow-up after live-testing gaps_in
+-- 0 with `hyprctl eval`: "with the round curvature on the window the
+-- tight spacing looks kinda bad, on sharp it might be fine... its
+-- probably easier if its just a setting". Same plain-text-file
+-- convention as animationProfile below (ruixen.settings' own General
+-- page writes it), read here so `hyprctl reload` alone picks up
+-- whichever was last chosen. Comfy (default) keeps Hyprland's own
+-- stock 5; Tight goes to 0. All three Ruixen-look variants (this
+-- file, looknfeel.square.lua, looknfeel.half.lua) read the
+-- same file -- direct instruction ("if its tight then both
+-- round and sharp will get no inner padding") -- so switching Window
+-- Curvature elsewhere never resets this choice.
+local function readSpacingProfile()
+  local path = (os.getenv("HOME") or "") .. "/.local/state/ruixen/spacing-profile"
+  local f = io.open(path, "r")
+  if not f then return "comfy" end
+  local line = f:read("*l") or "comfy"
+  f:close()
+  line = line:gsub("%s+", "")
+  if line == "tight" then return line end
+  return "comfy"
+end
+
+local ruixenGapsIn = readSpacingProfile() == "tight" and 0 or 5
+
+-- Glass (Frosted/Transparent) -- direct request, after checking a
+-- reference theme's own window-look hook for how its blur read
+-- noticeably clearer: "im thinking of making that a setting in
+-- profile between frosted and transparent." Same plain-text-file
+-- convention as spacing/animation profiles above (ruixen.launcher's
+-- own Settings Profile page writes it). Frosted is this file's own
+-- existing values, unchanged; Transparent is a real, working
+-- configuration confirmed to read noticeably clearer (inactive_opacity
+-- 0.75, blur passes 2), not guessed. All three Ruixen-look variants
+-- (this file, looknfeel.square.lua, looknfeel.half.lua) read the
+-- same file, same as spacing/animation profiles above.
+--
+-- Vibrant (blur.vibrancy boost) and Solid (blur disabled entirely)
+-- were both tried and reverted -- direct report: "solid still broken
+-- and it breaks the ruixen app launcher too, vibrancy still looks
+-- like frosted, so i guess we dont need them." Root causes, for
+-- anyone tempted to retry either: Vibrant's own boost was real
+-- (confirmed live via hyprctl getoption, twice, at two different
+-- strengths) but apparently too subtle a difference from Frosted to
+-- actually read as different. Solid disabling blur globally broke
+-- ruixen.launcher's own frosted card too -- that card's translucent
+-- background depends on REAL Hyprland blur to render at all (see its
+-- own hl.layer_rule below), same reason Kitty's independent
+-- background_opacity showed through unblurred under Solid instead of
+-- looking more solid.
+local function readGlassProfile()
+  local path = (os.getenv("HOME") or "") .. "/.local/state/ruixen/glass-profile"
+  local f = io.open(path, "r")
+  if not f then return "transparent" end
+  local line = f:read("*l") or "transparent"
+  f:close()
+  line = line:gsub("%s+", "")
+  if line == "frosted" then return line end
+  return "transparent"
+end
+
+local ruixenGlassProfile = readGlassProfile()
+local ruixenInactiveOpacity = ruixenGlassProfile == "transparent" and 0.75 or 0.94
+local ruixenBlurSize = ruixenGlassProfile == "transparent" and 4 or 7
+local ruixenBlurPasses = ruixenGlassProfile == "transparent" and 2 or 3
+
+-- Bar material is a separate #78 surface axis from the global Glass
+-- Effect profile above. QML can make the floating pills translucent on
+-- its own, but real frosted glass requires a compositor layer rule for
+-- omarchy-bar too. Scope it to floating mode only: docked mode's
+-- frame/notch/bar chrome is a coupled surface and stays solid until
+-- that pass is designed as one unit.
+local function readFloatingBarGlassEnabled()
+  local home = os.getenv("HOME") or ""
+
+  local surface = io.open(home .. "/.local/state/ruixen/bar-surface.json", "r")
+  local surfaceRaw = surface and surface:read("*a") or ""
+  if surface then surface:close() end
+  if not surfaceRaw:match('"material"%s*:%s*"glass"') then return false end
+
+  local shell = io.open(home .. "/.config/omarchy/shell.json", "r")
+  local shellRaw = shell and shell:read("*a") or ""
+  if shell then shell:close() end
+  return not shellRaw:match('"docked"%s*:%s*true')
+end
+
+local ruixenFloatingBarGlassEnabled = readFloatingBarGlassEnabled()
+
+hl.config({
+  general = {
+    border_size = 1,
+    gaps_in = ruixenGapsIn,
+    gaps_out = { top = 10, right = 20, bottom = 20, left = 20 },
+  },
+})
+
+-- https://wiki.hypr.land/Configuring/Basics/Variables/#decoration
+hl.config({
+  decoration = {
+    -- Matches the frame/bar's cornerRadius (24) for a consistent look.
+    rounding = 24,
+
+    -- Ported from the user's own past cachyos-dotfiles config
+    -- (0.98/0.94, unchanged from that source -- direct request: "yea
+    -- both the color inactive and opacity split"). Focused windows
+    -- read as slightly more solid, unfocused ones fade back a touch --
+    -- same depth-hierarchy idea as shadow's own color_inactive below,
+    -- a different lever. Belongs under decoration, not general --
+    -- confirmed directly (`hyprctl getoption general:active_opacity`
+    -- returned "no such option") after an initial wrong placement.
+    --
+    -- inactive_opacity is now Glass-profile-driven (ruixenGlassProfile
+    -- above) -- 0.94 here under Frosted, unchanged from the original
+    -- cachyos value; 0.75 under Transparent.
+    active_opacity = 0.98,
+    inactive_opacity = ruixenInactiveOpacity,
+
+    -- Window blur -- lets transparent surfaces (e.g. Kitty's
+    -- background_opacity, see ../kitty.conf) show a blurred desktop
+    -- behind them instead of plain see-through.
+    --
+    -- noise: direct correction after ruixen.launcher's own frosted-
+    -- glass card ("the frost looks grainy... smooth black liquid glass
+    -- kinda thing") -- this file's own original 0.08 is well above
+    -- Hyprland's own stock default (~0.0117) and reads as visible film
+    -- grain once a surface is dark/translucent enough to actually show
+    -- the blur clearly, which nothing here did until the launcher's
+    -- card existed. Global, not launcher-specific (Hyprland has no
+    -- per-layer-rule noise override), so this also smooths Kitty's own
+    -- background blur -- a net improvement there too, not a tradeoff.
+    --
+    -- size/passes are also Glass-profile-driven now -- 7/3 here under
+    -- Frosted (unchanged), 4/2 under Transparent (fewer passes means
+    -- less diffusion, reading clearer/crisper rather than smoothed).
+    blur = {
+      enabled = true,
+      size = ruixenBlurSize,
+      passes = ruixenBlurPasses,
+      noise = 0.01,
+    },
+
+    -- Direct request ("i feel like this design could do drop shadow
+    -- for depth... i want it to feel premium") -- global (Hyprland's
+    -- own decoration.shadow applies to every real window uniformly,
+    -- there's no per-app override), unlike a per-surface Quickshell
+    -- effect. Started deliberately small/soft (range 12, 25% alpha,
+    -- offset 3). A follow-up widened range to 20 and offset to 6 to
+    -- make it more noticeable -- overshot: direct correction ("too
+    -- much fadded now, distance is too much, like before but more
+    -- intense") wanted the ORIGINAL tight distance back (range/offset
+    -- are what push the shadow further out and soften/fade it), with
+    -- only the color intensity (alpha) pushed higher instead. Range
+    -- and offset back to 12/3, alpha up further to ~56%
+    -- (rgba(00000090), well past the ~38% the widen attempt used) --
+    -- close and dark, not far and soft.
+    shadow = {
+      enabled = true,
+      range = 12,
+      render_power = 3,
+      color = "rgba(00000090)",
+      -- Dimmer than the active color above (~56% -> ~28% alpha, same
+      -- roughly-half ratio the user's own past cachyos-dotfiles config
+      -- used for this exact pair) -- direct request: "yea both the
+      -- color inactive and opacity split". Focused window's shadow
+      -- reads darker/closer, unfocused ones recede -- same depth-
+      -- hierarchy idea as active_opacity/inactive_opacity above.
+      color_inactive = "rgba(00000048)",
+      offset = { 0, 3 },
+    },
+  },
+})
+
+-- Frosted glass for ruixen.launcher's own card -- real Hyprland blur
+-- applied to just that one layer-shell surface (matched by its own
+-- WlrLayershell.namespace, "ruixen-launcher"), not a Quickshell effect
+-- (Quickshell can't blur what's behind its own window; only the
+-- compositor can). Ported from maajix/omarchy-spotlight's own README,
+-- which documents this exact technique for the same kind of overlay --
+-- confirmed real, not guessed: `hl.layer_rule` with `match.namespace`
+-- is Omarchy's own stock API, already used this same way in
+-- /usr/share/omarchy/default/hypr/apps/omarchy-shell.lua for
+-- "omarchy-bar"/"omarchy-menu" etc.
+--
+-- ignore_alpha keeps the blur scoped to the card itself: the panel
+-- surface is fullscreen but almost entirely transparent (only the
+-- centered card has real alpha), and without this threshold Hyprland
+-- would try to blur the whole empty surface too. 0.4 matches the
+-- reference plugin's own value; the launcher's own card sits well
+-- above that (see Launcher.qml's panelBackground alpha).
+--
+-- Deliberately NOT added to looknfeel.default.lua -- same "stock
+-- Omarchy-look mode stays untouched" convention as the blur config
+-- above. The card still renders (just plainly translucent, no frost)
+-- under that variant -- graceful, not broken.
+hl.layer_rule({
+  match = { namespace = "ruixen-launcher" },
+  blur = true,
+  ignore_alpha = 0.4,
+})
+
+if ruixenFloatingBarGlassEnabled then
+  hl.layer_rule({
+    match = { namespace = "omarchy-bar" },
+    blur = true,
+    ignore_alpha = 0.4,
+  })
+end
+
+-- https://wiki.hypr.land/Configuring/Basics/Variables/#animations
+--
+-- Animation Profiles -- direct request ("its the hyprland windows
+-- that needs it... bubbly, calm, snappy seems to be enough").
+-- Investigated a MangoWM+Quickshell dotfiles repo's own "5 animation
+-- profiles" feature for the idea, but that repo's WM half is
+-- MangoWM-specific (sed-edits its own config.conf, reloads via `mmsg
+-- -d reload_config`) -- doesn't apply to Hyprland at all. This is a
+-- real Hyprland-native port instead: three named hl.curve()/
+-- hl.animation() sets (Omarchy's own default file, read directly, is
+-- what the leaf names/shape below are based on), chosen by a plain-
+-- text profile file ruixen.settings' System page writes to. Reading
+-- state from a file instead of this file being regenerated/templated
+-- means `hyprctl reload` alone re-executes this whole script fresh
+-- and picks up whatever profile was last chosen -- no separate IPC
+-- path needed, same "let the config read real state" spirit as every
+-- other file-backed setting in this repo (see ruixen.settings/
+-- Settings.qml's own barModeReadProc for the same plain-text-file
+-- convention).
+-- Default is calm now, not bubbly -- direct request ("switch the
+-- order so we start with calm by default and then user can pick next
+-- toggle as Bubbly then Snappy last").
+local function readAnimationProfile()
+  local path = (os.getenv("HOME") or "") .. "/.local/state/ruixen/animation-profile"
+  local f = io.open(path, "r")
+  if not f then return "calm" end
+  local line = f:read("*l") or "calm"
+  f:close()
+  line = line:gsub("%s+", "")
+  if line == "bubbly" or line == "snappy" then return line end
+  return "calm"
+end
+
+local ruixenAnimProfile = readAnimationProfile()
+
+hl.config({
+  animations = {
+    enabled = true,
+  },
+})
+
+-- All three profiles use style = "slide" on windowsIn/windowsOut now,
+-- not `popin NN%` -- direct follow-up ("its still wierd i think its
+-- the animation from the center thats why... im pretty sure one of
+-- them has a slide, is like slide in and out that i like"). Checked
+-- omarchy-dotfiles-mini, omarchy-dotfiles, and cachyos-dotfiles
+-- directly for a slide setup to port -- none of the three actually
+-- customize this (the first two don't override animations at all,
+-- cachyos-dotfiles just has Omarchy's own stock popin defaults
+-- inline) -- but the diagnosis was right regardless: `popin` scales
+-- the window in from its own center, which is exactly the "from the
+-- center" motion that read as weird even after calm's speed/overshoot
+-- got fixed. Hyprland's own built-in `slide` style (https://wiki.hypr.
+-- land/Configuring/Animations/#style) moves the window in from an
+-- edge instead of scaling from the middle -- swaps every profile onto
+-- it for a consistent, non-center motion; only the curve/speed/bounce
+-- differ between profiles now, not the fundamental motion shape.
+if ruixenAnimProfile == "bubbly" then
+  -- Bubbly -- springy, bouncy, overshoots. Real overshoot via a
+  -- backOut-style curve (cubic-bezier(0.34, 1.35, 0.64, 1) -- the y >
+  -- 1 control point is what actually produces the overshoot/bounce,
+  -- not just a fast speed).
+  hl.curve("ruixenBounce", { type = "bezier", points = { { 0.34, 1.35 }, { 0.64, 1 } } })
+  hl.curve("ruixenFade", { type = "bezier", points = { { 0.4, 0 }, { 0.2, 1 } } })
+  hl.animation({ leaf = "windows", enabled = true, speed = 3.0, bezier = "ruixenBounce" })
+  hl.animation({ leaf = "windowsIn", enabled = true, speed = 3.2, bezier = "ruixenBounce", style = "slide" })
+  hl.animation({ leaf = "windowsOut", enabled = true, speed = 2.2, bezier = "ruixenBounce", style = "slide" })
+  -- Direct follow-up ("can we animate the effect moving between
+  -- window so its sliding as well to fit with the design") -- Omarchy's
+  -- own default explicitly disables this leaf (`workspaces, enabled =
+  -- false`, see /usr/share/omarchy/default/hypr/looknfeel.lua), and
+  -- this file never overrode it, so switching workspaces cut instantly
+  -- with none of the slide motion windowsIn/windowsOut already have.
+  --
+  -- Own toned-down curve, not the shared ruixenBounce above -- direct
+  -- follow-up ("bubbly dont make it over scroll as much") after trying
+  -- the full window-open bounce on a workspace slide: the same 1.35
+  -- overshoot that reads as a nice springy pop for a window appearing
+  -- read as the whole workspace overshooting past its target and
+  -- sliding back, which is a much larger, more noticeable motion over
+  -- a full-screen slide than over one window. Same curve shape (same x
+  -- control points), just a shallower overshoot (1.12, not 1.35) --
+  -- windows/windowsIn/windowsOut above are untouched, no complaint
+  -- there.
+  hl.curve("ruixenBounceSoft", { type = "bezier", points = { { 0.34, 1.12 }, { 0.64, 1 } } })
+  hl.animation({ leaf = "workspaces", enabled = true, speed = 3.0, bezier = "ruixenBounceSoft", style = "slide" })
+  hl.animation({ leaf = "border", enabled = true, speed = 3.0, bezier = "ruixenBounce" })
+  hl.animation({ leaf = "fade", enabled = true, speed = 2.0, bezier = "ruixenFade" })
+  hl.animation({ leaf = "fadeIn", enabled = true, speed = 2.2, bezier = "ruixenFade" })
+  hl.animation({ leaf = "fadeOut", enabled = true, speed = 1.5, bezier = "ruixenFade" })
+elseif ruixenAnimProfile == "snappy" then
+  -- Fast, tight, no bounce -- gets out of the way immediately.
+  hl.curve("ruixenSnap", { type = "bezier", points = { { 0.4, 0 }, { 0.2, 1 } } })
+  hl.animation({ leaf = "windows", enabled = true, speed = 2.0, bezier = "ruixenSnap" })
+  hl.animation({ leaf = "windowsIn", enabled = true, speed = 2.2, bezier = "ruixenSnap", style = "slide" })
+  hl.animation({ leaf = "windowsOut", enabled = true, speed = 1.4, bezier = "ruixenSnap", style = "slide" })
+  -- See the bubbly profile's own comment above for why this leaf is
+  -- here now and why it reuses "windows" own speed/bezier.
+  hl.animation({ leaf = "workspaces", enabled = true, speed = 2.0, bezier = "ruixenSnap", style = "slide" })
+  hl.animation({ leaf = "border", enabled = true, speed = 2.0, bezier = "ruixenSnap" })
+  hl.animation({ leaf = "fade", enabled = true, speed = 1.5, bezier = "ruixenSnap" })
+  hl.animation({ leaf = "fadeIn", enabled = true, speed = 1.6, bezier = "ruixenSnap" })
+  hl.animation({ leaf = "fadeOut", enabled = true, speed = 1.2, bezier = "ruixenSnap" })
+else
+  -- Calm (default) -- slow, smooth, macOS-ish, lofi cafe vibes. No
+  -- overshoot anywhere (easeOutCubic: cubic-bezier(0.33, 1, 0.68, 1)).
+  --
+  -- Every speed here is ~20% faster than the original tuning (4.5 ->
+  -- 3.6, 5.0 -> 4.0, etc.) -- direct follow-up ("make calm abit more
+  -- snappy"). Same curve (ruixenSmooth, no overshoot) and the same
+  -- relative pacing between leaves as before, just the whole profile
+  -- nudged toward bubbly's own pace (windows: bubbly 3.0, calm now
+  -- 3.6) without losing its identity as the slowest, calmest of the
+  -- three -- still meaningfully slower than snappy's 2.0 or bubbly's
+  -- 3.0.
+  hl.curve("ruixenSmooth", { type = "bezier", points = { { 0.33, 1 }, { 0.68, 1 } } })
+  hl.animation({ leaf = "windows", enabled = true, speed = 3.6, bezier = "ruixenSmooth" })
+  hl.animation({ leaf = "windowsIn", enabled = true, speed = 4.0, bezier = "ruixenSmooth", style = "slide" })
+  hl.animation({ leaf = "windowsOut", enabled = true, speed = 2.8, bezier = "ruixenSmooth", style = "slide" })
+  -- See the bubbly profile's own comment above for why this leaf is
+  -- here now and why it reuses "windows" own speed/bezier.
+  hl.animation({ leaf = "workspaces", enabled = true, speed = 3.6, bezier = "ruixenSmooth", style = "slide" })
+  hl.animation({ leaf = "border", enabled = true, speed = 3.2, bezier = "ruixenSmooth" })
+  hl.animation({ leaf = "fade", enabled = true, speed = 2.4, bezier = "ruixenSmooth" })
+  hl.animation({ leaf = "fadeIn", enabled = true, speed = 2.6, bezier = "ruixenSmooth" })
+  hl.animation({ leaf = "fadeOut", enabled = true, speed = 1.9, bezier = "ruixenSmooth" })
+end
+
+-- https://wiki.hypr.land/Configuring/Basics/Variables/#layout
+-- hl.config({
+--   layout = {
+--     -- Avoid overly wide single-window layouts on wide screens.
+--     single_window_aspect_ratio = { 1, 1 },
+--   },
+-- })
+
+-- https://wiki.hypr.land/Configuring/Layouts/Scrolling-Layout/
+-- hl.config({
+--   scrolling = {
+--     -- See only one column per screen instead of two.
+--     column_width = 0.97,
+--   },
+-- })

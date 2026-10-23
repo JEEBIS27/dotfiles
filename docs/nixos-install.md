@@ -1,15 +1,14 @@
 # Git経由でNixOSに導入する
 
 対象はインストール済みNixOS、x86_64-linux、ユーザーjeebis。
-Gitにはアプリ・設定・サービスの宣言を保存する。Google Driveの実ファイル、アプリ履歴・認証情報は含めない。履歴の復元は不要。rcloneの認証は別途行う。
+Gitにはアプリ・設定・サービスの宣言を保存する。Google Driveの実ファイル、アプリ履歴・認証情報は含めない。rcloneの認証は別途行う。
 
 ## 初回
 
-Gitリモート作成・公開前のため、以下のURLは実際のURLに置き換える。
 移行先でGitがなければ `nix-shell -p git` で利用できる。
 
 ```bash
-git clone https://github.com/OWNER/REPOSITORY.git ~/Git/home-manager
+git clone https://github.com/JEEBIS27/dotfiles.git ~/Git/home-manager
 cd ~/Git/home-manager
 bash scripts/nixos.sh setup
 bash scripts/nixos.sh switch
@@ -40,6 +39,6 @@ sudo nixos-rebuild switch --rollback
 
 起動できなければブートメニューから旧世代を選ぶ。OSの世代切替はGoogle Driveの実データや書き込み可能な設定ファイルの変更を巻き戻さない。初回導入時の/etc/nixosバックアップは別途残る。
 
-## 未完了の範囲
+## 対応範囲
 
-この導入経路は設定評価・シェル構文まで確認する。実機への実行は行っていない。GUIアプリの一部、外部プラグイン取得、rclone認証、実機のGPU・スリープ等はdocs/nixos-readiness.mdの残項目に従う。Gitに公開するだけで未宣言のアプリや認証情報も再現されるわけではない。
+実機のGPU・スリープ・音声等はハードウェアごとに確認する。外部プラグイン取得・クラウド認証・一部GUIアプリ本体の導入は別途必要。[パッケージ一覧](managed-items.md)、[入力・マウント](input-and-mounts.md)を参照。

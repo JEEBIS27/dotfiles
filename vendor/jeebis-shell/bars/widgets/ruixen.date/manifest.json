@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "ruixen.date",
+  "name": "Jeebis Date",
+  "version": "1.0.0",
+  "author": "jeebis",
+  "license": "MIT",
+  "description": "Date and weekday island.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Date.qml"
+  },
+  "barWidget": {
+    "displayName": "Date",
+    "category": "System",
+    "allowMultiple": false
+  }
+}

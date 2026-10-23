@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "ruixen.load",
+  "name": "System Load",
+  "version": "1.0.0",
+  "author": "Jeebis",
+  "description": "CPU, memory, and load average status",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "System Load",
+    "description": "Current CPU, memory, and one-minute load average",
+    "category": "System",
+    "allowMultiple": false
+  }
+}

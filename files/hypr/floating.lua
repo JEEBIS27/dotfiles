@@ -357,6 +357,10 @@ hl.on("window.update_rules", schedule_sync)
 hl.on("window.move_to_workspace", schedule_sync)
 hl.on("workspace.active", schedule_sync)
 hl.on("config.reloaded", schedule_sync)
-remember(hl.get_active_window())
+-- The keybinding scanner supplies callable placeholder tables instead of live APIs.
+-- Only inspect windows inside Hyprland; iterating placeholder tags never ends.
+if type(hl.get_active_window) == "function" then
+    remember(hl.get_active_window())
+end
 schedule_sync()
 return M

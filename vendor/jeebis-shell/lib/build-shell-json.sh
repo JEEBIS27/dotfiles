@@ -1,0 +1,457 @@
+#!/usr/bin/env bash
+# Pure function, no side effects: reads whatever shell.json already
+# exists on stdin (or "{}" if there was none), writes the merged result
+# to stdout. Kept separate from install.sh so the merge logic itself has
+# a real, isolated test -- see tests/shell-json-merge.sh -- and so
+# install.sh stays focused on the filesystem/backup steps around it.
+#
+# What each key does on merge -- see install.sh's own [2/4] comment for
+# the full "why", this is just the mechanism:
+#   - bar: Ruixen's own canonical object, but ONLY the first time
+#     ruixen.bar takes over the bar slot (no bar yet, or a different
+#     one active). Once ruixen.bar already owns it, the whole object is
+#     left exactly as it was -- bar.docked (ruixen-bar-mode.sh /
+#     Settings.qml's own toggle) and bar.layout (widget order/hidden
+#     state, movable via `omarchy bar move` and Settings) are both real
+#     runtime-mutable state living inside this same object, not static
+#     config, so replacing it wholesale on every reinstall would
+#     silently revert both back to the hardcoded default every time.
+#     On that first takeover the canonical object is NOT installed
+#     bare: every foreign entry in the outgoing bar's own layout (a
+#     third-party widget, an inline type:"command" button) is carried
+#     across into it, whole and in its original region. Only the stock
+#     omarchy.* widgets Ruixen actually supersedes are dropped --
+#     see supersededIds below, and $ownedBar for the full why.
+#   - plugins: every existing entry (ruixen-owned or not) is left
+#     completely untouched; only a Ruixen id that isn't present AT ALL
+#     gets a fresh bare {id} entry appended. Idempotent (never
+#     duplicates) without needing to strip and re-add ruixen's own
+#     entries, which would have the same live-state-wipe risk the bar
+#     fix above addresses if one ever grows extra fields the way
+#     bar.layout entries already have. One deliberate exception: any id
+#     in RUIXEN_ORPHAN_PLUGIN_IDS_JSON (install.sh sets this to the ids
+#     it just found deployed with no matching source directory left in
+#     the checkout at all, e.g. a retired plugin) is stripped from both
+#     plugins[] and bar.layout here -- otherwise a removed plugin's id
+#     would sit referenced forever with no path left to take it out.
+#   - idle: left alone entirely if the caller's existing JSON already
+#     has one -- only Ruixen's own default applies when the key is
+#     missing.
+#   - any other top-level key: passed through verbatim.
+#
+# ruixen.workspaces appears in "left" only, not also in "center" the way
+# an earlier version of this canonical layout had it -- direct review
+# finding ("Resolve ruixen.workspaces allowMultiple mismatch with the
+# default bar layout").
+#
+# Traced the actual mechanism in ruixen.bar/Bar.qml rather than assuming:
+# it's NOT a registry dedup keyed by plugin id (Loader.sourceComponent
+# happily creates one independent instance per Loader from a shared
+# Component -- confirmed via a temporary debug IpcHandler exposing
+# debugBarGeometry() on this real live machine, restarted, queried over
+# IPC, then removed). The real reason the old "center" duplicate never
+# rendered a second widget is simpler: the horizontal bar's center pill
+# (clockPill) only ever reads two hardcoded ids out of "center" --
+# "ruixen.weather" and "omarchy.clock" -- so a "ruixen.workspaces" entry
+# placed in "center" was just never read by anything in horizontal mode,
+# not deduplicated.
+#
+# That's NOT true for the vertical bar layout, though --
+# CenterModules/LeftModules (used when root.vertical) render an
+# UNFILTERED ModuleList over the raw region array, so the old duplicate
+# WOULD have created two real rendered instances there. So this was a
+# real latent bug for anyone running the bar docked to a side, not just
+# a harmless contradiction -- removing it is a correctness fix, not just
+# a cleanup.
+set -Eeuo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
+# Lives in its own file, not an inline heredoc, as of "Preserve third-
+# party bar widgets added while Ruixen is installed during uninstall"
+# (#26): lib/merge-uninstall-bar.sh needs the exact same "what does
+# Ruixen own" canonical layout this script does, to tell a foreign bar
+# widget a user added while Ruixen was installed apart from one Ruixen
+# itself injected -- reading the same file is what keeps those two
+# scripts' idea of "Ruixen-owned" from ever drifting apart. No comments
+# inside the file itself: it's parsed as strict JSON via jq --argjson,
+# which does not accept // comments -- an earlier attempt at
+# documenting this inline broke every install/update test until the
+# explanation was moved up here instead.
+ruixen_bar_json="$(cat "$script_dir/ruixen-bar-canonical.json")"
+# Every ruixen.* id that has no OTHER way to get enabled -- a
+# bar-widget-kind plugin (applauncher, tray, ...) is enabled by simply
+# appearing anywhere in ruixenBar's own layout above, so it doesn't
+# need to be listed here too. These are the ones with no bar-widget
+# presence in the canonical layout, so this top-level plugins array is
+# their only home. ruixen.wallpaper was missing from this list
+# entirely until a direct review caught it ("Explicitly enable
+# ruixen.wallpaper on a clean install") -- it only ever worked on this
+# dev machine because it had been enabled by hand while it was being
+# built, never actually reachable on a real clean install.
+#
+# ruixen.media is a dual bar-widget/service plugin, deliberately kept
+# OUT of ruixenBar's layout (its own oversized play/pause badge -- see
+# its commit history) but still needed here so its service half (the
+# notch's own music control) is enabled. Enabling a bar-widget-kind
+# plugin this way, instead of through the layout, does not place it on
+# the bar -- placement is layout-driven only -- confirmed live on this
+# dev machine's own shell.json.
+#
+# ruixen.launcher (kind "overlay") needed the
+# identical fix live on this dev machine before it worked at all:
+# `omarchy-shell shell summon` refused it outright ("plugin not
+# enabled, not summoning") until it had a bare {id} entry here --
+# isEnabled() for a non-Omarchy-first-party, non-bar-widget plugin is
+# just "found somewhere in bar.layout or plugins[]", and this file's
+# own bar.layout has no slot for an overlay-only plugin at all.
+#
+# ruixen.cava (kind "overlay", same reasoning as ruixen.launcher right
+# above it) -- the cava spectrum overlay itself is always-loaded/
+# keepLoaded, gated purely on its own enabled flag read from Settings'
+# Visualizer category, but it still needs this bare {id} entry or the
+# plugin never loads at all on a fresh/updated install.
+#
+# ruixen.shelf (kind "overlay", keepLoaded) -- the drop pocket window;
+# ruixen.notch's quick-drop relays to its IPC target, so it has to be
+# loaded at all times, same bare {id} entry as launcher/cava above.
+# ruixen.background is bundled but opt-in: Omarchy's enablePlugin owns stock
+# suppression/restoration. Never auto-enable it through this config merge.
+ruixen_plugin_ids='["ruixen.notch", "ruixen.wallpaper", "ruixen.media", "ruixen.launcher", "ruixen.cava", "ruixen.shelf"]'
+default_idle_json='{"lock": 300, "screensaver": 150}'
+
+# Mirrors Bar.qml's own centerSpecialIds -- keep both in sync if either
+# changes. These two are the only ids the horizontal bar's clockPill
+# gives dedicated pill+divider treatment; everything else placed in
+# "center" (including a third-party id) renders through #27's own
+# generic catch-all instead and is never migrated out of "center" by
+# this script, same as "left" below. See the center-rescue migration
+# further down for why weather/clock specifically still need a sweep
+# even though ordinary ids no longer get one.
+center_special_ids='["ruixen.weather", "omarchy.clock"]'
+
+# Ids install.sh just physically removed this run (a Ruixen-authored
+# plugin whose source directory no longer exists in the checkout at all,
+# e.g. ruixen.frame-widget once v2 merged it away) -- the ONE way an id
+# can be taken OUT of plugins[]/bar.layout despite the merge below being
+# deliberately additive-only otherwise. Set by install.sh; empty (a
+# no-op) for every other caller, including update.sh's own --dry-run
+# preview and every test in tests/shell-json-merge.sh that doesn't set it.
+orphan_plugin_ids="${RUIXEN_ORPHAN_PLUGIN_IDS_JSON:-[]}"
+
+# The stock omarchy.* bar widgets Ruixen deliberately supersedes, used
+# ONLY by the foreign-entry carry-over below (see $ownedBar) -- these
+# are dropped rather than carried across when ruixen.bar first takes
+# over somebody else's bar, because Ruixen already ships the same
+# information somewhere else and carrying them would hand the user two
+# of everything on their first launch.
+#
+# Mirrors ruixen.pluginpins/BarWidget.qml's own excludedIds (its
+# omarchy.* half -- the ruixen.* half is already in the canonical
+# layout, so it never reaches this list), same keep-both-in-sync deal
+# as centerSpecialIds above. That list is the one place in the repo
+# that already had to answer "which stock widget does Ruixen replace,
+# and with what" -- every id there carries its own reason comment --
+# so reusing its answer here is what stops install and the pin
+# dropdown from disagreeing about what Ruixen supersedes.
+#
+# Deliberately NOT in this list, and therefore carried: omarchy.network,
+# omarchy.audio, omarchy.bluetooth, omarchy.monitor, omarchy.tailscale,
+# omarchy.microphone. pluginpins offers all of those in its dropdown
+# (they are absent from excludedIds), so Ruixen's own answer is that
+# they remain legitimate bar widgets under Ruixen -- dropping them on
+# install would contradict a dropdown that immediately invites you to
+# put them back.
+superseded_ids='[
+  "omarchy.clock", "omarchy.system-update", "omarchy.power",
+  "omarchy.keyboard-layout", "omarchy.indicators",
+  "omarchy.bar", "omarchy.menu", "omarchy.spacer", "omarchy.active-window",
+  "omarchy.workspaces", "omarchy.tray", "omarchy.weather", "omarchy.media"
+]'
+
+existing_json="$(cat)"
+
+jq -n \
+  --argjson existing "$existing_json" \
+  --argjson ruixenBar "$ruixen_bar_json" \
+  --argjson ruixenPluginIds "$ruixen_plugin_ids" \
+  --argjson centerSpecialIds "$center_special_ids" \
+  --argjson defaultIdle "$default_idle_json" \
+  --argjson orphanPluginIds "$orphan_plugin_ids" \
+  --argjson supersededIds "$superseded_ids" \
+  '
+  # Same helper, same spelling, as lib/merge-uninstall-bar.sh own copy
+  # -- the two scripts are mirror images of each other (that one carries
+  # foreign entries OUT of Ruixen own layout on uninstall, this one
+  # carries them IN on install), so they walk a layout the same way.
+  def flattenRegions:
+    [ ("left","center","right") as $r | (.layout[$r] // [])[] | {region: $r, entry: .} ];
+
+  # bar: only installed fresh the first time ruixen.bar takes over the
+  # bar slot (no bar yet, or some other bar active). Once ruixen.bar
+  # already owns it, the WHOLE object is left exactly as-is on a
+  # reinstall/update -- confirmed live that bar.docked
+  # (ruixen-bar-mode.sh / Settings.qml own toggle) and bar.layout
+  # (widget order/hidden state, movable via omarchy bar move and
+  # Settings) are both real runtime-mutable state living inside this
+  # same object, not static config -- replacing it wholesale on every
+  # reinstall would silently revert both back to the hardcoded default
+  # every time, which is exactly the kind of data loss this issue
+  # exists to prevent, just one level deeper than a first pass assumed.
+  #
+  # Taking over the bar slot is NOT the same as throwing away what was
+  # on it. Until this carry-over existed, a first install over a stock
+  # omarchy.bar replaced the whole object, layout included, and every
+  # third-party widget entry in it (a Hue remote, a Todoist panel, a
+  # prayer-times pill, an inline type:"command" button, ...) was simply
+  # gone from the bar -- the plugins stayed installed and enabled, so
+  # nothing looked broken, the widgets just silently stopped being
+  # placed anywhere. Reported by a real user on a real first install,
+  # not a hypothetical.
+  #
+  # The uninstall side already solved exactly this, in the opposite
+  # direction, under #26 (lib/merge-uninstall-bar.sh: "preserve
+  # third-party bar widgets a user added while Ruixen is installed").
+  # Install having no mirror of it was an asymmetry, not a decision.
+  # merge-uninstall-bar.sh cannot be reused as-is here: it treats every
+  # canonical id as owned-and-therefore-dropped, which is the exact
+  # inverse of what install needs (keep all of canonical, add what is
+  # foreign to it).
+  #
+  # What carries: any entry whose id is in neither the canonical layout
+  # nor supersededIds, appended to the end of the region it was already
+  # in -- the region is the user own placement decision, and Bar.qml own
+  # per-region catch-alls (pluginPinsPill right, leftPluginPinsPill
+  # left, centerGenericPill center) already render an arbitrary foreign
+  # id in any of the three, so there is nowhere it needs relocating to.
+  # The WHOLE entry object comes across, not a bare {id}: inline
+  # settings are the widget own configuration (openExpanded, hidden,
+  # and for an inline custom module the type/exec/interval/onClick that
+  # ARE the widget), and a bare-{id} carry would quietly reset every one
+  # of them -- the same trap ruixen.pluginpins own setPinSide already
+  # falls into on unpin/repin.
+  #
+  # id-less entries cannot be matched against anything, so they carry
+  # unconditionally in their own region, same conservative call (and
+  # same reasoning) as merge-uninstall-bar.sh own idless handling: an
+  # oddly-shaped entry surviving where it already was beats destroying
+  # a real one.
+  (if ($existing.bar.layout | type) == "object" then
+       ($ruixenBar | flattenRegions | map(.entry.id // empty)) as $canonicalIds
+       # `.entry.id as $id |` is REQUIRED, not cosmetic -- inside
+       # `$canonicalIds | index(...)` the `.` has already rebound to
+       # $canonicalIds itself, so an uncaptured `.entry.id` indexes that
+       # ARRAY and dies with `Cannot index array with string ("entry")`.
+       # Same trap, same fix, as merge-uninstall-bar.sh own resolve step
+       # documents; walked straight into it here too before capturing.
+       | ($existing.bar | flattenRegions
+          | map(.entry.id as $id
+              | select($id == null
+                  or (($canonicalIds | index($id)) == null
+                      and ($supersededIds | index($id)) == null)))) as $foreign
+       | reduce ("left","center","right") as $region
+           ($ruixenBar;
+             .layout[$region] = ((.layout[$region] // [])
+               + [$foreign[] | select(.region == $region) | .entry]))
+     else $ruixenBar end) as $ruixenBarWithForeign
+
+  | (if ($existing.bar.id // "") == "ruixen.bar" then $existing.bar else $ruixenBarWithForeign end) as $ownedBar
+
+  # ruixen.media is deliberately never a real bar-widget entry (its own
+  # oversized play/pause badge -- see ruixen-bar-canonical.json own
+  # comment) and is now locked in ruixen.launcher own Plugins list with
+  # no toggle at all, so there is no user-facing way left to remove it if
+  # it is already sitting in an EXISTING install own bar.layout from
+  # before that fix -- an existing owner bar is otherwise left
+  # completely untouched above (see that comment), which would
+  # otherwise let this one stale, now-unremovable entry survive every
+  # future update forever.
+  #
+  # omarchy.menu gets the exact same treatment, per direct follow-up
+  # on #36 after reviewing its first pass: Ruixen deliberately replaced
+  # that bar icon with ruixen.applauncher, so the underlying
+  # omarchy.menu functionality (Super+Space, stock menu IPC) staying
+  # available is correct, but its own bar.layout entry must never
+  # render -- not even via ruixen.pluginpins, which the FIRST version
+  # of the #36 migration below got wrong by treating it as an ordinary
+  # unprotected/optional widget and moving it to "right" instead of
+  # removing it outright. This is an unconditional strip of these two
+  # specific ids only, not a general layout migration -- anything else
+  # a user actually chose to keep in left/center is left alone here
+  # (see the separate foreign-widget migration below for those).
+  # orphanPluginIds folded into this same strip, not a separate pass --
+  # an orphan that happened to be a bar-widget-kind plugin (unlike
+  # frame-widget itself, which never was) could otherwise keep rendering
+  # from a bar.layout slot even after its own plugin directory is gone.
+  #
+  # omarchy.power -> ruixen.power is a RENAME, not a strip: Ruixen now
+  # ships its own clone of the stock power widget (semantic
+  # good/warn/bad battery-icon coloring, same treatment already given
+  # to ruixen.peripherals -- see "Add semantic bar
+  # signal colors") and curatedRightIds/ruixen-bar-canonical.json both
+  # point at ruixen.power now, not omarchy.power. An existing owner bar
+  # is otherwise left completely untouched (see $ownedBar above), so
+  # without this an already-installed users bar.layout would keep
+  # rendering the old, non-recolored omarchy.power forever. The setting
+  # key (showPercentage) is identical between the two, so a plain
+  # id-swap on the entry -- not a strip+re-add -- carries it across
+  # intact. Idempotent: once renamed, a second run finds no more
+  # omarchy.power entries to touch.
+  | (if ($ownedBar.layout | type) == "object" then
+       $ownedBar | .layout |= with_entries(
+         .value |= (if type == "array" then
+           map(select(.id as $i | $i != "ruixen.media" and $i != "omarchy.menu"
+             and ($orphanPluginIds | index($i)) == null))
+           | map(if .id == "omarchy.power" then .id = "ruixen.power" else . end)
+         else . end)
+       )
+     else $ownedBar end) as $strippedBar
+
+  # Issue #36 originally swept "center" the same way it now no longer
+  # sweeps "left" below -- workspacesPill (Bar.qml) used to render
+  # anything in "left" except a short exclusion list, an accidental
+  # catch-all that made a stray "center"/"left" entry from before
+  # ruixen.pluginpins existed render sharing the workspace dots own
+  # Row. Bar.qml was fixed to a strict single-id filter on both sides,
+  # and #27 later gave "center" its own real generic catch-all
+  # (clockPill own comment: no allowlist of known third-party ids,
+  # anything not in centerSpecialIds just flows through here) the
+  # same way ruixen.pluginpins already hosts arbitrary ids for
+  # left/right. Once that landed, sweeping "center" into "right" here
+  # stopped being a rendering-bug workaround and turned into exactly
+  # the mistake "left" below was already fixed not to make: silently
+  # relocating a deliberate placement (a third-party clock plugin
+  # someone put in "center" on purpose) to "right" on every future
+  # install/update, with the widget still rendering fine either way so
+  # nothing ever surfaced the move. Direct review finding after a
+  # third-party clock author traced the exact mechanism through this
+  # file: "the center catch-all from #27 renders anything not in
+  # centerSpecialIds... the problem is lib/build-shell-json.sh... a
+  # non-protected id sitting in center is no longer automatically a
+  # mistake, same as left below." No sweep of any kind runs on
+  # "center" now -- see the left-side comment immediately below for why
+  # this is the correct default, not just a matching one.
+  #
+  # "left" is deliberately NOT swept here, direct follow-up:
+  # ruixen.pluginpins gained a real left-side twin of this same pill
+  # (Bar.qml own leftPluginPinsPill, reachable via right-click in the
+  # dropdown), so a non-protected id sitting in "left" is no longer
+  # automatically a mistake -- it may be exactly where someone
+  # deliberately put it. Sweeping "left" here would silently move that
+  # choice back to "right" on every future update. Any left-side
+  # straggler that genuinely predates BOTH this feature and issue #36
+  # own migration already got cleaned up the first time an existing
+  # install passed through that original fix; from here on, an id left
+  # in "left" just renders correctly in its own pill instead of
+  # needing rescue.
+
+  # Direct live report: a real drag-and-drop bug (the moduleDropAtScene
+  # function in Bar.qml) let ruixen.weather/omarchy.clock be dragged OUT
+  # of "center" onto any other protected slot, scattering either into
+  # "left"/"right" with no ordinary way to drag it back -- the
+  # horizontal bar own clockPill only ever reads these two ids out of
+  # "center" specifically (see this file own header comment), so a
+  # scattered entry there just stops rendering as the shared pill at
+  # all, silently. Unlike an ordinary third-party id (which may be a
+  # deliberate placement in "left", or now "center" too, per the
+  # comment above), weather/clock have no legitimate home anywhere but
+  # "center" -- there is no "left clockPill" twin the way pluginpins
+  # has one -- so this sweeps BOTH "left" and "right". Preserves the
+  # full entry object (inline settings survive, e.g. omarchy.clock own
+  # format/formatAlt/verticalFormat); a duplicate of an id already
+  # correctly in "center" is dropped, not doubled. Idempotent: once
+  # back in "center", a second run finds nothing left in either side to
+  # move.
+  | (if ($strippedBar.layout | type) == "object" then
+       ($strippedBar.layout.center // []) as $centerNow
+       | ($centerNow | map(.id)) as $centerIds
+       | ([($strippedBar.layout.left // []), ($strippedBar.layout.right // [])]
+          | map(map(select((.id as $id | $centerSpecialIds | index($id)) != null)))
+          | add) as $strandedEntries
+       | ($strandedEntries
+          | map(select((.id as $id | $centerIds | index($id)) == null))) as $rescuedEntries
+       | ($strippedBar
+          | .layout.left = ((.layout.left // [])
+              | map(select((.id as $id | $centerSpecialIds | index($id)) == null)))
+          | .layout.right = ((.layout.right // [])
+              | map(select((.id as $id | $centerSpecialIds | index($id)) == null)))
+          | .layout.center = ($centerNow + $rescuedEntries))
+     else $strippedBar end) as $centerRescuedBar
+
+  # Real tester gap, found via ruixen-doctor.sh: an install from before
+  # ruixen.pinnedapps/ruixen.pluginpins existed stays missing both
+  # forever -- an existing owner bar is otherwise preserved verbatim
+  # (see $ownedBar above), and nothing before this point ever ADDS a
+  # newly-introduced structural widget, only removes/migrates existing
+  # ones. Doctor output confirmed this directly on a real machine: git
+  # already up to date, every plugin file already matching source, yet
+  # bar.layout.left still read just [applauncher, workspaces] -- the
+  # actual files were current, the CONFIG just never caught up.
+  #
+  # Scoped to exactly these ids on purpose, not a general "structural
+  # widget" concept -- each is brand new as of its own session and
+  # neither has any way to be intentionally removed once present
+  # (pluginpins IS the removal mechanism for everything else; pinnedapps
+  # is not offered in its own dropdown), so "missing entirely" can only
+  # mean "predates this feature", never "the user chose to remove it".
+  # Inserted at a deterministic canonical neighbor (right after the
+  # anchor id, same section) rather than rebuilding the region array, so
+  # existing order/settings for everything else are untouched. A user who
+  # later actually removes one of these through means that do not yet
+  # exist is a future problem, not this one -- today, "absent" and
+  # "predates this feature" are the same fact for both ids.
+  #
+  # ruixen.peripherals used to be a third entry here (it was structural
+  # for a while, see git history) -- removed once it became an ordinary
+  # pluginpins-pinnable widget again (direct follow-up, to reduce
+  # clutter: "its not that important for me to always see it right now"),
+  # since force-reinserting it on every install/update is exactly what a
+  # structural entry does and exactly what an intentionally-unpinned
+  # widget must NOT have happen to it.
+  | ([
+       { id: "ruixen.pinnedapps", section: "left", after: "ruixen.workspaces" },
+       { id: "ruixen.pluginpins", section: "right", after: "ruixen.tray" }
+     ]) as $requiredStructural
+  | (if ($centerRescuedBar.layout | type) == "object" then
+       reduce $requiredStructural[] as $req
+         ($centerRescuedBar;
+           . as $bar
+           | ([$bar.layout.left[]?, $bar.layout.center[]?, $bar.layout.right[]?]
+              | map(.id) | index($req.id)) as $alreadyPresent
+           | if $alreadyPresent != null then $bar
+             else
+               ($bar.layout[$req.section] // []) as $sectionEntries
+               | ($sectionEntries | map(.id) | index($req.after)) as $anchorIndex
+               | (if $anchorIndex != null then $anchorIndex + 1 else ($sectionEntries | length) end) as $insertAt
+               | ($sectionEntries[0:$insertAt] + [{id: $req.id}] + $sectionEntries[$insertAt:]) as $newSection
+               | $bar | .layout[$req.section] = $newSection
+             end)
+     else $centerRescuedBar end) as $mergedBar
+
+  # plugins: existing entries (ruixen-owned or not) are left completely
+  # untouched -- only ids from ruixenPluginIds that are not present AT
+  # ALL get a fresh bare {id} entry appended. Strip-then-re-add would
+  # have the same "wipe live per-plugin state on reinstall" problem the
+  # bar fix above addresses, if a ruixen plugin entry ever grows extra
+  # fields the way bar.layout entries already have.
+  # orphanPluginIds stripped here first -- the one exception to "every
+  # existing entry is left completely untouched" above, and only for an
+  # id install.sh itself just confirmed has no source directory left in
+  # this checkout at all (never a heuristic run on ordinary reinstalls).
+  | ($existing.plugins // [] | map(select((.id as $i | $orphanPluginIds | index($i)) == null))) as $existingPlugins
+  | ($existingPlugins | map(.id)) as $existingIds
+  # `. as $id` matters here, not just style -- `index(.)` inside a
+  # nested pipe re-evaluates `.` against the input of that pipe itself
+  # (already $existingIds by that point), not the outer map item, so it
+  # silently degenerates into "is $existingIds a subsequence of
+  # itself" (always true at index 0) instead of a real membership
+  # check. Binding the map item to $id first sidesteps that entirely.
+  | ($ruixenPluginIds | map(. as $id | select(($existingIds | index($id)) == null) | {id: $id})) as $newRuixenEntries
+  | ($existingPlugins + $newRuixenEntries) as $mergedPlugins
+
+  | $existing
+  + {version: ($existing.version // 1)}
+  + {bar: $mergedBar}
+  + {plugins: $mergedPlugins}
+  + {idle: ($existing.idle // $defaultIdle)}
+  '

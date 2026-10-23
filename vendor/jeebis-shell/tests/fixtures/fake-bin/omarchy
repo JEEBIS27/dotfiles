@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# Minimal test stub, NOT a real implementation -- just enough surface
+# for install.sh/uninstall.sh to run to completion in a sandboxed test
+# $HOME (see tests/install-lifecycle.sh, tests/install-rollback.sh,
+# tests/uninstall-preserve-thirdparty.sh). Real Omarchy plugin/manifest
+# validation is covered separately and portably by
+# tests/validate-manifests.sh.
+set -Eeuo pipefail
+
+case "${1:-} ${2:-}" in
+  "plugin validate")
+    dir="${3:-}"
+    if [[ -n "${FAKE_OMARCHY_FAIL_VALIDATE_FOR:-}" && "$dir" == *"$FAKE_OMARCHY_FAIL_VALIDATE_FOR"* ]]; then
+      echo "fake omarchy: forced validation failure for $dir" >&2
+      exit 1
+    fi
+    exit 0
+    ;;
+  "restart shell")
+    if [[ -n "${FAKE_OMARCHY_FAIL_RESTART:-}" ]]; then
+      echo "fake omarchy: forced restart failure" >&2
+      exit 1
+    fi
+    # Regression guard for install.sh's own setsid-detached restart
+    # tail (a real quickshell restart tearing down THIS script's own
+    # process group otherwise silently skips everything after it) --
+    # records this process's own pid/session id so a test can confirm
+    # the restart step actually ran in a different session than the
+    # rest of the script, not just that setsid appears in the source.
+    if [[ -n "${FAKE_OMARCHY_RECORD_RESTART_SESSION:-}" ]]; then
+      printf '%s' "$$" > "${FAKE_OMARCHY_RECORD_RESTART_SESSION}.pid"
+      printf '%s' "$(ps -o sid= -p $$ | tr -d ' ')" > "${FAKE_OMARCHY_RECORD_RESTART_SESSION}.sid"
+    fi
+    # Regression guard for install.sh's own orphan-plugin cleanup: a
+    # path here is asserted to STILL EXIST at the exact moment a restart
+    # happens, standing in for "a still-loaded plugin's directory must
+    # not have been ripped out from under the not-yet-restarted live
+    # quickshell process" -- a real crash found live on another machine
+    # the first time this path ever ran outside this dev machine.
+    if [[ -n "${FAKE_OMARCHY_ASSERT_PRESENT_AT_RESTART:-}" && ! -e "$FAKE_OMARCHY_ASSERT_PRESENT_AT_RESTART" ]]; then
+      echo "fake omarchy: expected $FAKE_OMARCHY_ASSERT_PRESENT_AT_RESTART to still exist at restart time, but it's already gone" >&2
+      exit 1
+    fi
+    exit 0
+    ;;
+  "menu keybindings")
+    if [[ "${3:-}" == "--print" ]]; then
+      printf '%s\n' "${FAKE_OMARCHY_KEYBINDINGS:-}"
+      exit 0
+    fi
+    ;;
+  # Added for uninstall.sh's own test coverage (#26) -- lists whatever
+  # plugin directories are actually present under $HOME's own plugins
+  # dir, real and dynamic per test fixture state rather than a fixed
+  # canned response, so a test that installs specific plugins first
+  # sees exactly those reflected here.
+  "plugin list")
+    dir="$HOME/.config/omarchy/plugins"
+    if [[ -d "$dir" ]]; then
+      for d in "$dir"/*/; do
+        [[ -d "$d" ]] || continue
+        id="$(basename "$d")"
+        [[ "$id" == .* ]] && continue
+        printf '%s\n' "$id"
+      done | jq -R -s 'split("\n") | map(select(length > 0)) | map({id: .})'
+    else
+      echo '[]'
+    fi
+    ;;
+  "plugin remove")
+    id="${3:-}"
+    if [[ -n "${FAKE_OMARCHY_FAIL_REMOVE_FOR:-}" && "$id" == "$FAKE_OMARCHY_FAIL_REMOVE_FOR" ]]; then
+      echo "fake omarchy: forced remove failure for $id" >&2
+      exit 1
+    fi
+    rm -rf "$HOME/.config/omarchy/plugins/$id"
+    exit 0
+    ;;
+  "bar reset" | "bar defaults")
+    exit 0
+    ;;
+  # Added for install.sh's own theme-overlays step (re-applying the
+  # active theme live after deploying an overlay) -- just needs to
+  # succeed/fail on cue, no real theme-switching side effects to fake.
+  "theme set")
+    if [[ -n "${FAKE_OMARCHY_FAIL_THEME_SET:-}" && "${3:-}" == "$FAKE_OMARCHY_FAIL_THEME_SET" ]]; then
+      echo "fake omarchy: forced theme-set failure for ${3:-}" >&2
+      exit 1
+    fi
+    exit 0
+    ;;
+  *)
+    echo "fake omarchy stub: unhandled command: $*" >&2
+    exit 1
+    ;;
+esac

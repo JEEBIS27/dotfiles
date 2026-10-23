@@ -1,0 +1,582 @@
+#!/usr/bin/env bash
+# Read-only diagnostic report -- makes zero changes to anything. Built
+# for exactly the situation that motivated it: a tester's update
+# looked like it didn't take effect, and walking them through several
+# separate commands one at a time over chat was slow and error-prone.
+# This runs all of it in one shot and prints a single block they can
+# paste back, with no filesystem paths, hostnames, or config content
+# that would identify them -- only ids, versions, counts, and
+# relative timestamps.
+#
+# Usage: from an existing ruixen-shell checkout, same as update.sh:
+#   ./ruixen-doctor.sh
+set -Eeuo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+state_dir="$HOME/.local/state/ruixen"
+# Same shared-array reasoning as install.sh's own plugin_source_dirs --
+# bar-family plugins live under bars/ (the bar shell itself at
+# bars/v2/ruixen.bar, the widgets that plug into it at bars/widgets/),
+# the rest at the root.
+plugin_source_dirs=("$script_dir"/ruixen.*/ "$script_dir"/bars/*/ruixen.*/)
+
+human_ago() {
+  local seconds="$1"
+  if (( seconds < 60 )); then printf '%ds' "$seconds"
+  elif (( seconds < 3600 )); then printf '%dm' "$((seconds / 60))"
+  elif (( seconds < 86400 )); then printf '%dh' "$((seconds / 3600))"
+  else printf '%dd' "$((seconds / 86400))"
+  fi
+}
+plugins_dir="$HOME/.config/omarchy/plugins"
+
+printf '=== Ruixen Shell Doctor ===\n\n'
+
+# --- Omarchy itself -----------------------------------------------
+printf -- '-- Omarchy --\n'
+if command -v omarchy >/dev/null 2>&1; then
+  printf 'version: %s\n' "$(omarchy version 2>/dev/null || echo unknown)"
+else
+  printf 'version: omarchy command not found\n'
+fi
+printf '\n'
+
+# --- Dependencies -- confirms the external tools this script and
+# ruixen.launcher's own Search Files rely on are actually present,
+# rather than a missing one silently reading as "no results"/"no
+# thumbnail" with zero diagnostic trail, or (for jq below) a cryptic
+# mid-script crash under this script's own `set -e` instead of a clear
+# answer up front. fd is a real Omarchy base package (confirmed
+# directly against /usr/share/omarchy/install/omarchy-base.packages),
+# so its absence means something removed it, not a stock gap. ffmpeg/
+# ffprobe are pulled in as a dependency of several default Omarchy-
+# adjacent packages (mpv, gpu-screen-recorder, obs-studio) -- same
+# "should always be there" expectation, checked rather than assumed.
+printf -- '-- Dependencies --\n'
+for tool in fd ffmpeg ffprobe jq; do
+  if command -v "$tool" >/dev/null 2>&1; then
+    printf '%-10s found\n' "$tool"
+  else
+    printf '%-10s NOT FOUND\n' "$tool"
+  fi
+done
+# Package, not command -- qt6-multimedia has no binary of its own to
+# check for. See the dedicated section below for the full "why this
+# matters" -- checked here too so it shows up in the same at-a-glance
+# list as the other dependencies, not just its own section.
+if pacman -Qi qt6-multimedia >/dev/null 2>&1; then
+  printf '%-10s found\n' "qt6-multimedia"
+else
+  printf '%-10s NOT FOUND -- see Video/GIF wallpaper backend section below\n' "qt6-multimedia"
+fi
+printf '\n'
+
+# --- Video/GIF wallpaper backend -- direct answer to real reports of
+# "selecting an mp4 shows it as current but never actually displays
+# it". Root cause, confirmed directly against this exact repo, not
+# guessed: ruixen.wallpaper/Service.qml has an unconditional `import
+# QtMultimedia` at the top of the file. qt6-multimedia is NOT part of
+# Omarchy's own base package set and is not a dependency of quickshell
+# or omarchy itself (confirmed via pacman -Qi on both) -- on a stock
+# install it is only present if some unrelated app (a video editor,
+# say) happened to pull it in. When it's missing, the ENTIRE
+# Service.qml file fails to load, not just its video-specific code --
+# confirmed directly against a throwaway QML file with an unresolvable
+# import ("Did not load any objects, exiting."), which is standard QML
+# behavior: a failed top-level import is fatal for the whole file, with
+# no partial-load fallback. That takes video, gif, AND the static-
+# background-switch safety net down together, since all three live in
+# the same file behind the same import -- the IPC handler itself never
+# comes into existence. WallpapersContent.qml's own picker marks a tile
+# "current" the instant it's clicked (deliberately optimistic
+# client-side UI, see that file's own comment on currentBackground),
+# regardless of whether the service ever receives -- let alone acts on
+# -- that click, which is exactly why the picker can look like it
+# worked while the desktop itself never changes. Live-tested end to end
+# on a machine that DOES have this package: video wallpaper works
+# correctly (real ffmpeg-backed decode, layer surface renders), ruling
+# out a Service.qml regression as the cause.
+printf -- '-- Video/GIF wallpaper backend --\n'
+if pacman -Qi qt6-multimedia >/dev/null 2>&1; then
+  printf 'qt6-multimedia: installed\n'
+  backend="none"
+  pacman -Qi qt6-multimedia-ffmpeg >/dev/null 2>&1 && backend="qt6-multimedia-ffmpeg (hardware-accelerated)"
+  [[ "$backend" == "none" ]] && pacman -Qi qt6-multimedia-gstreamer >/dev/null 2>&1 && backend="qt6-multimedia-gstreamer"
+  printf 'backend: %s\n' "$backend"
+  if [[ "$backend" == "none" ]]; then
+    printf 'WARNING: qt6-multimedia is installed but no backend package was found -- should not be possible under normal pacman dependency resolution (qt6-multimedia depends on the virtual qt6-multimedia-backend), so something unusual happened here\n'
+  fi
+  if command -v omarchy-shell >/dev/null 2>&1 && status_json="$(OMARCHY_SHELL_IPC_TIMEOUT=1s omarchy-shell ruixen.wallpaper status 2>/dev/null)"; then
+    # .active | tostring, not `.active // "?"` -- jq's // operator
+    # treats a real `false` value as absent (same as null), which
+    # silently printed "?" for the exact "not currently playing
+    # anything" case this check exists to report correctly. Caught live
+    # by actually running this against the real IPC while inactive, not
+    # assumed.
+    active="$(jq -r '.active | tostring' <<<"$status_json" 2>/dev/null || echo "?")"
+    printf 'ruixen.wallpaper IPC: responding (currently active: %s)\n' "$active"
+  else
+    printf 'ruixen.wallpaper IPC: NOT responding -- unexpected given qt6-multimedia is present; try omarchy restart shell\n'
+  fi
+else
+  printf 'qt6-multimedia: NOT INSTALLED -- this is almost certainly why video/gif wallpaper does not work here (not just video -- gif is affected too, for the same reason)\n'
+  printf 'fix: pacman -S --needed qt6-multimedia-ffmpeg\n'
+fi
+printf '\n'
+
+# --- Cava desktop visualizer -- same "many possible causes, tedious to
+# untangle over chat" shape as the wallpaper section above, for a
+# feature with its own distinct failure modes, none of which are a
+# Service-file-wide crash this time (CavaFeed.qml has no risky
+# top-level import like Service.qml's own QtMultimedia one -- it's
+# plain QtQuick + Quickshell.Io, both guaranteed present). Instead:
+# cava's own pipewire input is the only backend that works here
+# (confirmed directly, see CavaFeed.qml's own comment -- the pulse
+# backend can't connect even with pipewire-pulse up), the overlay
+# deliberately goes invisible while any window is fullscreen
+# (Overlay.qml's own fullscreenActive gate -- easy to mistake for "it's
+# broken" if you're testing from inside a fullscreen video/game), and
+# CavaFeed.qml already latches cavaAvailable false the instant a spawn
+# confirms the binary is missing (its own exit code 42) rather than
+# retrying forever. So "settings say enabled but nothing is showing"
+# has several genuinely different honest explanations -- worth telling
+# them apart here instead of guessing back and forth over chat.
+printf -- '-- Cava desktop visualizer --\n'
+if command -v cava >/dev/null 2>&1; then
+  printf 'cava: installed\n'
+else
+  printf 'cava: NOT INSTALLED -- the overlay just stays flat/invisible by design, no error anywhere -- pacman -S cava\n'
+fi
+if pgrep -x pipewire >/dev/null 2>&1; then
+  printf 'pipewire: running\n'
+else
+  printf 'pipewire: NOT RUNNING -- cava only has a pipewire input path here, no pulse fallback, so it would have nothing to analyze even with cava itself installed\n'
+fi
+
+cava_state="$state_dir/cava-visualizer.json"
+if [[ -f "$cava_state" ]] && jq empty "$cava_state" >/dev/null 2>&1; then
+  enabled="$(jq -r '.enabled | tostring' "$cava_state" 2>/dev/null || echo "?")"
+  style="$(jq -r '.style // "?"' "$cava_state" 2>/dev/null || echo "?")"
+  position="$(jq -r '.position // "?"' "$cava_state" 2>/dev/null || echo "?")"
+  bands="$(jq -r '.bands // "?"' "$cava_state" 2>/dev/null || echo "?")"
+  mirror="$(jq -r '.mirror | tostring' "$cava_state" 2>/dev/null || echo "?")"
+  printf 'settings: enabled=%s style=%s position=%s bands=%s mirror=%s\n' "$enabled" "$style" "$position" "$bands" "$mirror"
+
+  live_running=0
+  pgrep -x cava >/dev/null 2>&1 && live_running=1
+  if [[ "$enabled" == "true" && "$live_running" -eq 0 ]]; then
+    printf 'MISMATCH: settings say enabled, but no cava process is running right now -- check the cava/pipewire lines above, or a fullscreen window may simply be active (the overlay intentionally hides for one, see the note below)\n'
+  elif [[ "$enabled" == "false" && "$live_running" -eq 1 ]]; then
+    printf 'NOTE: a cava process is running but settings say disabled -- likely mid-shutdown (Quickshell SIGTERMs it on toggle-off, briefly still exiting) or a leftover from a prior crash\n'
+  fi
+else
+  printf 'settings: no state file found (visualizer never enabled here, or this predates the feature)\n'
+fi
+
+if command -v hyprctl >/dev/null 2>&1; then
+  fullscreen="$(hyprctl activewindow -j 2>/dev/null | jq -r 'if .fullscreen and .fullscreen != 0 then "yes" else "no" end' 2>/dev/null || echo "?")"
+  [[ "$fullscreen" == "yes" ]] && printf 'note: the active window is currently fullscreen -- the visualizer (and the notch itself) is DESIGNED to hide in this state, so "not showing" right now may be expected, not broken\n'
+fi
+printf '\n'
+
+# --- This checkout ---------------------------------------------------
+printf -- '-- This checkout --\n'
+if [[ -d "$script_dir/.git" ]]; then
+  branch="$(git -C "$script_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
+  commit="$(git -C "$script_dir" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+  commit_date="$(git -C "$script_dir" log -1 --format=%cd --date=relative 2>/dev/null || echo unknown)"
+  printf 'branch: %s\n' "$branch"
+  printf 'commit: %s (%s)\n' "$commit" "$commit_date"
+
+  if [[ -n "$(git -C "$script_dir" status --porcelain 2>/dev/null)" ]]; then
+    dirty_count="$(git -C "$script_dir" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
+    printf 'local changes: yes (%s file(s) modified -- update.sh will refuse to run until this is clean)\n' "$dirty_count"
+  else
+    printf 'local changes: none\n'
+  fi
+
+  # A REAL fetch, not --dry-run -- direct correction after --dry-run
+  # was found to never refresh the local origin/<branch> tracking ref
+  # at all, so this comparison could silently run against whatever
+  # that ref last happened to be (potentially from days ago), reporting
+  # "up to date" based on stale information rather than the actual
+  # current state of the remote. This is the one check in the whole
+  # report that reaches the network -- everything else is local-only.
+  if git -C "$script_dir" fetch --quiet origin "$branch" >/dev/null 2>&1; then
+    ahead_behind="$(git -C "$script_dir" rev-list --left-right --count HEAD...origin/"$branch" 2>/dev/null || echo "? ?")"
+    ahead="$(awk '{print $1}' <<<"$ahead_behind")"
+    behind="$(awk '{print $2}' <<<"$ahead_behind")"
+    if [[ "$behind" == "0" ]]; then
+      printf 'vs origin/%s: up to date (just fetched)\n' "$branch"
+    else
+      printf 'vs origin/%s: %s commit(s) behind -- run git pull, or ./update.sh\n' "$branch" "$behind"
+    fi
+    [[ "$ahead" != "0" ]] && printf 'vs origin/%s: %s local commit(s) not on origin\n' "$branch" "$ahead"
+  else
+    printf 'vs origin: could not reach remote (offline?) -- this check needs real network access, everything else in this report is local-only\n'
+  fi
+else
+  printf 'not a git checkout -- update.sh and this doctor script both need one\n'
+fi
+
+recorded_path="$(cat "$state_dir/repo-path" 2>/dev/null || echo "")"
+if [[ -z "$recorded_path" ]]; then
+  printf 'last successful install ran from: no record found (install.sh predates this, or never completed)\n'
+elif [[ "$recorded_path" == "$script_dir" ]]; then
+  printf 'last successful install ran from: this same checkout\n'
+else
+  printf 'last successful install ran from: a DIFFERENT checkout than this one -- you may have more than one ruixen-shell folder on disk\n'
+fi
+printf '\n'
+
+# --- Deployed plugin FILES vs this checkout own source ---------------
+# Direct correction after a real report proved this wrong: comparing
+# manifest.json "version" strings looked reassuring ("all OK") while
+# the actual deployed Bar.qml was hours of commits behind, because
+# most plugin edits that whole night never bumped that version field
+# at all -- a version match said nothing real about whether the file
+# CONTENT matched. This hashes every real file in each plugin
+# directory instead (recursive, sorted so enumeration order never
+# matters, manifest.json included) -- a single changed byte anywhere,
+# bumped version or not, shows up here.
+dir_hash() {
+  local dir="$1"
+  [[ -d "$dir" ]] || { echo "(missing)"; return; }
+  # cd into the directory first, not `find "$dir"` -- sha256sum's own
+  # output includes the path it hashed, and source/deployed live at
+  # two different absolute locations by design. Hashing absolute paths
+  # would make every single plugin report a false mismatch regardless
+  # of content (caught live: it did, for all fifteen, before this fix).
+  # Relative paths from inside each tree are identical when the
+  # content and structure actually match.
+  (cd "$dir" && find . -type f -print0 | sort -z | xargs -0 sha256sum 2>/dev/null) | sha256sum | awk '{print $1}'
+}
+# Issue #105: ruixen.launcher/ruixen.notch's own deployed content
+# legitimately includes ruixen.wallpaper's shared WallpaperRotationState
+# .qml/wallpaper-effects.py now (see that lib file's own header) --
+# comparing their deployed hash against the raw checkout directory alone
+# would permanently, falsely report both as a content mismatch. The
+# staged copy install.sh itself actually deploys FROM is hashed instead,
+# for these two ids only.
+source "$script_dir/lib/inject-shared-wallpaper-files.sh"
+printf -- '-- Plugin files (source in this checkout vs deployed, by content hash) --\n'
+mismatch_count=0
+for dir in "${plugin_source_dirs[@]}"; do
+  [[ -d "$dir" ]] || continue
+  id="$(basename "$dir")"
+  source_version="$(jq -r '.version // "?"' "$dir/manifest.json" 2>/dev/null || echo "?")"
+  compare_dir="$dir"
+  case "$id" in
+    ruixen.launcher|ruixen.notch) compare_dir="$(inject_shared_wallpaper_files "$id" "$dir")" ;;
+  esac
+
+  if [[ ! -e "$plugins_dir/$id" ]]; then
+    printf '%-24s v%-8s deployed MISSING (never installed here)\n' "$id" "$source_version"
+    mismatch_count=$((mismatch_count + 1))
+  else
+    source_hash="$(dir_hash "$compare_dir")"
+    deployed_hash="$(dir_hash "$plugins_dir/$id")"
+    if [[ "$source_hash" == "$deployed_hash" ]]; then
+      printf '%-24s v%-8s -- OK, file contents match exactly\n' "$id" "$source_version"
+    else
+      printf '%-24s v%-8s -- CONTENT MISMATCH (deployed files differ from this checkout, regardless of version number -- install.sh did not update this one)\n' "$id" "$source_version"
+      mismatch_count=$((mismatch_count + 1))
+    fi
+  fi
+done
+for staged_parent in "${STAGED_TMP_DIRS[@]}"; do rm -rf "$staged_parent"; done
+if [[ "$mismatch_count" -eq 0 ]]; then
+  printf '(every plugin file exactly matches this checkout own source)\n'
+fi
+printf '\n'
+
+# --- Hyprland look'n'feel FILES vs this checkout own source -----------
+# Same real gap the plugin-files section above was built to catch, for
+# a completely separate deploy path: hyprland/*.lua ships via
+# ruixen-lookfeel.sh/install.sh into
+# ~/.local/share/ruixen-shell/hyprland/, never through plugins_dir --
+# nothing in the section above would ever flag this directory as stale,
+# even though a shared value living here (gaps_out, border_size, an
+# animation curve) silently not reaching a real machine looks
+# identical to a real bug from the outside ("it works here, not on his
+# machine"). This at least rules staleness in or out directly instead
+# of guessing.
+#
+# *.lua only, not a plain dir_hash() of the whole directory -- this
+# folder also holds ruixen-lookfeel.sh itself (a helper meant to be run
+# FROM the checkout, never copied to the deployed directory at all, see
+# its own comment), which would otherwise permanently read as a false
+# "mismatch" for every single install regardless of the real .lua
+# content, defeating the whole point of this check. Caught live on
+# this exact machine before it shipped: the very first real run of this
+# new section reported a mismatch that turned out to be exactly this.
+lua_dir_hash() {
+  local dir="$1"
+  [[ -d "$dir" ]] || { echo "(missing)"; return; }
+  (cd "$dir" && find . -maxdepth 1 -type f -name '*.lua' -print0 | sort -z | xargs -0 sha256sum 2>/dev/null) | sha256sum | awk '{print $1}'
+}
+looknfeel_dir="$HOME/.local/share/ruixen-shell/hyprland"
+printf -- '-- Hyprland look'"'"'n'"'"'feel files (source in this checkout vs deployed, by content hash) --\n'
+if [[ -d "$script_dir/hyprland" ]]; then
+  looknfeel_source_hash="$(lua_dir_hash "$script_dir/hyprland")"
+  looknfeel_deployed_hash="$(lua_dir_hash "$looknfeel_dir")"
+  if [[ "$looknfeel_deployed_hash" == "(missing)" ]]; then
+    printf 'hyprland/*.lua deployed MISSING (never installed here)\n'
+  elif [[ "$looknfeel_source_hash" == "$looknfeel_deployed_hash" ]]; then
+    printf 'hyprland/*.lua -- OK, file contents match exactly\n'
+  else
+    printf 'hyprland/*.lua -- CONTENT MISMATCH (deployed files differ from this checkout -- install.sh/ruixen-lookfeel.sh did not update this)\n'
+  fi
+else
+  printf '(this checkout has no hyprland/ directory)\n'
+fi
+
+# Informational, not a pass/fail -- confirms which of the three
+# variants (ruixen.lua "Rounded", square.lua "Sharp", default.lua
+# "Off") is actually active, independent of whether its own file
+# content is current.
+active_looknfeel_target="$(readlink "$HOME/.config/hypr/looknfeel.lua" 2>/dev/null || echo "")"
+if [[ -z "$active_looknfeel_target" ]]; then
+  printf 'active variant: no symlink found at ~/.config/hypr/looknfeel.lua\n'
+else
+  printf 'active variant: %s\n' "$(basename "$active_looknfeel_target")"
+fi
+printf '\n'
+
+# --- Backups -- presence proves whether install.sh own copy step ever
+# ran for a given plugin at all, regardless of what version it left
+# behind. -----------------------------------------------------------
+printf -- '-- Plugin backups (proves whether a reinstall/update actually touched each one) --\n'
+any_backup=0
+for dir in "${plugin_source_dirs[@]}"; do
+  [[ -d "$dir" ]] || continue
+  id="$(basename "$dir")"
+  count=0
+  newest=""
+  for b in "$plugins_dir"/."$id".bak.*; do
+    [[ -e "$b" ]] || continue
+    count=$((count + 1))
+    [[ -z "$newest" || "$b" -nt "$newest" ]] && newest="$b"
+  done
+  if [[ "$count" -gt 0 ]]; then
+    any_backup=1
+    age_seconds=$(( $(date +%s) - $(stat -c %Y "$newest" 2>/dev/null || echo 0) ))
+    printf '%-24s %s backup(s), most recent %s ago\n' "$id" "$count" "$(human_ago "$age_seconds")"
+  fi
+done
+[[ "$any_backup" -eq 0 ]] && printf '(no backups found for any ruixen.* plugin -- install.sh has never replaced an existing copy of any of them)\n'
+printf '\n'
+
+# --- Clipboard capture -- answers "Ruixen's Clipboard History opens and
+# shows old entries, but new copies never appear". Ruixen only READS
+# ~/.local/state/omarchy/clipboard-history.json; it never captures
+# anything (it has no wl-paste watcher of its own). Capture belongs to
+# Omarchy's built-in clipboard service (omarchy.clipboard), which keeps
+# persistent `wl-paste --watch` processes running. So this reports the
+# capture side only: are the watchers alive, is the history file still
+# being written, and is something else (another clipboard manager or a
+# third-party clipboard plugin) sitting in the same space. Process and
+# plugin NAMES/ids and counts only -- never command lines or clipboard
+# content.
+printf -- '-- Clipboard capture (Omarchy-owned; Ruixen only reads it) --\n'
+history_file="$HOME/.local/state/omarchy/clipboard-history.json"
+if [[ -f "$history_file" ]]; then
+  if jq empty "$history_file" >/dev/null 2>&1; then
+    entry_count="$(jq -r 'if type == "array" then length else "?" end' "$history_file" 2>/dev/null || echo "?")"
+    age="$(( $(date +%s) - $(stat -c %Y "$history_file" 2>/dev/null || date +%s) ))"
+    printf 'history file: valid, %s entries, last written %s ago\n' "$entry_count" "$(human_ago "$age")"
+    # Ruixen's parser (ClipboardHistory.js normalizeEntry) only shows
+    # {type:"text", text:<string>} and {type:"image", path:<string>};
+    # any other shape is skipped with no error. Count them and print
+    # their SHAPE (type value + key names), never their content, so a
+    # format change in Omarchy shows up here instead of as "new copies
+    # silently never appear".
+    skipped="$(jq -r 'if type == "array" then [.[] | select(((type == "object") and ((.type == "text" and (.text | type) == "string") or (.type == "image" and (.path | type) == "string"))) | not)] | length else 0 end' "$history_file" 2>/dev/null || echo "?")"
+    printf 'entries Ruixen cannot display (unknown shape): %s\n' "$skipped"
+    if [[ "$skipped" != "0" && "$skipped" != "?" ]]; then
+      shapes="$(jq -r '[.[] | select(((type == "object") and ((.type == "text" and (.text | type) == "string") or (.type == "image" and (.path | type) == "string"))) | not) | (if type == "object" then "type=" + ((.type // "none") | tostring) + " keys=" + (keys | join("+")) else type end)] | group_by(.) | map(.[0] + " x" + (length | tostring)) | join("; ")' "$history_file" 2>/dev/null || true)"
+      printf 'unknown shapes: %s\n' "$shapes"
+    fi
+  else
+    printf 'history file: exists but is NOT valid JSON -- Omarchy wrote a corrupt file, Ruixen shows whatever it last parsed\n'
+  fi
+else
+  printf 'history file: not found -- Omarchy has never captured anything here\n'
+fi
+
+# Every clipboard-looking file/dir Omarchy keeps next to the history
+# file, with its age. If Omarchy ever starts writing new copies to a
+# different file than the one Ruixen reads, the old file's age stays
+# frozen while a sibling here keeps getting newer -- names and ages only.
+omarchy_state="$HOME/.local/state/omarchy"
+if [[ -d "$omarchy_state" ]]; then
+  now_s="$(date +%s)"
+  found_any=0
+  while IFS= read -r -d '' p; do
+    found_any=1
+    printf 'state: %s (written %s ago)\n' "$(basename "$p")" "$(human_ago "$(( now_s - $(stat -c %Y "$p" 2>/dev/null || echo "$now_s") ))")"
+  done < <(find "$omarchy_state" -maxdepth 1 -iname '*clip*' -print0 2>/dev/null)
+  [[ "$found_any" -eq 0 ]] && printf 'state: no clipboard-looking files under the Omarchy state dir\n'
+fi
+
+if command -v wl-paste >/dev/null 2>&1; then
+  watch_count="$(pgrep -fc 'wl-paste.*--watch' 2>/dev/null || true)"
+  watch_count="${watch_count:-0}"
+  printf 'wl-paste --watch processes: %s\n' "$watch_count"
+  if [[ "$watch_count" == "0" ]]; then
+    printf 'LIKELY CAUSE: no clipboard watcher is running, so nothing new can be recorded -- Omarchy'"'"'s clipboard service is not up (omarchy restart shell; if it persists, check it is enabled and look at the journal for omarchy.clipboard errors)\n'
+  fi
+else
+  printf 'wl-paste: NOT FOUND -- Omarchy'"'"'s clipboard capture depends on wl-clipboard (pacman -S --needed wl-clipboard)\n'
+fi
+
+other_managers=""
+for proc in cliphist copyq clipse clipman wl-clip-persist gpaste-daemon klipper parcellite; do
+  pgrep -x "$proc" >/dev/null 2>&1 && other_managers+="$proc "
+done
+if [[ -n "$other_managers" ]]; then
+  printf 'other clipboard managers running: %s-- two managers fighting over the selection can drop or reorder copies; try stopping them to confirm\n' "$other_managers"
+else
+  printf 'other clipboard managers running: none\n'
+fi
+
+if [[ -f "$HOME/.config/omarchy/shell.json" ]] && jq empty "$HOME/.config/omarchy/shell.json" >/dev/null 2>&1; then
+  clip_ids="$(jq -r '[.. | strings | select(test("clip"; "i"))] | unique | join(", ")' "$HOME/.config/omarchy/shell.json" 2>/dev/null || true)"
+  printf 'clipboard-related ids in shell.json: [%s]\n' "$clip_ids"
+  if [[ -z "$clip_ids" ]]; then
+    printf 'NOTE: no clipboard plugin id is listed in shell.json at all -- if Omarchy'"'"'s own clipboard service is not enabled by default on this version, nothing is capturing\n'
+  fi
+fi
+printf '\n'
+
+# --- Bar layout shape -- ids only, never inline settings values, so
+# nothing personal (a custom clock format, a hidden app list) ever
+# prints here. -------------------------------------------------------
+printf -- '-- Bar layout (ids only) --\n'
+shell_json="$HOME/.config/omarchy/shell.json"
+if [[ -f "$shell_json" ]] && jq empty "$shell_json" >/dev/null 2>&1; then
+  bar_id="$(jq -r '.bar.id // "(none set -- stock Omarchy default)"' "$shell_json")"
+  printf 'active bar: %s\n' "$bar_id"
+  if [[ "$bar_id" == "ruixen.bar" ]]; then
+    printf 'docked: %s\n' "$(jq -r '.bar.docked // false' "$shell_json")"
+    for section in left center right; do
+      ids="$(jq -r --arg s "$section" '(.bar.layout[$s] // []) | map(.id) | join(", ")' "$shell_json")"
+      printf '%-7s [%s]\n' "$section:" "$ids"
+    done
+  fi
+else
+  printf 'shell.json missing or not valid JSON\n'
+fi
+printf '\n'
+
+# --- Ruixen state directory ownership/writability -- a chroot install
+# (or any sudo-run step that touches $HOME) can leave files under
+# $state_dir owned by root. Settings UI writes still update their own
+# in-memory property instantly either way, so the picker LOOKS like it
+# responded -- but FileView.setText() against a file this user can't
+# write to silently does nothing, and every surface that reads it back
+# (the bar, the notch) just keeps re-showing whatever was last readable.
+# Reported live as "the whole bar and notch are stuck on Black/Mono, no
+# matter what I click" -- this is the check for exactly that, not
+# something to infer from Settings behavior alone. Current owner/mode
+# only, never content.
+printf -- '-- Ruixen state directory --\n'
+current_user="$(id -un)"
+if [[ -d "$state_dir" ]]; then
+  dir_owner="$(stat -c '%U' "$state_dir" 2>/dev/null || echo "?")"
+  if [[ -w "$state_dir" ]]; then
+    printf 'directory: writable (owner: %s)\n' "$dir_owner"
+  else
+    printf 'directory: NOT WRITABLE by %s (owner: %s)\n' "$current_user" "$dir_owner"
+    printf 'LIKELY CAUSE: settings changes update the UI instantly but silently fail to save -- everything that reads this directory back stays frozen regardless of what you click. Fix: sudo chown -R %s:%s %s\n' "$current_user" "$current_user" "$state_dir"
+  fi
+  not_owned=0
+  while IFS= read -r -d '' f; do
+    f_owner="$(stat -c '%U' "$f" 2>/dev/null || echo "?")"
+    if [[ "$f_owner" != "$current_user" ]] || [[ ! -w "$f" ]]; then
+      not_owned=$((not_owned + 1))
+      printf 'not writable: %s (owner: %s)\n' "$(basename "$f")" "$f_owner"
+    fi
+  done < <(find "$state_dir" -maxdepth 2 -type f -print0 2>/dev/null)
+  if [[ "$not_owned" -eq 0 ]]; then
+    printf 'all files under this directory: owned by %s and writable\n' "$current_user"
+  fi
+
+  # bar-surface.json is the authoritative color/material source; the
+  # pre-#78 frame-appearance.json is read only as a fallback when the
+  # new file fails to load (Overlay.qml/Bar.qml's own
+  # loadFrameAppearance()/loadFrameAppearanceState() both gate on
+  # barSurfaceStateLoaded). Settings writes both on every change, so
+  # under normal operation they always agree -- a mismatch here means
+  # one write landed and the other didn't (a write failure caught
+  # mid-flight, not necessarily the same as the blanket permission
+  # check above) or state that predates the migration was never
+  # resaved.
+  bar_surface="$state_dir/bar-surface.json"
+  frame_appearance="$state_dir/frame-appearance.json"
+  if [[ -f "$bar_surface" && -f "$frame_appearance" ]] \
+    && jq empty "$bar_surface" >/dev/null 2>&1 && jq empty "$frame_appearance" >/dev/null 2>&1; then
+    new_color="$(jq -r '.color // "black"' "$bar_surface")"
+    old_mode="$(jq -r '.mode // "black"' "$frame_appearance")"
+    if [[ "$new_color" == "$old_mode" ]]; then
+      printf 'bar-surface.json / frame-appearance.json agree: %s\n' "$new_color"
+    else
+      printf 'bar-surface.json (%s) and frame-appearance.json (%s) DISAGREE -- a Surface Color change did not fully save; the notch/bar may be reading the stale one\n' "$new_color" "$old_mode"
+    fi
+  fi
+else
+  printf 'directory: does not exist yet -- nothing has written Ruixen state here\n'
+fi
+printf '\n'
+
+# --- Hyprland look'n'feel -- a chroot install (no live Hyprland session
+# to reload) writes the look'n'feel config correctly but the `hyprctl
+# reload` at the end of that step is a best-effort no-op with nothing
+# there to reload. install.sh's own version is wrapped in `|| true` for
+# exactly this reason -- it never fails the install, it just means
+# Hyprland itself may not have picked up the change yet. A later reboot
+# normally fixes this on its own (a fresh Hyprland session reads
+# everything from disk), so this mainly matters if rounding/blur still
+# looks wrong (square notification popups, for instance) after one.
+# Read-only: resolves the symlink and names the variant, never calls
+# ruixen-lookfeel.sh itself.
+printf -- '-- Hyprland look'"'"'n'"'"'feel --\n'
+looknfeel_target="$HOME/.config/hypr/looknfeel.lua"
+looknfeel_data_dir="$HOME/.local/share/ruixen-shell/hyprland"
+if [[ -L "$looknfeel_target" ]]; then
+  resolved="$(readlink -f "$looknfeel_target" 2>/dev/null || echo "")"
+  if [[ -z "$resolved" || ! -e "$resolved" ]]; then
+    printf 'variant: BROKEN SYMLINK (target does not exist) -- Hyprland falls back to its own stock look, re-run hyprland/ruixen-lookfeel.sh on|off|half|square\n'
+  else
+    variant="unknown"
+    case "$resolved" in
+      "$looknfeel_data_dir/looknfeel.ruixen.lua") variant="on (rounded + blur)" ;;
+      "$looknfeel_data_dir/looknfeel.default.lua") variant="off (stock Omarchy)" ;;
+      "$looknfeel_data_dir/looknfeel.half.lua") variant="half (rounded at half radius)" ;;
+      "$looknfeel_data_dir/looknfeel.square.lua") variant="square (blur + shadow, no rounding)" ;;
+    esac
+    printf 'variant: %s\n' "$variant"
+  fi
+elif [[ -f "$looknfeel_target" ]]; then
+  printf 'variant: plain file, not a symlink -- predates the #15 stable-path migration, or Ruixen'"'"'s own look'"'"'n'"'"'feel has never been applied\n'
+else
+  printf 'variant: no looknfeel.lua at all -- stock Hyprland defaults\n'
+fi
+if command -v hyprctl >/dev/null 2>&1 && hyprctl version >/dev/null 2>&1; then
+  printf 'hyprctl: reachable (live Hyprland session confirmed)\n'
+else
+  printf 'hyprctl: not reachable from this shell -- run this from inside the real graphical session to confirm the live config actually matches the variant above, not just what the symlink points to\n'
+fi
+printf '\n'
+
+# --- Runtime health ---------------------------------------------------
+printf -- '-- Runtime --\n'
+qs_count="$(pgrep -c -f '^quickshell -n' 2>/dev/null || echo 0)"
+printf 'quickshell processes running: %s%s\n' "$qs_count" "$( [[ "$qs_count" -gt 1 ]] && echo ' (expected 1 -- an old instance may be stuck)' )"
+if command -v omarchy-shell >/dev/null 2>&1 && OMARCHY_SHELL_IPC_TIMEOUT=1s omarchy-shell shell ping >/dev/null 2>&1; then
+  printf 'shell IPC: responding\n'
+else
+  printf 'shell IPC: NOT responding -- try omarchy restart shell\n'
+fi
+
+printf '\n=== end of report -- safe to paste, contains no paths, hostnames, or personal config values ===\n'

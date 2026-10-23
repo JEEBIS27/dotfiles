@@ -1,0 +1,427 @@
+import "../ShellConfig.js" as ShellConfig
+import QtQuick
+
+// Issue #57: extracted from Launcher.qml's own `searchBox` Rectangle
+// verbatim -- the collapsed search bar only (icon/back-arrow, text
+// input, the source-filter button's CLOSED control, the Enter-hint
+// chip). The actual dropdown POPUP (sourceFilterList) and its outside-
+// click-to-close handler deliberately stay inline in Launcher.qml
+// instead of nesting here: they need to remain true siblings of
+// resultsList/detailsPanel within `card`'s own z-stack (the popup's own
+// z:100 has to outrank those two, and the outside-click catcher's z:50
+// has to sit BELOW this search bar's own default z but ABOVE them) --
+// nesting the popup inside this component would force elevating this
+// WHOLE component's z to make the nested popup outrank resultsList/
+// detailsPanel, which would also let this search bar itself intercept
+// clicks the outside-click MouseArea is supposed to catch first while
+// the dropdown is open (confirmed by working through Qt Quick's own
+// z-stacking rules before writing this: z only orders siblings sharing
+// one immediate parent, so a nested child can't outrank its own
+// parent's siblings without the parent itself being elevated). Keeping
+// the popup external avoids that regression entirely.
+Item {
+  id: root
+
+  property bool filesMode: false
+  // Non-empty wins over filesMode's own hardcoded "Search files..." --
+  // needed once Launcher.qml started reusing filesMode's back-arrow/
+  // layout treatment for extension mode too (see its own inExtensionMode
+  // comment): without this the placeholder kept reading "Search
+  // files..." while showing the Wallpapers grid underneath it, since
+  // that text was the ONE piece of filesMode-specific copy baked
+  // directly into this component instead of taken from a prop.
+  property string placeholderOverride: ""
+  // Same reasoning as placeholderOverride -- the "All Sources"/`sources`
+  // filter dropdown is generic enough to reuse for an extension's own
+  // filter (Wallpapers' All Types/Images/Video/Gif) as long as its "all"
+  // sentinel label isn't hardcoded to a file-search-specific word.
+  property string allOptionLabel: "All Sources"
+  // Defaults to filesMode (the original behavior, before any extension
+  // existed), but is its own separate flag now -- direct QA finding:
+  // Settings reuses filesMode's back-arrow/placeholder treatment (like
+  // Wallpapers does) but has no source/type filter concept at all, so
+  // the "All Sources" dropdown button was showing over its own detail
+  // panel with nothing real for it to filter. Launcher.qml overrides
+  // this explicitly per mode instead of it always tracking filesMode.
+  property bool showSourceFilter: root.filesMode
+  property int resultCount: 0
+  property string selectedSourcePath: ""
+  property var sources: []
+  property int sourceFilterWidth: 150
+  // Two-way from the caller's perspective: this component's own
+  // sourceFilterButton toggles it; Launcher.qml's externally-owned
+  // popup and outside-click catcher both read/clear it too, so both
+  // sides always agree on open/closed state.
+  property bool dropdownOpen: false
+
+  // Left/Right normally do their plain TextInput job (move the text
+  // cursor) -- only an extension that actually has something 2D to
+  // navigate (Wallpapers' own grid) needs them repurposed, so this
+  // defaults off rather than always stealing them the way Up/Down
+  // already unconditionally do (a single-line TextInput has no real use
+  // for Up/Down anyway, but DOES for Left/Right while editing a query).
+  property bool interceptArrowKeys: false
+  // Direct request: "for the top search thing for Search Setting, on
+  // the right alligned lets put a kbd helper so people know to tab" --
+  // the Settings extension's own top search bar has nothing occupying
+  // this right-aligned slot (no source filter, no Enter-hint since
+  // filesMode's own layout applies but resultCount is never > 0 here),
+  // same "this space is empty" reasoning the Enter-hint chip below
+  // already documents. Real flow, confirmed against SettingsContent.qml's
+  // own activateSelection()/moveSelectionUp()/moveSelectionDown(): Up/
+  // Down alone only moves the LEFT list's own highlight, Enter is what
+  // actually opens the highlighted category into the right panel, and
+  // only THEN does Tab drill into its options -- direct correction
+  // after shipping a Tab-only version: "it should be enter instead
+  // right and then tab to edit". Both keys shown together, Enter
+  // first, since either is genuinely actionable at once (Tab always
+  // drills into whatever's already open, even the default category, so
+  // it isn't strictly gated behind pressing Enter first).
+  property bool showSettingsHints: false
+  // Direct ask: "on the top search bar theres a enter kbd helper, im
+  // thiking about replacing that with a live timer of the next
+  // shuffle? is that something we can do" -- lets the Wallpaper
+  // Shuffle extension swap this chip's own content for a live
+  // countdown ("4:32") or "Paused" instead of the plain "↵", without
+  // Settings/Theme Browser (which also set showSettingsHints) losing
+  // their own Enter hint: empty string (every other mode's default)
+  // falls through to "↵" unchanged below.
+  property string settingsHintOverrideText: ""
+
+  property color textColor: "#ffffff"
+  property color mutedColor: "#888888"
+  // Only read by the Wallpaper Shuffle countdown/Paused override below
+  // -- direct report: "the clock and pause is abit hard to read, maybe
+  // put them in accent color text chips". Every other mode's plain "↵"
+  // stays mutedColor, unchanged.
+  property color accentColor: "#ffffff"
+  property string fontFamily: ""
+
+  // Two-way: Launcher.qml clears this on close (`searchHeader.text =
+  // ""`); typing here bubbles out via the auto-generated onTextChanged
+  // alias signal, same as any other property.
+  property alias text: searchInput.text
+
+  signal upPressed()
+  signal downPressed()
+  // Only fired while interceptArrowKeys is true -- see its own comment.
+  signal leftPressed()
+  signal rightPressed()
+  signal enterPressed()
+  // Fired only once this component's OWN dropdown is already closed --
+  // Escape's first priority (closing an open dropdown) is handled
+  // entirely internally, since Launcher.qml has no reason to know
+  // about that transient state.
+  signal escapePressed()
+  signal backClicked()
+  // Issue #62: opens/closes the contextual result-actions menu --
+  // Launcher.qml decides what that means (nothing outside Search Files
+  // with a real file selected), this component just forwards the key.
+  signal tabPressed()
+  // Direct request: "this thing uses tab to open the drop down for
+  // file result but we also have the sources and all sources here...
+  // for consistency should we do shift tab for all sources and all
+  // types for the wallpaper? save the tabs for results?" -- plain Tab
+  // stays reserved for the per-result actions menu (its existing
+  // meaning); Shift+Tab is the new, single, consistent way to open the
+  // source/type dropdown in EITHER mode instead of Tab meaning two
+  // different things depending which one's active.
+  signal shiftTabPressed()
+  // Optional, extension-owned Alt+<key> shortcuts (clipboard: Alt+C/O/P/D).
+  // Only consumed while interceptShortcuts is true, so Alt combos stay
+  // untouched everywhere else. Alt rather than Ctrl so the search box's
+  // own text-editing shortcuts (Ctrl+C/V/D/A...) keep working.
+  property bool interceptShortcuts: false
+  signal shortcutPressed(int key)
+
+  function focusInput() { searchInput.forceActiveFocus() }
+
+  anchors.top: parent.top
+  anchors.left: parent.left
+  anchors.right: parent.right
+  anchors.margins: 8
+  height: 48
+
+  // fa-search (U+F002), same glyph as the Search Files fallback row's
+  // own icon. Positioned with the exact same leftMargin/width/
+  // centering as a result row's own icon Text (ResultRow.qml) --
+  // this search bar and resultsList share the same leftMargin (8) off
+  // the card, and a ListView delegate's own x is that view's x with no
+  // further offset, so matching leftMargin+width here lines this
+  // glyph's column up with every row's icon column exactly, not just
+  // approximately.
+  Text {
+    id: searchIcon
+    anchors.left: parent.left
+    anchors.leftMargin: 12
+    anchors.verticalCenter: parent.verticalCenter
+    width: 22
+    horizontalAlignment: Text.AlignHCenter
+    // fa-search (U+F002) normally; swaps to fa-arrow-left (U+F060) in
+    // Search Files mode, doubling as a real back button -- direct
+    // request: clicking it there exits Search Files, same as Escape's
+    // own first step, rather than dismissing the whole palette.
+    text: root.filesMode ? "" : ""
+    color: root.mutedColor
+    font.family: root.fontFamily
+    font.pixelSize: 16
+
+    MouseArea {
+      anchors.fill: parent
+      anchors.margins: -4
+      // Only interactive in Search Files mode -- there is nothing to
+      // "go back" from otherwise, so the plain magnifying glass stays
+      // decorative the rest of the time.
+      enabled: root.filesMode
+      cursorShape: root.filesMode ? Qt.PointingHandCursor : Qt.ArrowCursor
+      onClicked: root.backClicked()
+    }
+  }
+
+  // Search Files only -- filters fd's own search roots to just one
+  // drive. Meaningless outside Search Files (Applications/Commands
+  // have no "drive"), so hidden the rest of the time -- TextInput's
+  // own rightMargin below only makes room for it while it's visible.
+  // Ghost trigger, not a nested pill -- no background surface of its
+  // own (a faint hover/open tint is the only visual affordance), so it
+  // reads as part of the search input rather than a separate control
+  // sitting on top of it. Fixed width shared with the popup (set by
+  // Launcher.qml to the same sourceFilterWidth) so the closed control
+  // and the opened menu share one width -- reads as a single dropdown
+  // widget rather than a button with a mismatched panel. No hover tint
+  // -- the chevron itself flipping to point up is the only "open"
+  // affordance needed.
+  Item {
+    id: sourceFilterButton
+    visible: root.showSourceFilter
+    anchors.right: parent.right
+    anchors.rightMargin: 12
+    anchors.verticalCenter: parent.verticalCenter
+    width: root.sourceFilterWidth
+    height: 28
+
+    readonly property string currentLabel: root.selectedSourcePath === "" ? root.allOptionLabel : (function() {
+      for (var i = 0; i < root.sources.length; i++) if (root.sources[i].path === root.selectedSourcePath) return root.sources[i].label
+      // Issue #62: "Search inside this folder" can scope to an
+      // arbitrary folder that isn't one of the discovered sources
+      // (Home + auto-detected mounts) -- show its own last path
+      // segment rather than silently mislabeling it as "All Sources".
+      var p = root.selectedSourcePath
+      var slash = p.lastIndexOf("/")
+      return slash === -1 ? p : p.substring(slash + 1)
+    })()
+
+    Text {
+      id: sourceFilterLabel
+      anchors.left: parent.left
+      anchors.leftMargin: 10
+      anchors.right: sourceFilterChevron.left
+      anchors.rightMargin: 8
+      anchors.verticalCenter: parent.verticalCenter
+      elide: Text.ElideRight
+      text: sourceFilterButton.currentLabel
+      color: root.textColor
+      font.family: root.fontFamily
+      font.pixelSize: 12
+    }
+
+    // fa-chevron-down (U+F078) -- rotates to point up while the menu
+    // is open, same convention as a native <select>.
+    Text {
+      id: sourceFilterChevron
+      anchors.right: parent.right
+      anchors.rightMargin: 10
+      anchors.verticalCenter: parent.verticalCenter
+      text: ""
+      color: root.mutedColor
+      font.family: root.fontFamily
+      font.pixelSize: 9
+      rotation: root.dropdownOpen ? 180 : 0
+      transformOrigin: Item.Center
+      Behavior on rotation { NumberAnimation { duration: 150; easing.type: Easing.OutQuad } }
+    }
+
+    MouseArea {
+      anchors.fill: parent
+      onClicked: root.dropdownOpen = !root.dropdownOpen
+    }
+  }
+
+  // Keyboard hint for the primary action -- direct request: "this
+  // space is empty... make it kbd good". Styled like an actual
+  // physical key cap (bordered chip, not just bare text) so it reads
+  // as "press this key" at a glance, same convention every real
+  // Raycast-style launcher uses for its own primary-action hint. Only
+  // where sourceFilterButton isn't already occupying this same right-
+  // aligned spot, and only when there's actually something Enter would
+  // do -- an empty results list (no Suggestions, no matches, nothing)
+  // has no primary action to hint at.
+  //
+  // !root.filesMode alone used to be the same thing as
+  // !root.showSourceFilter (back when Search Files was the only mode
+  // that ever showed a source filter at all), but showSourceFilter
+  // later grew to cover Wallpapers/Theme Browser too, outside
+  // filesMode -- same overlap bug direct report caught on
+  // settingsEnterHint below (that dropdown and this chip anchor to the
+  // exact same spot), just less reliably: root.results (what
+  // resultCount counts) only depends on the live query text, not
+  // activeExtensionId, so this could have been showing and overlapping
+  // the dropdown in Wallpapers mode too, any time typed text happened
+  // to match a real Application/Command.
+  Rectangle {
+    visible: !root.filesMode && !root.showSourceFilter && root.resultCount > 0
+    anchors.right: parent.right
+    anchors.rightMargin: 12
+    anchors.verticalCenter: parent.verticalCenter
+    width: 28
+    height: 22
+    radius: ShellConfig.radius
+    color: Qt.rgba(1, 1, 1, 0.06)
+    border.width: 1
+    border.color: Qt.rgba(1, 1, 1, 0.12)
+
+    Text {
+      anchors.centerIn: parent
+      text: "↵"
+      color: root.mutedColor
+      font.family: root.fontFamily
+      font.pixelSize: 13
+    }
+  }
+
+  // Settings-mode key hint -- Enter (open the highlighted category)
+  // only, same physical-keycap styling as the other Enter-hint chip
+  // above. A Tab chip sat next to this one briefly -- direct follow-up
+  // ("we cant show the tab, cause then it looks like people need to
+  // click tab and enter at the same time, just show the enter"):
+  // showing both together read as a chord, not two separate, sequenced
+  // actions, so this stays Enter-only.
+  //
+  // Direct report ("the All and Installed chevron is overlapping with
+  // a kbd thing, we dont need the kbd then there"): this chip and
+  // sourceFilterButton both anchor to the exact same right-aligned
+  // spot, and the Theme Browser is the first mode where showSourceFilter
+  // AND showSettingsHints can both be true at once (Settings itself
+  // never shows a source filter, so this never came up before). The
+  // dropdown already occupies that corner, so the hint just steps
+  // aside rather than drawing underneath it.
+  Rectangle {
+    id: settingsEnterHint
+    visible: root.showSettingsHints && !root.showSourceFilter
+    anchors.right: parent.right
+    anchors.rightMargin: 12
+    anchors.verticalCenter: parent.verticalCenter
+    width: root.settingsHintOverrideText !== "" ? (settingsHintOverrideLabel.implicitWidth + 16) : 28
+    height: 22
+    radius: ShellConfig.radius
+    // Accent-tinted whenever an override (Wallpaper Shuffle's own
+    // countdown/Paused) is actually showing, same tinted-bg/border
+    // language the interval chips themselves already use for "this
+    // reads as a live, lit-up value" -- plain neutral otherwise, same
+    // as every other mode's bare "↵" always was.
+    color: root.settingsHintOverrideText !== ""
+      ? Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.18)
+      : Qt.rgba(1, 1, 1, 0.06)
+    border.width: 1
+    border.color: root.settingsHintOverrideText !== ""
+      ? Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.45)
+      : Qt.rgba(1, 1, 1, 0.12)
+
+    Text {
+      id: settingsHintOverrideLabel
+      anchors.centerIn: parent
+      visible: root.settingsHintOverrideText !== ""
+      text: root.settingsHintOverrideText
+      color: root.accentColor
+      font.family: root.fontFamily
+      font.pixelSize: 11
+    }
+
+    Text {
+      anchors.centerIn: parent
+      visible: root.settingsHintOverrideText === ""
+      text: "↵"
+      color: root.mutedColor
+      font.family: root.fontFamily
+      font.pixelSize: 13
+    }
+  }
+
+  TextInput {
+    id: searchInput
+    anchors.fill: parent
+    // searchIcon's own leftMargin (12) + width (22) + a 10px gap.
+    anchors.leftMargin: 44
+    // sourceFilterWidth + sourceFilterButton's own rightMargin (12) +
+    // a small gap, only while it's actually showing; otherwise room for
+    // either Enter-hint chip (Settings mode's own, or the search-
+    // results one below, both 28 wide + 12 rightMargin), or the plain
+    // 16 default with neither showing.
+    anchors.rightMargin: root.showSourceFilter ? (root.sourceFilterWidth + 12 + 10)
+      : root.showSettingsHints ? (settingsEnterHint.width + 12 + 10)
+      : (root.resultCount > 0 ? (28 + 12 + 10) : 16)
+    verticalAlignment: TextInput.AlignVCenter
+    color: root.textColor
+    font.family: root.fontFamily
+    font.pixelSize: 16
+    clip: true
+
+    Text {
+      anchors.verticalCenter: parent.verticalCenter
+      text: root.placeholderOverride !== "" ? root.placeholderOverride
+        : (root.filesMode ? "Search files..." : "Search actions and apps...")
+      color: root.mutedColor
+      font.family: root.fontFamily
+      font.pixelSize: 16
+      visible: searchInput.text.length === 0
+    }
+
+    // Same Escape/Up/Down/Enter shape LauncherContent.qml's own
+    // launcherSearchInput already proves out -- Escape closes an open
+    // dropdown first (handled entirely internally); Launcher.qml's own
+    // onEscapePressed handles the rest of the original priority order
+    // (drill out of Search Files, then dismiss).
+    Keys.onPressed: function(event) {
+      if (root.interceptShortcuts && (event.modifiers & Qt.AltModifier) && !(event.modifiers & Qt.ControlModifier)) {
+        root.shortcutPressed(event.key)
+        event.accepted = true
+      } else if (event.key === Qt.Key_Escape) {
+        if (root.dropdownOpen) root.dropdownOpen = false
+        else root.escapePressed()
+        event.accepted = true
+      } else if (event.key === Qt.Key_Up) {
+        root.upPressed()
+        event.accepted = true
+      } else if (event.key === Qt.Key_Down) {
+        root.downPressed()
+        event.accepted = true
+      } else if (event.key === Qt.Key_Left && root.interceptArrowKeys) {
+        root.leftPressed()
+        event.accepted = true
+      } else if (event.key === Qt.Key_Right && root.interceptArrowKeys) {
+        root.rightPressed()
+        event.accepted = true
+      } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+        root.enterPressed()
+        event.accepted = true
+      } else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+        // Qt.Key_Backtab, not just Qt.Key_Tab + ShiftModifier -- direct
+        // report ("shift tab isnt working"): a REAL Shift+Tab is
+        // commonly delivered as the distinct Key_Backtab code on most
+        // platforms/keyboards, not as Key_Tab with a shift modifier
+        // flag set. Checking only the modifier-flag form meant a real
+        // Shift+Tab press matched neither branch here and did nothing
+        // -- confirmed as the actual cause, not a keyboard/compositor
+        // issue: a synthetic Shift+Tab sent via wtype's virtual-
+        // keyboard protocol (used to verify this feature originally)
+        // apparently DOES get reported as Key_Tab+ShiftModifier, unlike
+        // a real keyboard, which is how this passed testing here but
+        // not for the user. Checking both forms is correct regardless
+        // of which one any given input path produces.
+        if (event.key === Qt.Key_Backtab || (event.modifiers & Qt.ShiftModifier)) root.shiftTabPressed()
+        else root.tabPressed()
+        event.accepted = true
+      }
+    }
+  }
+}

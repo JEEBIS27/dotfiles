@@ -11,7 +11,7 @@ export FZF_CTRL_R_OPTS="
   --bind 'esc:abort'
 "
 if [[ -f "@themeDir@/preview.tmTheme" ]]; then
-  export BAT_THEME="Omarchy"
+  export BAT_THEME="Desktop"
 else
   export BAT_THEME="ansi"
 fi
