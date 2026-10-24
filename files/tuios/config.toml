@@ -1,0 +1,139 @@
+# TUIOS 0.10.1. No host key-packet adapters or nested multiplexer.
+[startup]
+daemon = true
+tiled = true
+layout = "bsp"
+start_in_terminal_mode = true
+
+[appearance]
+preferred_shell = "zsh"
+theme = ""
+show_clock = false
+hide_scrollbar = true
+scrollback_lines = 50000
+
+[scratch]
+width = "80%"
+height = "80%"
+
+[keybindings]
+leader_key = "alt+e"
+
+[keybindings.global]
+command_palette = ["alt+p", "ctrl+alt+p"]
+launcher = []
+prefix_new_window = ["alt+n", "ctrl+alt+n"]
+new_workspace = ["alt+shift+n", "ctrl+alt+shift+g"]
+prefix_split_vertical = ["alt+enter", "ctrl+alt+enter"]
+prefix_split_horizontal = ["alt+shift+enter", "ctrl+alt+shift+enter"]
+prefix_close_window = ["alt+w", "ctrl+alt+w"]
+toggle_zoom = ["alt+shift+f", "ctrl+alt+shift+f"]
+next_window = ["alt+tab", "alt+pgdown", "ctrl+alt+tab", "ctrl+alt+pgdown"]
+prev_window = ["alt+shift+tab", "alt+pgup", "ctrl+alt+shift+tab", "ctrl+alt+pgup"]
+next_workspace = ["alt+shift+pgdown", "ctrl+alt+shift+pgdown"]
+prev_workspace = ["alt+shift+pgup", "ctrl+alt+shift+pgup"]
+prefix_workspace_switcher = ["alt+g", "ctrl+alt+g"]
+rename_workspace = ["alt+shift+r", "ctrl+alt+shift+r"]
+rename_window = ["alt+r", "ctrl+alt+r", "alt+shift+p"]
+copy_mode_search_backward = ["alt+f", "ctrl+alt+f"]
+prefix_selection = ["alt+shift+y", "ctrl+alt+shift+y"]
+toggle_scratch = ["alt+t"]
+cycle_layout = ["alt+shift+t"]
+prefix_toggle_sidebar = ["alt+b"]
+prefix_jump_notif = ["alt+o"]
+prefix_detach = ["alt+d"]
+last_pane = ["alt+;"]
+prefix_scrollback = ["alt+shift+e"]
+open_settings = ["alt+,", "ctrl+alt+shift+,"]
+reload_config = ["alt+shift+,", "ctrl+alt+,"]
+toggle_help = ["alt+/"]
+prefix_inbox = ["ctrl+alt+i"]
+close_workspace = ["alt+shift+d"]
+terminal_focus_left = ["alt+h", "alt+left", "ctrl+alt+h", "ctrl+alt+left"]
+resize_pane_left_5 = ["alt+shift+h", "alt+shift+left", "ctrl+alt+shift+h", "ctrl+alt+shift+left"]
+terminal_focus_down = ["alt+j", "alt+down", "ctrl+alt+j", "ctrl+alt+down"]
+resize_pane_down_5 = ["alt+shift+j", "alt+shift+down", "ctrl+alt+shift+j", "ctrl+alt+shift+down"]
+terminal_focus_up = ["alt+k", "alt+up", "ctrl+alt+k", "ctrl+alt+up"]
+resize_pane_up_5 = ["alt+shift+k", "alt+shift+up", "ctrl+alt+shift+k", "ctrl+alt+shift+up"]
+terminal_focus_right = ["alt+l", "alt+right", "ctrl+alt+l", "ctrl+alt+right"]
+resize_pane_right_5 = ["alt+shift+l", "alt+shift+right", "ctrl+alt+shift+l", "ctrl+alt+shift+right"]
+select_window_1 = ["alt+1", "ctrl+alt+1"]
+select_window_2 = ["alt+2", "ctrl+alt+2"]
+select_window_3 = ["alt+3", "ctrl+alt+3"]
+select_window_4 = ["alt+4", "ctrl+alt+4"]
+select_window_5 = ["alt+5", "ctrl+alt+5"]
+select_window_6 = ["alt+6", "ctrl+alt+6"]
+select_window_7 = ["alt+7", "ctrl+alt+7"]
+select_window_8 = ["alt+8", "ctrl+alt+8"]
+select_window_9 = ["alt+9", "ctrl+alt+9"]
+
+[keybindings.window_management]
+next_session = []
+prev_session = []
+
+[keybindings.workspaces]
+switch_workspace_1 = []
+switch_workspace_2 = []
+switch_workspace_3 = []
+switch_workspace_4 = []
+switch_workspace_5 = []
+switch_workspace_6 = []
+switch_workspace_7 = []
+switch_workspace_8 = []
+switch_workspace_9 = []
+
+[keybindings.layout]
+preselect_left = []
+preselect_right = []
+preselect_up = []
+preselect_down = []
+
+[keybindings.terminal_mode]
+terminal_next_window = []
+terminal_prev_window = []
+terminal_focus_left = []
+terminal_focus_right = []
+terminal_focus_up = []
+terminal_focus_down = []
+terminal_scroll_up = []
+terminal_scroll_down = []
+terminal_scroll_page_up = []
+terminal_scroll_page_down = []
+
+[keybindings.prefix_mode]
+swap_left = ["h", "left"]
+swap_down = ["j", "down"]
+swap_up = ["k", "up"]
+swap_right = ["l", "right"]
+# Keep the rest of the native prefix menu for less frequent actions.
+prefix_help = ["?"]
+prefix_layout = ["L"]
+prefix_last_message = ["alt+o"]
+prefix_keybinds = ["K"]
+terminal_focus_down = []
+
+[[keybindings.command]]
+key = "alt+y"
+type = "pane"
+command = "zsh -i -c y"
+name = "yazi"
+description = "Yazi in current directory"
+
+[[keybindings.command]]
+key = "ctrl+alt+y"
+type = "pane"
+command = "zsh -i -c y"
+name = "yazi-secondary"
+description = "Yazi"
+
+# Native OSC 9 notifications and the clickable TUIOS dock.
+[notifications.agent]
+notify = true
+dock = true
+
+[[keybindings.command]]
+key = "alt+shift+g"
+type = "popup"
+command = "jeebis-tuios-worktree"
+name = "new-worktree"
+description = "Create a worktree session"
