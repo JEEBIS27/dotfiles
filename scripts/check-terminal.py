@@ -85,12 +85,11 @@ with tempfile.TemporaryDirectory(prefix='dotfiles-terminal-') as tmp:
         taken = {b['key'] for b in doctor['terminal_mode_swallowed']}
         for key in ['ctrl+p', 'ctrl+n', 'ctrl+f', 'ctrl+y', 'ctrl+v', 'shift+pgup', 'shift+pgdown', 'shift+enter']:
             assert key not in taken, key
-        run('new', 'test', '--detach', '--cwd', tmp)
         run('new', 'other', '--detach', '--cwd', tmp)
-        assert windows()['windows'][0]['cwd'] == tmp
         pid, fd = pty.fork()
         if pid == 0:
-            os.execvpe(tuios, [tuios, 'attach', 'test'], env)
+            os.chdir(tmp)
+            os.execvpe(tuios, [tuios, 'new', 'test'], env)
         fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack('HHHH', 40, 140, 1400, 800))
 
         def drain():
@@ -111,6 +110,8 @@ with tempfile.TemporaryDirectory(prefix='dotfiles-terminal-') as tmp:
         thread.start()
         # Allow terminal negotiation before exercising screen-dependent verbs.
         time.sleep(2)
+        eventually(lambda: windows()['total'] == 1)
+        assert windows()['windows'][0]['cwd'] == tmp
         run('split-window', 'vertical', '-s', 'test')
         assert windows()['total'] == 2
         os.write(fd, b'\x1b\r')  # Alt+Enter, legacy encoding

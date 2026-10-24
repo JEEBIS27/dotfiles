@@ -1,5 +1,6 @@
 # TUIOS 0.10.1. No host key-packet adapters or nested multiplexer.
 [startup]
+open_default_window = true
 daemon = true
 tiled = true
 layout = "bsp"
