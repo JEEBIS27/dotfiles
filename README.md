@@ -24,13 +24,13 @@ Omarchy / NixOS向けのHome Manager構成。Hyprland、Quickshell（Ruixen）�
 
 | 分類 | 主な内容 |
 |---|---|
-| シェル・CLI | Zsh、Tmux、Sheldon、Yazi、Git、fzf、ripgrep、eza、bat、zoxide |
+| シェル・CLI | Zsh、TUIOS、Sheldon、Yazi、Git、fzf、ripgrep、eza、bat、zoxide |
 | エディター | Neovim設定、NixOS用LSP・フォーマッター、Node.js・Rust |
-| デスクトップ | Hyprland、Quickshell + Ruixen、WezTerm、固定テーマと壁紙 |
+| デスクトップ | Hyprland、Quickshell + Ruixen、Rio + TUIOS、固定テーマと壁紙 |
 | NixOS用アプリ・サービス | Chromium、Nautilus、Fcitx5 / Mozkey、音声・Bluetooth・電源管理 |
 | クラウドマウント | rclone（Google Drive / OneDrive、認証は別途） |
 
-Omarchyでは既存のデスクトップ・IME本体を使用する。Herdr等は設定・ランチャーのみを含む。[パッケージ一覧](docs/managed-items.md)を参照。
+Omarchyでは既存のデスクトップ・IME本体を使用する。Rio本体はOmarchyのパッケージ管理、TUIOSはHome Managerで導入する。[パッケージ一覧](docs/managed-items.md)を参照。
 
 ## NixOSへの導入
 
@@ -53,7 +53,7 @@ bash ~/Git/home-manager/scripts/nixos.sh sync
 
 ## Omarchyへの適用
 
-NixとHome Managerが導入済みの環境で実行する。
+NixとHome Managerが導入済みの環境で実行する。Rio本体は `omarchy pkg add rio` で導入する。移行時は先に[検証・制限事項](docs/terminal-migration.md)を確認する。
 
 ```bash
 home-manager build --flake "path:$HOME/Git/home-manager#jeebis@omarchy"
@@ -61,6 +61,9 @@ home-manager switch --flake "path:$HOME/Git/home-manager#jeebis@omarchy"
 ```
 
 ## ドキュメント
+
+- [Rio + TUIOS：移行・検証・ロールバック](docs/terminal-migration.md)
+- [ターミナルキーの移行表](docs/terminal-keybindings.md)
 
 - [構成とOS別バックエンド](docs/desktop-architecture.md)
 - [導入するパッケージ・設定](docs/managed-items.md)
