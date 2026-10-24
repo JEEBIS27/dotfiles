@@ -35,7 +35,7 @@ def focus_or_launch(pattern, argv):
 def tui(a):
  app_id='org.omarchy.'+Path(a[0]).name if a else 'org.omarchy.terminal'
  if a and a[0].startswith('--app-id='):app_id=a.pop(0).split('=',1)[1]
- return launch([command('terminal'),'start','--always-new-process','--class',app_id,'--',*a])
+ return launch([command('terminal'),'--app-id='+app_id,'--',*a])
 def menu(name='root'):
  if cfg['backend']=='omarchy':return call(['omarchy-menu','toggle',name])
  return shell_ipc('shell','toggle','omarchy.menu',json.dumps({'menu':name}))
@@ -129,6 +129,8 @@ def theme(action,values):
    if old.exists():shutil.rmtree(old)
   finally:
    if staging.exists():shutil.rmtree(staging)
+ rio_dir=Path(os.environ.get('XDG_CONFIG_HOME',HOME/'.config'))/'rio'
+ if rio_dir.is_dir():os.utime(rio_dir,None)
  if initializing:return
  call([command('hyprctl'),'reload'])
  try:call([command('bat'),'cache','--build'],stdout=subprocess.DEVNULL)
@@ -151,7 +153,7 @@ def native_legacy(name,a):
  if name=='omarchy-launch-browser':return call([command('xdg-open'),*a]) if a else launch([command('browser')])
  if name in ['omarchy-launch-webapp','omarchy-launch-webapp-sole']:return call([command('xdg-open'),a[-1]])
  if name in ['omarchy-launch-tui','omarchy-launch-floating-terminal-with-presentation']:return tui(a)
- if name=='omarchy-launch-editor':return launch([command('terminal'),'start','--',command('editor'),*a])
+ if name=='omarchy-launch-editor':return launch([command('terminal'),'--',command('editor'),*a])
  if name=='omarchy-launch-or-focus':return focus_or_launch(a[0],['bash','-c',a[1]] if len(a)>1 else ['uwsm-app','--',a[0]])
  if name=='omarchy-launch-or-focus-tui':
   app_id=a[0].split('=',1)[1] if a[0].startswith('--app-id=') else 'org.omarchy.'+Path(a[0]).name
@@ -177,9 +179,9 @@ def native_legacy(name,a):
  if name=='omarchy-toggle-nightlight':return call([command('systemctl'),'--user','restart','hyprsunset.service'])
  if name.startswith('omarchy-launch-'):
   app=name.removeprefix('omarchy-launch-');return launch([app,*a])
- if name in ['omarchy-menu-keybindings','omarchy-menu-herdr-keybindings']:
-  return launch([command('terminal'),'start','--',command('editor'),str(HOME/'Git/home-manager/docs/desktop-architecture.md')])
- if name=='omarchy-menu-timezone':return call([command('terminal'),'start','--','timedatectl','list-timezones'])
+ if name in ['omarchy-menu-keybindings']:
+  return launch([command('terminal'),'--',command('editor'),str(HOME/'Git/home-manager/docs/desktop-architecture.md')])
+ if name=='omarchy-menu-timezone':return call([command('terminal'),'--','timedatectl','list-timezones'])
  if name in ['omarchy-powerprofiles-list']:return call([command('powerprofilesctl'),'list'])
  if name=='omarchy-powerprofiles-set':return call([command('powerprofilesctl'),'set',*a])
  raise ValueError('No native adapter for '+name+'; this distro operation is not part of the shared desktop')
@@ -208,10 +210,10 @@ def main():
  if action in ['menu','pick']:return menu(args[0] if args else 'root')
  if action=='notify':return call([command('notify-send'),*args])
  if action=='legacy':
-  if cfg['backend']=='omarchy':return call(args)
+  if cfg['backend']=='omarchy' and args[0] not in ['omarchy-launch-tui','omarchy-launch-floating-terminal-with-presentation','omarchy-launch-editor','omarchy-launch-or-focus-tui']:return call(args)
   return native_legacy(args[0],args[1:])
  if action=='browser':return call(['omarchy-launch-browser',*args]) if cfg['backend']=='omarchy' else (call([command('xdg-open'),*args]) if args else launch([command('browser')]))
- if action=='terminal':return launch([command('terminal'),'start','--always-new-process',*args])
+ if action=='terminal':return launch([command('terminal'),*args])
  if action=='overview':return shell_ipc('shell','toggle' if not args else args[0],'ruixen.launcher','{}')
  raise ValueError('Unknown desktop action: '+action)
 def main_browser(a):return call(['omarchy-launch-webapp',*a]) if cfg['backend']=='omarchy' else call([command('xdg-open'),*a])
