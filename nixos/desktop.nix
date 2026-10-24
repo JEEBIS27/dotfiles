@@ -10,7 +10,7 @@ let mozkey = import ../packages/mozkey-fcitx5.nix { pkgs = appPkgs; }; in
     portalPackage = appPkgs.xdg-desktop-portal-hyprland;
   };
   environment.systemPackages = with appPkgs; [
-    chromium wezterm nautilus hyprland-preview-share-picker hyprsunset
+    chromium nautilus hyprland-preview-share-picker hyprsunset
     wl-clipboard grim slurp libnotify brightnessctl
   ];
   fonts.packages = [ appPkgs.hackgen-nf-font ];
