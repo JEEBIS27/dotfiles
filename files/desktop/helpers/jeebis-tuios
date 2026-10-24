@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ ${1:-} == --attach ]]; then
+  [[ $# == 2 ]] || { echo 'Usage: jeebis-tuios --attach SESSION' >&2; exit 2; }
+  exec tuios attach "$2"
+fi
+if [[ $# == 0 ]]; then exec tuios new; fi
+# Name this session before starting a command; never target the last-active one.
+session="rio-$(cat /proc/sys/kernel/random/uuid)"
+tuios new "$session" --detach --cwd "$PWD"
+# new creates an initial shell. Replace that pane by a command pane only after
+# creation succeeds. A failed command leaves the session available for recovery.
+initial=$(tuios list-windows -s "$session" --json | jq -er '.windows[0].window_id')
+tuios new-window "$(basename -- "$1")" -s "$session" --cwd "$PWD" -- "$@"
+tuios close-window -s "$session" "$initial"
+exec tuios attach "$session"

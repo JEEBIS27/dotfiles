@@ -29,7 +29,7 @@ return {
     opts = {
       keymap = {
         preset = "default",
-        -- Herdr reserves Ctrl+Space; standard insert-mode completion remains reachable.
+        -- Keep insert-mode completion reachable through both standard aliases.
         ["<C-x><C-o>"] = { "show", "show_documentation", "hide_documentation" },
         ["<Tab>"] = {
           function(cmp)

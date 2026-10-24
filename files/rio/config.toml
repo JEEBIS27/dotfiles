@@ -1,0 +1,66 @@
+# Rio renders one TUIOS client. Session ownership stays in TUIOS.
+theme = "Desktop"
+confirm-before-quit = false
+hide-cursor-when-typing = true
+scrollback-history-limit = 0
+margin = [14]
+
+[shell]
+program = "tuios"
+args = ["new"]
+
+[fonts]
+family = "HackGen35 Console NF"
+size = 14
+[fonts.regular]
+family = "HackGen35 Console NF"
+weight = 700
+[fonts.bold]
+family = "HackGen35 Console NF"
+weight = 700
+[fonts.italic]
+family = "HackGen35 Console NF"
+weight = 700
+style = "Italic"
+[fonts.bold-italic]
+family = "HackGen35 Console NF"
+weight = 700
+style = "Italic"
+
+[window]
+decorations = "Disabled"
+
+[cursor]
+shape = "block"
+blinking = false
+
+[navigation]
+mode = "Plain"
+use-split = false
+open-config-with-split = false
+
+[keyboard]
+disable-ctlseqs-alt = false
+ime-cursor-positioning = true
+
+[bindings]
+keys = [
+  # Give application shortcuts back to TUIOS and its panes.
+  { key = "Space", with = "Alt|Shift", action = "ReceiveChar" },
+  { key = "l", with = "Control", action = "ReceiveChar" },
+  { key = "n", with = "Control|Shift", action = "ReceiveChar" },
+  { key = "p", with = "Control|Shift", action = "ReceiveChar" },
+  { key = "f", with = "Control|Shift", action = "ReceiveChar" },
+  { key = "b", with = "Control|Shift", action = "ReceiveChar" },
+  { key = ",", with = "Control|Shift", action = "ReceiveChar" },
+  { key = "0", with = "Control", action = "ReceiveChar" },
+  { key = "=", with = "Control", action = "ReceiveChar" },
+  { key = "+", with = "Control", action = "ReceiveChar" },
+  { key = "-", with = "Control", action = "ReceiveChar" },
+  # Font size and host clipboard remain emulator operations.
+  { key = "=", with = "Control|Alt", action = "IncreaseFontSize" },
+  { key = "-", with = "Control|Alt", action = "DecreaseFontSize" },
+  { key = "0", with = "Control|Alt", action = "ResetFontSize" },
+  { key = "Insert", with = "Control", action = "Copy" },
+  { key = "Insert", with = "Shift", action = "Paste" },
+]

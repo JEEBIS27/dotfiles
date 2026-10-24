@@ -5,9 +5,25 @@
     run ${pkgs.git}/bin/git config --global delta.syntax-theme Desktop
   '';
 
+  home.sessionVariables.TERMINAL = "jeebis-terminal";
+  xdg.desktopEntries.jeebis-terminal = {
+    name = "Rio + TUIOS";
+    exec = "jeebis-terminal";
+    icon = "rio";
+    terminal = false;
+    categories = [ "System" "TerminalEmulator" ];
+    settings = {
+      "X-TerminalArgExec" = "--";
+      "X-TerminalArgAppId" = "--app-id=";
+      "X-TerminalArgDir" = "--cwd";
+    };
+  };
   xdg.configFile = {
+    "xdg-terminals.list".text = "jeebis-terminal.desktop\n";
+    "rio/config.toml".source = ../files/rio/config.toml;
+    "rio/themes/Desktop.toml".source = config.lib.file.mkOutOfStoreSymlink "${config.jeebis.desktop.themeDirectory}/rio.toml";
+    "tuios/config.toml".source = ../files/tuios/config.toml;
     "bat/themes/Desktop.tmTheme".source = config.lib.file.mkOutOfStoreSymlink "${config.jeebis.desktop.themeDirectory}/preview.tmTheme";
-    "herdr/config.toml".source = ../files/herdr/config.toml;
     "nvim/after/lsp/lua_ls.lua".source = ../files/nvim/after/lsp/lua_ls.lua;
     "nvim/init.lua".source = ../files/nvim/init.lua;
     "nvim/lazy-lock.json".source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/Git/home-manager/files/nvim/lazy-lock.json";
@@ -16,7 +32,6 @@
     "nvim/lua/config/options.lua".source = ../files/nvim/lua/config/options.lua;
     "nvim/lua/config/theme.lua".source = pkgs.writeText "nvim-shared-theme.lua" (builtins.replaceStrings [ "@themeDir@" ] [ config.jeebis.desktop.themeDirectory ] (builtins.readFile ../files/nvim/lua/config/theme.lua));
     "nvim/lua/config/unified_keys.lua".source = ../files/nvim/lua/config/unified_keys.lua;
-    "nvim/lua/config/wezterm.lua".source = ../files/nvim/lua/config/wezterm.lua;
     "nvim/lua/plugins/edit/init.lua".source = ../files/nvim/lua/plugins/edit/init.lua;
     "nvim/lua/plugins/editor/init.lua".source = ../files/nvim/lua/plugins/editor/init.lua;
     "nvim/lua/plugins/editor/snacks.lua".source = ../files/nvim/lua/plugins/editor/snacks.lua;

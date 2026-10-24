@@ -14,6 +14,4 @@
   programs.man.enable = false;
   xdg.mime.enable = false;
 
-  # Keep the existing tmux file without generating replacement settings.
-  xdg.configFile."tmux/tmux.conf".source = ./files/tmux.conf;
 }

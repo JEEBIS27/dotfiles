@@ -4,13 +4,14 @@
   # Install packages without enabling modules that regenerate existing configs.
   home.packages = with appPkgs; [
     git curl wget
-    zsh tmux sheldon
+    zsh tuios sheldon
     neovim yazi
     eza bat delta dust fzf zoxide ripgrep fd
     unzip _7zz stow jq
     ffmpeg poppler-utils imagemagick mediainfo exiftool
     gcc gnumake pkg-config
   ] ++ lib.optionals (config.jeebis.desktop.backend == "nixos") (with appPkgs; [
+    rio
     # Match the enabled Neovim servers and formatters with Nix-built binaries.
     lua-language-server stylua shfmt
     gopls biome prisma-language-server tailwindcss-language-server

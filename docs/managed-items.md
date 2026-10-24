@@ -6,7 +6,7 @@
 
 | 分類 | パッケージ |
 |---|---|
-| シェル・ファイル操作 | zsh、tmux、sheldon、yazi、eza、bat、delta、dust、fzf、zoxide、ripgrep、fd |
+| シェル・ファイル操作 | zsh、tuios、sheldon、yazi、eza、bat、delta、dust、fzf、zoxide、ripgrep、fd |
 | 開発・通信 | git、curl、wget、neovim、gcc、gnumake、pkg-config |
 | アーカイブ・データ | unzip、7zz、stow、jq |
 | メディア | ffmpeg、poppler-utils、imagemagick、mediainfo、exiftool |
@@ -14,7 +14,7 @@
 
 ## NixOS追加分
 
-- デスクトップ：Hyprland / UWSM、Quickshell + Ruixen、WezTerm、Chromium、Nautilus、HackGenフォント。
+- デスクトップ：Hyprland / UWSM、Quickshell + Ruixen、Rio + TUIOS、Chromium、Nautilus、HackGenフォント。
 - ツール：hyprland-preview-share-picker、hyprsunset、wl-clipboard、grim、slurp、libnotify、brightnessctl。
 - 入力・サービス：Fcitx5 / Mozkey、NetworkManager、Bluetooth、PipeWire、polkit、電源管理、FUSE。
 - 開発環境：Node.js、Cargo、Rust。
@@ -25,7 +25,7 @@
 
 ## 設定
 
-Zsh、Sheldon、Tmux、Neovim、Yazi、bat、Herdr、WezTerm、Hyprland、Ruixenのシェル設定、Fcitx / Mozkey、テーマ・壁紙を`files/`に配置する。Herdr・ChatGPT / Codex GUI等の本体はこの構成では導入しない。
+Zsh、Sheldon、TUIOS、Neovim、Yazi、bat、Rio、Hyprland、Ruixenのシェル設定、Fcitx / Mozkey、テーマ・壁紙を`files/`に配置する。ChatGPT / Codex GUI等の本体はこの構成では導入しない。
 
 Neovim・Sheldon等のプラグインは各マネージャーが取得する。NixOSではMasonのPATHをappendにしてNix製の実行ファイルを優先する。`gh_actions_ls`は設定には含まれるがパッケージ未導入。
 

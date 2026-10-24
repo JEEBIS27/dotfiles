@@ -81,7 +81,7 @@ vim.opt.clipboard = 'unnamedplus'  -- システムクリップボードを使用
 -- 利用可能なクリップボードツールを優先順に選択:
 --   1. wl-clipboard (ネイティブWayland環境)
 --   2. xsel        (X11環境・WSLg含む)
---   3. OSC 52      (SSH・tmux等ターミナル経由のフォールバック)
+--   3. OSC 52      (SSH・TUIOS等ターミナル経由のフォールバック)
 local function wayland_socket_exists()
   local display = vim.env.WAYLAND_DISPLAY
   if not display then return false end

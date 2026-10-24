@@ -531,7 +531,7 @@ local function launch_codex()
     end
 
     hl.dispatch(hl.dsp.exec_cmd(
-        desktop.command("legacy", "omarchy-launch-tui", "--app-id=org.omarchy.codex", os.getenv("HOME") .. "/.local/bin/jeebis-codex-herdr")
+        "jeebis-codex-tuios"
     ))
 
     local attempts = 0
@@ -539,9 +539,7 @@ local function launch_codex()
         attempts = attempts + 1
         for _, window in ipairs(hl.get_workspace_windows(workspace.id)) do
             if not existing[window.address]
-                and window.class == "org.wezfurlong.wezterm"
-                and type(window.title) == "string"
-                and window.title:match("^Codex") then
+                and window.class == "org.omarchy.codex" then
                 hl.dispatch(hl.dsp.focus({ window = window }))
                 toggle_full_width()
                 return
@@ -681,7 +679,7 @@ hl.unbind("SUPER + D")
 desktop.bind("SUPER + D", "Toggle show desktop", toggle_show_desktop)
 
 hl.unbind("SUPER + ALT + D")
-desktop.bind("SUPER + ALT + D", "Codex (Herdr, maximized)", launch_codex)
+desktop.bind("SUPER + ALT + D", "Codex (TUIOS, maximized)", launch_codex)
 
 -- The old workspace-overview plugin is no longer deployed.
 hl.unbind("SUPER + SHIFT + D")
@@ -738,7 +736,7 @@ end
 
 -- 上のリサイズ割り当てと重なる既定機能を別キーへ移動
 desktop.bind("SUPER + ALT + CTRL + H", "Hardware menu", desktop.command("menu", "hardware"))
-desktop.bind("SUPER + ALT + CTRL + K", "Herdr keybindings", desktop.command("legacy", "omarchy-menu-herdr-keybindings"))
+desktop.bind("SUPER + ALT + CTRL + K", "TUIOS keybindings", desktop.command("terminal", "--", "tuios", "keybinds", "browse"))
 
 -- H/J/K/L にあった既定機能を Shift 付きへ移し
 desktop.bind("SUPER + SHIFT + ALT + J", "Toggle window split", hl.dsp.layout("togglesplit"))
@@ -803,8 +801,12 @@ desktop.bind("SUPER + SHIFT + W", "Close windows in current workspace", close_wo
 desktop.bind("SUPER + F", "Ruixen App Launcher", desktop.command("shell", "ruixen.notch", "toggleLauncher"))
 desktop.bind("SUPER + SHIFT + F", "Maximize / restore window", toggle_full_width)
 hl.unbind("SUPER + N")
-desktop.bind("SUPER + N", "New terminal", { launch = "wezterm start --always-new-process" })
-desktop.bind("SUPER + ALT + RETURN", "Terminal", { launch = "wezterm start --always-new-process" })
+desktop.bind("SUPER + N", "New terminal", { launch = "jeebis-terminal" })
+hl.unbind("SUPER + ALT + RETURN")
+hl.unbind("SUPER + CTRL + RETURN")
+hl.unbind("SUPER + ALT + K")
+hl.unbind("SUPER + CTRL + K")
+desktop.bind("SUPER + ALT + RETURN", "Terminal", { launch = "jeebis-terminal" })
 desktop.bind("SUPER + SHIFT + ALT + RETURN", "Browser", desktop.command("browser"))
 -- Keep application and monitor switching in the desktop's Super namespace.
 for _, binding in ipairs({
@@ -830,13 +832,13 @@ local function split_terminal(direction)
     for _, window in ipairs(hl.get_workspace_windows(workspace.id)) do existing[window.address] = true end
     local scrolling = is_scrolling()
     if not scrolling then hl.dispatch(hl.dsp.layout("preselect " .. direction)) end
-    hl.dispatch(hl.dsp.exec_cmd([[wezterm start --always-new-process --cwd "$(omarchy-cmd-terminal-cwd)"]]))
+    hl.dispatch(hl.dsp.exec_cmd([[jeebis-terminal --cwd "$(omarchy-cmd-terminal-cwd)"]]))
     if scrolling and direction == "d" then
         local attempts = 0
         local function consume_new_terminal()
             attempts = attempts + 1
             for _, window in ipairs(hl.get_workspace_windows(workspace.id)) do
-                if not existing[window.address] and window.class == "org.wezfurlong.wezterm" then
+                if not existing[window.address] and window.class == "org.jeebis.rio" then
                     hl.dispatch(hl.dsp.focus({ window = window }))
                     hl.dispatch(hl.dsp.layout("consume"))
                     return

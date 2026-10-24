@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Rio watches its config directory, not the target of a generated theme symlink.
+dir="${XDG_CONFIG_HOME:-$HOME/.config}/rio"
+[[ ! -d "$dir" ]] || touch -- "$dir"

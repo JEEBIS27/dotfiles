@@ -6,7 +6,7 @@
 |---|---|
 | `modules/apps.nix` | 共通CLI、NixOS用開発ツール |
 | `modules/zsh-files.nix` / `app-files.nix` | シェル・アプリ設定の配置 |
-| `modules/desktop.nix` | Hyprland、Quickshellプラグイン、WezTerm、テーマ |
+| `modules/desktop.nix` | Hyprland、Quickshellプラグイン、Rio + TUIOS、テーマ |
 | `modules/input-method-files.nix` | Fcitx / Mozkey設定・NixOS用IMEサービス |
 | `modules/mounts.nix` | rcloneとuser systemd unit |
 | `nixos/desktop.nix` | Hyprland / UWSM、IME、PAM、通信・音声・電源管理 |
