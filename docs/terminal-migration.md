@@ -130,3 +130,5 @@ nix --extra-experimental-features 'nix-command flakes' build '.#nixosConfigurati
 - [Rio設定](https://rioterm.com/docs/config)、[キー](https://rioterm.com/docs/key-bindings)、[0.5.28実装](https://github.com/raphamorim/rio/tree/v0.5.28)
 - [TUIOS設定](https://tuios.dev/docs/configuration)、[キー](https://tuios.dev/docs/keybindings)、[session](https://tuios.dev/docs/sessions)、[agents](https://tuios.dev/docs/agents)
 - [TUIOS 0.10.1実装](https://github.com/Gaurav-Gosain/tuios/tree/v0.10.1)、[Herdr互換](https://github.com/Gaurav-Gosain/tuios/blob/v0.10.1/skills/tuios/herdr.md)、[tmux shim](https://github.com/Gaurav-Gosain/tuios/blob/v0.10.1/skills/tuios/tmux.md)
+
+The native gear menu and writable settings are documented in [tuios-settings-menu.md](tuios-settings-menu.md).
