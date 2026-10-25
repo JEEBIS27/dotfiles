@@ -1,0 +1,2 @@
+# Unified diffs contain context prefixes before Go tabs by design.
+packages/tuios/*.patch -whitespace

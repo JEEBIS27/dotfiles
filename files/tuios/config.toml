@@ -12,6 +12,17 @@ theme = ""
 show_clock = false
 hide_scrollbar = true
 scrollback_lines = 50000
+border_style = "hidden"
+window_title_position = "hidden"
+hide_window_buttons = true
+hide_separators = true
+dockbar_position = "hidden"
+motion = "none"
+dim_unfocused = 0
+shared_borders = true
+
+[appearance.sidebar]
+enabled = false
 
 [scratch]
 width = "80%"
@@ -138,3 +149,18 @@ type = "popup"
 command = "jeebis-tuios-worktree"
 name = "new-worktree"
 description = "Create a worktree session"
+
+# Also reachable from the gear menu; the hint comes from this binding.
+[[keybindings.command]]
+key = "prefix+alt+,"
+type = "pane"
+command = "jeebis-tuios-edit-config"
+name = "edit-tuios-config"
+description = "Edit TUIOS local configuration"
+
+[[keybindings.command]]
+key = "prefix+alt+c"
+type = "pane"
+command = "codex"
+name = "codex"
+description = "Codex in current directory"

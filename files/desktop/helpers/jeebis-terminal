@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# GUI terminals should negotiate their own color capability.
+unset NO_COLOR
 app_id=org.jeebis.rio
 cwd=$PWD
 while [[ $# -gt 0 ]]; do

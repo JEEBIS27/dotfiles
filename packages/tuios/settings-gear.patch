@@ -1,0 +1,453 @@
+diff --git i/internal/app/os.go w/internal/app/os.go
+index c03b111..eab9642 100644
+--- i/internal/app/os.go
++++ w/internal/app/os.go
+@@ -1366,6 +1366,9 @@ type OS struct {
+ 	LayoutSaveBuffer     string // Buffer for layout name when saving
+ 
+ 	// Settings overlay state.
++	GearPressActive    bool
++	gearCanvas         frameCanvas
++	GearDisplay        bool
+ 	ShowSettings       bool
+ 	SettingsCategory   int    // active settings category (tab) index
+ 	SettingsSelected   int    // selected row within the active category
+diff --git i/internal/app/render.go w/internal/app/render.go
+index 4b806ee..3bbdded 100644
+--- i/internal/app/render.go
++++ w/internal/app/render.go
+@@ -411,6 +411,7 @@ func (m *OS) GetCanvas(render bool) *frameCanvas {
+ 		if pipLayer := m.renderPiP(); pipLayer != nil {
+ 			layers = append(layers, pipLayer)
+ 		}
++		layers = append(layers, m.renderGear())
+ 		overlays := m.renderOverlays()
+ 		layers = append(layers, overlays...)
+ 
+@@ -800,7 +801,7 @@ func (m *OS) composeFrameOnce() string {
+ 		// characters. The compositor replaces them, so it draws this frame.
+ 		if !strings.Contains(frame, vt.SixelMarkerLead) {
+ 			m.SixelPassthrough.SetFrame(nil, 0, 0, 0, 0)
+-			return frame
++			return m.gearFrame(frame)
+ 		}
+ 	}
+ 	canvas := m.GetCanvas(true)
+diff --git i/internal/app/render_border_grid.go w/internal/app/render_border_grid.go
+index c68ac13..d3f03fe 100644
+--- i/internal/app/render_border_grid.go
++++ w/internal/app/render_border_grid.go
+@@ -24,6 +24,9 @@ import (
+ // is driving would paint a line down the pane beside it, because the tree
+ // survives the mode switch holding the geometry it last laid out.
+ func (m *OS) separatorSplits() []layout.SplitLine {
++	if m.Settings.HideSeparators {
++		return nil
++	}
+ 	// A divider stands in for the borders two panes gave up. Panes still drawing
+ 	// their own have nothing to share, so nothing is drawn between them whatever
+ 	// gap the user asked for: appearance.gap is empty ground, not a rule down
+@@ -362,6 +365,9 @@ func (c *cell) isHoriz() bool { return c != nil && c.horiz }
+ // renderSeparatorOverlay renders thin separator lines between tiled panes.
+ // Each separator line is its own lipgloss Layer to avoid occluding content.
+ func (m *OS) renderSeparatorOverlay() []*lipgloss.Layer {
++	if m.Settings.HideSeparators {
++		return nil
++	}
+ 	// Don't render shared borders when a zoomed pane covers the region. Any
+ 	// zoomed pane on the workspace, not this client's focused one: zoom is
+ 	// shared, so the pane covering the box can be one this client did not zoom
+@@ -389,7 +395,12 @@ func (m *OS) renderSeparatorOverlay() []*lipgloss.Layer {
+ 	// junction logic below draws that meeting. One that runs to the region's edge
+ 	// has the chrome's rule to meet instead, one cell further out.
+ 	rules := m.chromeRules(bounds)
+-	border := m.Settings.GetBorderForStyle()
++	borderSettings := m.Settings
++	// Separator visibility is independent of the pane-frame style.
++	if borderSettings.BorderStyle == "hidden" && m.Settings.SeparatorsIndependent {
++		borderSettings.BorderStyle = "normal"
++	}
++	border := borderSettings.GetBorderForStyle()
+ 	// The perimeter of the focused window, clipped to the tiled bounds. Cells on
+ 	// it are drawn in the focus color, so the focused pane reads as an outlined
+ 	// rectangle even though every segment is shared with a neighbour.
+diff --git i/internal/app/settings.go w/internal/app/settings.go
+index 716cc8d..63fdadf 100644
+--- i/internal/app/settings.go
++++ w/internal/app/settings.go
+@@ -386,6 +386,20 @@ func boolItem(label, desc string, get func() bool, set func(m *OS, v bool)) sett
+ // cannot describe, and it names the path it stands in for so the coverage test
+ // can see it.
+ func (m *OS) settingsCategories() []settingsCategory {
++	if m.GearDisplay {
++		return []settingsCategory{{Name: "Display", Items: m.resolveRows([]settingsRow{
++			opt("appearance.border_style"),
++			opt("appearance.hide_separators"),
++			custom("appearance.shared_borders", m.sharedBordersItem()),
++			opt("appearance.window_title_position"),
++			opt("appearance.hide_window_buttons"),
++			opt("appearance.hide_scrollbar"),
++			opt("appearance.dockbar_position"),
++			opt("appearance.sidebar.enabled"),
++			opt("appearance.motion"),
++			opt("appearance.dim_unfocused"),
++		})}}
++	}
+ 	appearance := settingsCategory{
+ 		Name: "Appearance",
+ 		Items: m.resolveRows([]settingsRow{
+@@ -397,6 +411,7 @@ func (m *OS) settingsCategories() []settingsCategory {
+ 			opt("appearance.theme_light"),
+ 			custom("appearance.glyphs", m.glyphItem()),
+ 			opt("appearance.border_style"),
++			opt("appearance.hide_separators"),
+ 			opt("appearance.window_title_position"),
+ 			opt("appearance.window_title_style"),
+ 			opt("appearance.window_title_align"),
+@@ -1152,6 +1167,7 @@ func (m *OS) SettingsSetCategory(i int) {
+ 
+ // CloseSettings hides the settings overlay.
+ func (m *OS) CloseSettings() {
++	m.GearDisplay = false
+ 	m.ShowSettings = false
+ 	m.SettingsEditing = false
+ 	m.SettingsEditBuffer = ""
+diff --git i/internal/app/settings_registry.go w/internal/app/settings_registry.go
+index 41708d7..2c997a5 100644
+--- i/internal/app/settings_registry.go
++++ w/internal/app/settings_registry.go
+@@ -218,7 +218,7 @@ var settingUnset = map[string]string{
+ var settingSteps = map[string]int{
+ 	"appearance.scrollback_lines":          1000,
+ 	"appearance.zoom_max_width":            10,
+-	"appearance.dim_unfocused":             5,
++	"appearance.dim_unfocused":             1,
+ 	"appearance.modal_dim":                 5,
+ 	"appearance.animation_speed":           25,
+ 	"appearance.theme_transition_duration": 50,
+diff --git i/internal/config/options.go w/internal/config/options.go
+index 5d70d11..ac86861 100644
+--- i/internal/config/options.go
++++ w/internal/config/options.go
+@@ -156,6 +156,7 @@ const (
+ // [keybindings] and [hooks] are absent: both are maps of name to value rather
+ // than fixed scalar paths, so a set-by-path verb is the wrong shape for them.
+ var optionSpecs = []Option{
++	{Path: "appearance.hide_separators", Type: OptionBool, Section: "appearance", Description: "Hide shared pane separator lines without resizing terminals", Default: "false"},
+ 	// [appearance]
+ 	{
+ 		Path: "appearance.border_style", Type: OptionString, Section: "appearance",
+diff --git i/internal/config/settings.go w/internal/config/settings.go
+index 9f38b45..fe6af19 100644
+--- i/internal/config/settings.go
++++ w/internal/config/settings.go
+@@ -24,6 +24,10 @@ import (
+ // style caches keyed off it, and it is still process-wide under a server; see
+ // the note the settings page carries on that row.
+ type Settings struct {
++	// HideSeparators suppresses tiled divider glyphs without changing pane geometry.
++	HideSeparators bool
++	// SeparatorsIndependent is enabled by an explicit hide_separators choice.
++	SeparatorsIndependent bool
+ 	// NotificationDuration is how long an info or success message stays up. It
+ 	// is also the floor for any duration a caller asks for; a caller wanting
+ 	// longer still gets longer.
+diff --git i/internal/config/userconfig.go w/internal/config/userconfig.go
+index 17dc473..35c7ff8 100644
+--- i/internal/config/userconfig.go
++++ w/internal/config/userconfig.go
+@@ -323,6 +323,7 @@ var WindowSizeModes = []string{WindowSizeSmallest, WindowSizeLargest, WindowSize
+ 
+ // AppearanceConfig holds appearance-related settings
+ type AppearanceConfig struct {
++	HideSeparators           *bool                   `toml:"hide_separators"`
+ 	BorderStyle              string                  `toml:"border_style"`                 // Border style: rounded, normal, thick, double, hidden, block, ascii, outer-half-block, inner-half-block, glyphs
+ 	ZenMode                  string                  `toml:"zen_mode"`                     // Zen mode: disabled, always, mouse (default: disabled)
+ 	Links                    string                  `toml:"links"`                        // Links tuios acts on: off, marked, all (default: all)
+@@ -2688,6 +2689,8 @@ func ApplyAppearanceConfig(cfg *UserConfig, s *Settings) {
+ 	s.ThemeTransitionMs = clampPercent(cfg.Appearance.ThemeTransitionMs, ThemeTransitionMsMin, ThemeTransitionMsMax, ThemeTransitionMsDefault)
+ 	s.ScrollColumnMax = clampPercent(cfg.Appearance.ScrollColumnMax, ScrollColumnWidthMin, ScrollColumnWidthCeiling, ScrollColumnWidthMax)
+ 	s.ScrollColumnWidth = clampPercent(cfg.Appearance.ScrollColumnWidth, ScrollColumnWidthMin, s.ScrollColumnMax, ScrollColumnWidthDefault)
++	s.SeparatorsIndependent = cfg.Appearance.HideSeparators != nil
++	s.HideSeparators = cfg.Appearance.HideSeparators != nil && *cfg.Appearance.HideSeparators
+ 	s.DimUnfocused = min(max(cfg.Appearance.DimUnfocused, 0), DimUnfocusedMax)
+ 	// DimForeground defaults to true, so it is a pointer: an unset key has to
+ 	// read as on, and only an explicit false turns it off.
+diff --git i/internal/input/contextmenu.go w/internal/input/contextmenu.go
+index 273f476..2f823f0 100644
+--- i/internal/input/contextmenu.go
++++ w/internal/input/contextmenu.go
+@@ -25,6 +25,10 @@ func runContextMenuAction(action string, o *app.OS) (*app.OS, tea.Cmd) {
+ 	if action == "" {
+ 		return o, nil
+ 	}
++	if handled, cmd := o.GearAction(action); handled {
++		o.ClearMenuTarget()
++		return o, cmd
++	}
+ 	dispatcher := GetDispatcher()
+ 	if !dispatcher.HasAction(action) {
+ 		o.ClearMenuTarget()
+diff --git i/internal/input/handler.go w/internal/input/handler.go
+index 810abd3..6362678 100644
+--- i/internal/input/handler.go
++++ w/internal/input/handler.go
+@@ -24,6 +24,21 @@ func HandleInput(msg tea.Msg, o *app.OS) (tea.Model, tea.Cmd) {
+ 	// line with it afterwards. See SettleMultiCopy.
+ 	defer o.SettleMultiCopy()
+ 
++	// The gear is screen chrome: hit-test before mapping into a larger session.
++	if click, ok := msg.(tea.MouseClickMsg); ok && click.Button == tea.MouseLeft && o.GearAt(click.X, click.Y) {
++		o.GearPressActive = true
++		o.OpenGearMenu("root")
++		return o, nil
++	}
++	if o.GearPressActive {
++		switch msg.(type) {
++		case tea.MouseReleaseMsg:
++			o.GearPressActive = false
++			return o, nil
++		case tea.MouseMotionMsg:
++			return o, nil
++		}
++	}
+ 	// A mouse event over the panes of a view of a larger session is handled
+ 	// in the session's layout frame. See app.MapPointer.
+ 	msg = o.MapPointer(msg)
+diff --git 1/internal/app/gear.go 2/internal/app/gear.go
+new file mode 100644
+index 0000000..cdf7c9e
+--- /dev/null
++++ 2/internal/app/gear.go
+@@ -0,0 +1,231 @@
++package app
++
++import (
++	"fmt"
++	"image"
++	"strings"
++
++	tea "charm.land/bubbletea/v2"
++	"charm.land/lipgloss/v2"
++	"github.com/Gaurav-Gosain/tuios/internal/config"
++	"github.com/Gaurav-Gosain/tuios/internal/theme"
++	uv "github.com/charmbracelet/ultraviolet"
++	"github.com/charmbracelet/x/ansi"
++)
++
++// GearAt owns only the three cells painted by the gear. All other input keeps
++// going to the pane, even when its first row is under the gear.
++func (m *OS) GearAt(x, y int) bool {
++	return x >= 0 && x < min(3, m.GetRenderWidth()) && y >= 0 && y < m.GetRenderHeight() && y == m.gearY()
++}
++
++func (m *OS) gearY() int {
++	if m.Settings.DockbarPosition == "bottom" {
++		return max(0, m.GetRenderHeight()-m.Settings.DockHeight())
++	}
++	return 0
++}
++
++func (m *OS) renderGear() *lipgloss.Layer {
++	return lipgloss.NewLayer(m.gearText()).
++		X(0).Y(m.gearY()).Z(config.ZIndexDock + 1).ID("settings-gear")
++}
++
++// OpenGearMenu builds rows from the same action registry used by keybindings.
++// No row sends a synthetic key to a guest terminal.
++func (m *OS) OpenGearMenu(group string) {
++	m.CloseContextMenu()
++	cm := &ContextMenu{Title: "TUIOS", AnchorX: 0, AnchorY: m.gearY() + 1, Selected: -1, ItemH: 1,
++		WindowIndex: m.FocusedWindow, Workspace: m.CurrentWorkspace}
++	add := func(label, action string) {
++		item := m.item("", label, action, false)
++		item.Hint = m.gearHint(action)
++		cm.Items = append(cm.Items, item)
++	}
++	sub := func(label, target string) { add(label+" ›", "gear:"+target) }
++	switch group {
++	case "root":
++		sub("Display", "display")
++		sub("Sessions", "sessions")
++		sub("Panes", "panes")
++		sub("Workspaces", "workspaces")
++		sub("Layout", "layout")
++		sub("Copy / search", "copy")
++		sub("Tools / agents", "tools")
++		cm.Items = append(cm.Items, separator())
++		add("Keybindings", "prefix_keybinds")
++		add("Reload configuration", "reload_config")
++		add("Edit configuration", "command:edit-tuios-config")
++	case "sessions":
++		cm.Title = "Sessions"
++		add("New session", "new_session")
++		add("Switch session…", "prefix_session_switcher")
++		add("Rename session…", "rename_session")
++		add("Detach (keep processes)", "prefix_detach")
++		add("End session (confirm)…", "prefix_close_session")
++	case "panes":
++		cm.Title = "Panes"
++		add("New pane", "prefix_new_window")
++		add("Split right", "prefix_split_vertical")
++		add("Split down", "prefix_split_horizontal")
++		for _, direction := range []string{"left", "down", "up", "right"} {
++			add("Focus "+direction, "terminal_focus_"+direction)
++			add("Swap "+direction, "swap_"+direction)
++		}
++		add("Zoom / restore", "toggle_zoom")
++		add("Equalize", "equalize_splits")
++		add("Rotate split", "rotate_split")
++		sub("Move to workspace", "move")
++		add("Close pane (confirm)…", "gear:confirm-pane")
++	case "workspaces":
++		cm.Title = "Workspaces"
++		add("New workspace", "new_workspace")
++		add("Switch workspace…", "prefix_workspace_switcher")
++		add("Rename workspace…", "rename_workspace")
++		add("Close workspace (confirm)…", "gear:confirm-workspace")
++	case "layout":
++		cm.Title = "Layout"
++		current := "bsp"
++		if m.UseScrollingLayout {
++			current = "scrolling"
++		} else if !m.UseBSPLayout {
++			current = "master"
++		}
++		for _, layout := range []struct{ label, action, name string }{
++			{"BSP tiling", "gear:layout:bsp", "bsp"},
++			{"Master / stack", "gear:layout:master", "master"},
++			{"Scrolling", "gear:layout:scrolling", "scrolling"},
++		} {
++			mark := ""
++			if layout.name == current {
++				mark = " ✓"
++			}
++			add(layout.label+mark, layout.action)
++		}
++	case "move":
++		cm.Title = "Move pane to workspace"
++		for i := 1; i <= 9; i++ {
++			add(fmt.Sprintf("Workspace %d", i), fmt.Sprintf("workspace_prefix_move_%d", i))
++		}
++	case "copy":
++		cm.Title = "Copy / search"
++		add("Copy mode", "prefix_selection")
++		add("Search scrollback", "copy_mode_search_backward")
++		add("Scrollback browser", "prefix_scrollback")
++	case "tools":
++		cm.Title = "Tools / agents"
++		add("Yazi", "command:yazi")
++		add("Scratch terminal", "toggle_scratch")
++		add("Codex", "command:codex")
++		add("Command palette", "command_palette")
++		add("Sidebar / agents", "prefix_toggle_sidebar")
++		add("Inbox", "prefix_inbox")
++		add("Jump to notification", "prefix_jump_notif")
++	case "confirm-pane", "confirm-workspace":
++		cm.Title = "Stop processes?"
++		add("Cancel", "gear:root")
++		action := "prefix_close_window"
++		if group == "confirm-workspace" {
++			action = "close_workspace"
++		}
++		add("Stop processes and close", action)
++		cm.Items[len(cm.Items)-1].Warn = true
++	}
++	if group != "root" && !strings.HasPrefix(group, "confirm-") {
++		cm.Items = append(cm.Items, separator())
++		sub("Back", "root")
++	}
++	cm.Selected = cm.Next(1)
++	m.ContextMenu = cm
++}
++
++// GearAction handles only navigation; real operations use the normal dispatcher.
++func (m *OS) GearAction(action string) (bool, tea.Cmd) {
++	if !strings.HasPrefix(action, "gear:") {
++		return false, nil
++	}
++	group := strings.TrimPrefix(action, "gear:")
++	if strings.HasPrefix(group, "layout:") {
++		want := strings.TrimPrefix(group, "layout:")
++		for i := 0; i < 3; i++ {
++			current := "master"
++			if m.UseScrollingLayout {
++				current = "scrolling"
++			} else if m.UseBSPLayout {
++				current = "bsp"
++			}
++			if current == want {
++				break
++			}
++			m.ToggleLayoutMode()
++		}
++		m.OpenGearMenu("layout")
++		return true, nil
++	}
++	if group == "display" {
++		m.GearDisplay = true
++		m.OpenSettingsAt("Display")
++		m.SettingsCategory = 0
++		m.SettingsSelected = 0
++		return true, nil
++	}
++	m.OpenGearMenu(group)
++	return true, nil
++}
++
++// gearFrame overlays the same three cells on the fullscreen fast path, retaining
++// the guest's data and the fast path's terminal and graphics handling.
++func (m *OS) gearFrame(frame string) string {
++	if m.GetRenderWidth() <= 0 || m.GetRenderHeight() <= 0 {
++		return frame
++	}
++	// Parse the complete frame so a style carried across line breaks survives
++	// the gear's own reset. Cutting a row's ANSI text loses that inherited style.
++	m.gearCanvas.Resize(m.GetRenderWidth(), m.GetRenderHeight())
++	m.gearCanvas.Clear()
++	uv.NewStyledString(frame).Draw(&m.gearCanvas, m.gearCanvas.Bounds())
++	uv.NewStyledString(m.gearText()).Draw(&m.gearCanvas,
++		image.Rect(0, m.gearY(), min(3, m.GetRenderWidth()), m.gearY()+1))
++	return m.gearCanvas.Render()
++}
++
++// gearHint prefers a live global binding, then a complete prefix chord. The
++// registry's ordinary context-menu hint omits global-only command bindings.
++func (m *OS) gearHint(action string) string {
++	if m.KeybindRegistry == nil {
++		return ""
++	}
++	best, rank := "", 99
++	for _, binding := range m.KeybindRegistry.Bindings() {
++		if binding.Action != action || binding.Unbound || binding.Shadowed || binding.Press == "" {
++			continue
++		}
++		candidateRank := 99
++		if binding.Scope == config.ScopeGlobal {
++			candidateRank = 0
++		} else if strings.Contains(binding.Press, " ") {
++			candidateRank = 1
++		} else if binding.Scope == config.ScopeWindowMode {
++			candidateRank = 2
++		}
++		if candidateRank < rank || (candidateRank == rank && len(binding.Press) < len(best)) {
++			best, rank = binding.Press, candidateRank
++		}
++	}
++	if rank == 2 {
++		return best + " (window mode)"
++	}
++	if rank == 99 {
++		return ""
++	}
++	return best
++}
++
++func (m *OS) gearText() string {
++	pal := theme.GroundUI()
++	glyph := "  "
++	if m.Settings.UseASCIIOnly {
++		glyph = " * "
++	}
++	return ansi.Truncate(lipgloss.NewStyle().Foreground(pal.Fg).Background(pal.Canvas).Render(glyph), max(0, m.GetRenderWidth()), "")
++}

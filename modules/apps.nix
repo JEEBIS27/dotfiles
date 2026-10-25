@@ -4,7 +4,7 @@
   # Install packages without enabling modules that regenerate existing configs.
   home.packages = with appPkgs; [
     git curl wget
-    zsh tuios sheldon
+    zsh (import ../packages/tuios.nix { pkgs = appPkgs; }) sheldon
     neovim yazi
     eza bat delta dust fzf zoxide ripgrep fd
     unzip _7zz stow jq

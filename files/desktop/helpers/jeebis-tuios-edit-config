@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+config_dir=${XDG_CONFIG_HOME:-$HOME/.config}/tuios
+mkdir -p "$config_dir"
+# The managed entrypoint includes defaults.toml, then this writable override.
+# Do not edit a Nix store symlink from inside the terminal.
+touch "$config_dir/local.toml"
+read -r -a editor <<< "${VISUAL:-${EDITOR:-nvim}}"
+exec "${editor[@]}" "$config_dir/local.toml"

@@ -18,11 +18,21 @@
       "X-TerminalArgDir" = "--cwd";
     };
   };
+  # Native TUIOS saves changes into the last writable include. Defaults stay
+  # declarative; local.toml belongs to the user and survives rebuilds.
+  home.activation.tuiosLocalConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    if [ ! -e "${config.xdg.configHome}/tuios/local.toml" ]; then
+      run mkdir -p "${config.xdg.configHome}/tuios"
+      run touch "${config.xdg.configHome}/tuios/local.toml"
+    fi
+  '';
   xdg.configFile = {
     "xdg-terminals.list".text = "jeebis-terminal.desktop\n";
     "rio/config.toml".source = ../files/rio/config.toml;
     "rio/themes/Desktop.toml".source = config.lib.file.mkOutOfStoreSymlink "${config.jeebis.desktop.themeDirectory}/rio.toml";
-    "tuios/config.toml".source = ../files/tuios/config.toml;
+    "tuios/config.toml".text = "include = [\"defaults.toml\", \"?local.toml\"]\n";
+
+    "tuios/defaults.toml".source = ../files/tuios/config.toml;
     "bat/themes/Desktop.tmTheme".source = config.lib.file.mkOutOfStoreSymlink "${config.jeebis.desktop.themeDirectory}/preview.tmTheme";
     "nvim/after/lsp/lua_ls.lua".source = ../files/nvim/after/lsp/lua_ls.lua;
     "nvim/init.lua".source = ../files/nvim/init.lua;
