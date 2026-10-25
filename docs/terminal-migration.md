@@ -15,7 +15,7 @@ Rioを描画・入力、TUIOSを唯一のマルチプレクサとして使う。
 
 フォントはHackGen35 Console NF、14、通常文字もBold（700）、余白14を維持。RioのナビゲーションをPlain、splitを無効化し、スクロールバックはTUIOSに50,000行集約する。透明度・blurはRioに設定せずHyprlandで管理する。
 
-`files/rio/config.toml`、`files/tuios/config.toml`、XDG端末選択・desktop entryをHome Managerで管理する。通常の`rio`単独起動も`shell.args = ["new"]`により新規TUIOS sessionを作る。
+`files/rio/config.toml`、`files/tuios/config.toml`、XDG端末選択をHome Managerで管理し、desktop entryはRioパッケージの`rio.desktop`を使う。通常の`rio`単独起動も`shell.args = ["new"]`により新規TUIOS sessionを作る。
 
 ## パッケージとOS
 
@@ -134,3 +134,11 @@ nix --extra-experimental-features 'nix-command flakes' build '.#nixosConfigurati
 The native gear menu and writable settings are documented in [tuios-settings-menu.md](tuios-settings-menu.md).
 
 Helixへの既定エディター移行は[editor-migration.md](editor-migration.md)を参照。Neovim設定・パッケージは利用者の希望により代替として維持する。
+
+## 通常Rioへの起動統一
+
+Super+Enter / Super+Shift+Enter / Super+N / Super+Alt+Enterは通常の`rio`を起動する。独自app-idは設定せず、アプリランチャーと同じ`rio`クラスを使う。Super+Yも通常RioでTUIOSのYaziコマンドpaneを開き、既存Zshの`y`関数で終了時のディレクトリを引き継いでシェルへ戻る。利用者所有のYazi desktop entryは変更しない。
+
+`TERMINAL=rio`、XDG端末選択は`rio.desktop`。独自のRio + TUIOS desktop entryは削除する。`jeebis-terminal`はcwd・明示コマンド・Codex専用app-idなどの互換呼出しにだけ残し、通常起動時はRioの設定済みshellをそのまま使う。
+
+HelixのDesktopテーマは`ui.cursor`に背景色も指定し、透明な背景でもblockカーソルを識別できるようにする。

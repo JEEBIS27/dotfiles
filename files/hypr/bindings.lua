@@ -691,7 +691,7 @@ desktop.bind("SUPER + SHIFT + ALT + D", "ChatGPT (new window here)", { launch = 
 for _, key in ipairs({ "SUPER + Z", "SUPER + CTRL + Z", "SUPER + SHIFT + Z", "SUPER + CTRL + SHIFT + Z" }) do hl.unbind(key) end
 hl.unbind("SUPER + ALT + F")
 hl.unbind("SUPER + Y")
-desktop.bind("SUPER + Y", "Yazi file manager", { launch = "gtk-launch yazi" })
+desktop.bind("SUPER + Y", "Yazi file manager", { launch = [[rio -e jeebis-tuios zsh -i -c 'y; exec zsh -i']] })
 
 hl.unbind("SUPER + SHIFT + ALT + F")
 hl.unbind("SUPER + ALT + SHIFT + F")
@@ -801,12 +801,12 @@ desktop.bind("SUPER + SHIFT + W", "Close windows in current workspace", close_wo
 desktop.bind("SUPER + F", "Ruixen App Launcher", desktop.command("shell", "ruixen.notch", "toggleLauncher"))
 desktop.bind("SUPER + SHIFT + F", "Maximize / restore window", toggle_full_width)
 hl.unbind("SUPER + N")
-desktop.bind("SUPER + N", "New terminal", { launch = "jeebis-terminal" })
+desktop.bind("SUPER + N", "New terminal", { launch = "rio" })
 hl.unbind("SUPER + ALT + RETURN")
 hl.unbind("SUPER + CTRL + RETURN")
 hl.unbind("SUPER + ALT + K")
 hl.unbind("SUPER + CTRL + K")
-desktop.bind("SUPER + ALT + RETURN", "Terminal", { launch = "jeebis-terminal" })
+desktop.bind("SUPER + ALT + RETURN", "Terminal", { launch = "rio" })
 desktop.bind("SUPER + SHIFT + ALT + RETURN", "Browser", desktop.command("browser"))
 -- Keep application and monitor switching in the desktop's Super namespace.
 for _, binding in ipairs({
@@ -832,13 +832,13 @@ local function split_terminal(direction)
     for _, window in ipairs(hl.get_workspace_windows(workspace.id)) do existing[window.address] = true end
     local scrolling = is_scrolling()
     if not scrolling then hl.dispatch(hl.dsp.layout("preselect " .. direction)) end
-    hl.dispatch(hl.dsp.exec_cmd([[jeebis-terminal --cwd "$(omarchy-cmd-terminal-cwd)"]]))
+    hl.dispatch(hl.dsp.exec_cmd([[rio --working-dir "$(omarchy-cmd-terminal-cwd)"]]))
     if scrolling and direction == "d" then
         local attempts = 0
         local function consume_new_terminal()
             attempts = attempts + 1
             for _, window in ipairs(hl.get_workspace_windows(workspace.id)) do
-                if not existing[window.address] and window.class == "org.jeebis.rio" then
+                if not existing[window.address] and window.class == "rio" then
                     hl.dispatch(hl.dsp.focus({ window = window }))
                     hl.dispatch(hl.dsp.layout("consume"))
                     return
@@ -849,6 +849,8 @@ local function split_terminal(direction)
         hl.timer(consume_new_terminal, { timeout = 50, type = "oneshot" })
     end
 end
+hl.unbind("SUPER + RETURN")
+hl.unbind("SUPER + SHIFT + RETURN")
 desktop.bind("SUPER + RETURN", "Split terminal right", function() split_terminal("r") end)
 desktop.bind("SUPER + SHIFT + RETURN", "Split terminal down", function() split_terminal("d") end)
 

@@ -2,7 +2,7 @@
 "ui.background" = { fg = "{{ foreground }}" }
 "ui.text" = { fg = "{{ foreground }}" }
 "ui.text.focus" = { fg = "{{ bright_foreground }}" }
-"ui.cursor" = { fg = "{{ accent }}" }
+"ui.cursor" = { fg = "{{ background }}", bg = "{{ accent }}" }
 "ui.cursor.match" = { fg = "{{ cyan }}" }
 "ui.linenr" = { fg = "{{ muted }}" }
 "ui.linenr.selected" = { fg = "{{ accent }}" }

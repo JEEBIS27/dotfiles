@@ -5,20 +5,7 @@
     run ${pkgs.git}/bin/git config --global delta.syntax-theme Desktop
   '';
 
-  home.sessionVariables.TERMINAL = "jeebis-terminal";
-  xdg.desktopEntries.jeebis-terminal = {
-    name = "Rio + TUIOS";
-    noDisplay = true;
-    exec = "jeebis-terminal";
-    icon = "rio";
-    terminal = false;
-    categories = [ "System" "TerminalEmulator" ];
-    settings = {
-      "X-TerminalArgExec" = "--";
-      "X-TerminalArgAppId" = "--app-id=";
-      "X-TerminalArgDir" = "--cwd";
-    };
-  };
+  home.sessionVariables.TERMINAL = "rio";
   # Native TUIOS saves changes into the last writable include. Defaults stay
   # declarative; local.toml belongs to the user and survives rebuilds.
   home.activation.tuiosLocalConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
@@ -28,7 +15,7 @@
     fi
   '';
   xdg.configFile = {
-    "xdg-terminals.list".text = "jeebis-terminal.desktop\n";
+    "xdg-terminals.list".text = "rio.desktop\n";
     "rio/config.toml".source = ../files/rio/config.toml;
     "rio/themes/Desktop.toml".source = config.lib.file.mkOutOfStoreSymlink "${config.jeebis.desktop.themeDirectory}/rio.toml";
     "tuios/config.toml".text = "include = [\"defaults.toml\", \"?local.toml\"]\n";

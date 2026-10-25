@@ -65,6 +65,10 @@ with tempfile.TemporaryDirectory(prefix='dotfiles-terminal-') as tmp:
     got = json.loads(subprocess.check_output([str(repo/'files/desktop/helpers/jeebis-terminal'),
         '--app-id=org.test.rio', '--cwd', tmp, '--', '/bin/echo', 'a b;$(literal)'], env=env, text=True))
     assert got == ['--app-id', 'org.test.rio', '--working-dir', tmp, '-e', 'jeebis-tuios', '/bin/echo', 'a b;$(literal)'], got
+    # Normal startup must retain the package's Rio identity and configured shell.
+    plain = json.loads(subprocess.check_output([str(repo/'files/desktop/helpers/jeebis-terminal'),
+        '--cwd', tmp], env=env, text=True))
+    assert plain == ['--working-dir', tmp], plain
     # Render every managed palette through the real shared theme generator.
     for palette in (repo/'files/desktop/themes').glob('*.toml'):
         theme = root/palette.stem

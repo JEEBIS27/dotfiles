@@ -2,7 +2,7 @@
 set -euo pipefail
 # GUI terminals should negotiate their own color capability.
 unset NO_COLOR
-app_id=org.jeebis.rio
+app_id=
 cwd=$PWD
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -13,4 +13,9 @@ while [[ $# -gt 0 ]]; do
     *) break ;;
   esac
 done
-exec rio --app-id "$app_id" --working-dir "$cwd" -e jeebis-tuios "$@"
+args=()
+[[ -z $app_id ]] || args+=(--app-id "$app_id")
+args+=(--working-dir "$cwd")
+# A plain Rio uses its configured shell (tuios new), just like the app launcher.
+if [[ $# == 0 ]]; then exec rio "${args[@]}"; fi
+exec rio "${args[@]}" -e jeebis-tuios "$@"

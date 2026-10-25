@@ -52,6 +52,6 @@ Neovimの保存時独自RPC（ESLint全修正など）、複数formatterの失�
 - 日本語入力・保存・クリップボード、Ctrl+Enter / Ctrl+H/J/K/L / Ctrl+Shift+S / Space→mの操作、TUIOS Alt系キーの衝突を確認する。
 - Vueプロジェクトで型エラー表示、補完、定義ジャンプ、整形を確認する。
 - テーマ変更でHelixの色も変わり、bufferが保持されることを確認する。
-- アプリ一覧にはRioだけが表示される。`jeebis-terminal.desktop`は端末起動用IDとして残し、NoDisplayで隠す。
+- アプリ一覧にはRioだけが表示される。既定端末はパッケージの`rio.desktop`を使い、独自のRio + TUIOSエントリーは作らない。
 
 ロールバックは適用前のHome Manager世代の`activate`を使う。Neovimは`nvim` / `nv`で直ちに使用可能。リポジトリの変更はGit履歴から戻す。既存Rio/TUIOSセッションを終了したり、Git管理外の編集データを削除したりする必要はない。
