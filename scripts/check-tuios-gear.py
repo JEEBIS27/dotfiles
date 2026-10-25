@@ -102,6 +102,7 @@ with tempfile.TemporaryDirectory(prefix='tuios-gear-test-') as temp:
 
     try:
         wait(lambda: '' in screen.display[0][-3:])
+        assert screen.buffer[0][118].bg == 'default', 'Gear must not set an opaque background'
         save('01-overlay')
         click()
         wait(lambda: 'Edit configuration' in text())
