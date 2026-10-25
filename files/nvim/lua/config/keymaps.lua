@@ -92,7 +92,7 @@ vim.keymap.set('v', 'K', ":m '<-2<CR>gv=gv", { desc = '選択行を上に移動'
 vim.keymap.set('v', '<S-Down>', ":m '>+1<CR>gv=gv", { desc = '選択行を下に移動' })  -- [ビジュアル] 選択行を1行下へ移動
 vim.keymap.set('v', '<S-Up>', ":m '<-2<CR>gv=gv", { desc = '選択行を上に移動' })  -- [ビジュアル] 選択行を1行上へ移動
 
--- Prefix aliases remain reachable inside Ghostty, WezTerm, and Herdr.
+-- Prefix aliases remain reachable inside Rio and TUIOS.
 for key, direction in pairs({ h = 'h', j = 'j', k = 'k', l = 'l' }) do
   vim.keymap.set('n', '<leader>w' .. key, '<cmd>wincmd ' .. direction .. '<CR>', { desc = 'エディタのウィンドウへ移動' })
 end

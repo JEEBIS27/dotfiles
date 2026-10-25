@@ -15,6 +15,7 @@ desktop.bootstrap()
 
 -- Load Omarchy defaults.
 desktop.defaults()
+require("jeebis.editor")
 
 -- Put your personal overrides in these files. They're loaded after Omarchy's
 -- defaults so package updates can improve the defaults without rewriting your

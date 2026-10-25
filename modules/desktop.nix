@@ -21,9 +21,10 @@ let
     presets = presetDefinitions;
     templates = toString templates;
     renderer = "${../packages/desktop}/render-theme.sh";
+    helixReload = "${personalHelpers}/jeebis-helix-reload";
     omarchyCycle = "${../packages/desktop}/omarchy-theme-cycle.sh";
     commands = {
-      terminal = "wezterm"; browser = if native then "chromium" else "helium"; editor = "nvim";
+      terminal = "jeebis-terminal"; browser = if native then "chromium" else "helium"; editor = config.home.sessionVariables.EDITOR;
     };
   });
   templates = pkgs.runCommand "jeebis-theme-templates" { } ''
@@ -34,7 +35,7 @@ let
   '';
   aliases = builtins.fromJSON (builtins.readFile ../packages/desktop/compat-names.json);
   nativeDeps = [ quickshell ] ++ (with appPkgs; [
-    hyprland uwsm wezterm grim slurp wl-clipboard libnotify brightnessctl
+    hyprland uwsm grim slurp wl-clipboard libnotify brightnessctl
     wireplumber pulseaudio networkmanager bluez power-profiles-daemon upower
     ffmpeg curl fastfetch cava qt6.qtmultimedia
     fuzzel xdg-utils ddcutil iputils iw fontconfig dbus systemd procps python3 util-linux file hyprsunset inotify-tools findutils libxkbcommon
@@ -91,6 +92,7 @@ SH
     mkdir -p "$out"
     cp ${coreSource}/helpers/* "$out/"
     chmod +wx "$out/"*
+    substituteInPlace "$out/jeebis-helix-reload" --replace-fail '@pkill@' '${pkgs.procps}/bin/pkill'
     patchShebangs "$out"
   '';
   # Monitor setup stays local. Personal look-and-feel is managed from files/hypr.
@@ -100,7 +102,6 @@ SH
     name = "hypr/${relative ../files/hypr path}";
     value.source = path;
   }) hyprFiles);
-  weztermFiles = lib.filesystem.listFilesRecursive ../files/wezterm;
 in
 {
   options.jeebis.desktop = {
@@ -130,19 +131,23 @@ in
       "jeebis/curvature.lua".source = ruixen + /hyprland/jeebis-curvature.lua;
       "${hostConfigDir}/plugins".source = ruixen + /plugins;
       "${hostConfigDir}/shell.json".source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/Git/home-manager/files/desktop/jeebis-shell.json";
-      "wezterm/theme.lua".source = lib.mkForce (pkgs.writeText "wezterm-shared-theme.lua" (builtins.replaceStrings [ "@themeCurrent@" ] [ (builtins.dirOf themeDir) ] (builtins.readFile ../files/wezterm/theme.lua)));
-    } // builtins.listToAttrs (map (path: {
-      name = "wezterm/${relative ../files/wezterm path}";
-      value.source = path;
-    }) (builtins.filter (path: builtins.baseNameOf path != "theme.lua") weztermFiles))
+    }
     // lib.optionalAttrs (!native) (presetFiles // {
       "omarchy/themed/palette.lua.tpl".source = templates + /palette.lua.tpl;
       "omarchy/themed/preview.tmTheme.tpl".source = templates + /preview.tmTheme.tpl;
       "omarchy/themed/yazi.toml.tpl".source = templates + /yazi.toml.tpl;
-      "omarchy/themed/wezterm.toml.tpl".source = templates + /wezterm.toml.tpl;
+      "omarchy/themed/rio.toml.tpl".source = templates + /rio.toml.tpl;
+      "omarchy/themed/helix.toml.tpl".source = templates + /helix.toml.tpl;
+      "omarchy/hooks/theme-set.d/refresh-helix.hook" = { source = ../files/omarchy/hooks/theme-set.d/refresh-helix.hook; executable = true; };
+      "omarchy/hooks/theme-set.d/refresh-rio.hook" = { source = ../files/omarchy/hooks/theme-set.d/refresh-rio.hook; executable = true; };
       "omarchy/hooks/theme-set.d/refresh-bat.hook" = { source = ../files/omarchy/hooks/theme-set.d/refresh-bat.hook; executable = true; };
     });
-    home.file.".local/bin/jeebis-codex-herdr" = { source = personalHelpers + /jeebis-codex-herdr; executable = true; };
+    home.file.".local/bin/jeebis-helix-reload" = { source = personalHelpers + /jeebis-helix-reload; executable = true; };
+    home.file.".local/bin/jeebis-terminal" = { source = personalHelpers + /jeebis-terminal; executable = true; };
+    home.file.".local/bin/jeebis-tuios" = { source = personalHelpers + /jeebis-tuios; executable = true; };
+    home.file.".local/bin/jeebis-tuios-edit-config" = { source = personalHelpers + /jeebis-tuios-edit-config; executable = true; };
+    home.file.".local/bin/jeebis-tuios-worktree" = { source = personalHelpers + /jeebis-tuios-worktree; executable = true; };
+    home.file.".local/bin/jeebis-codex-tuios" = { source = personalHelpers + /jeebis-codex-tuios; executable = true; };
     home.file.".local/bin/jeebis-chatgpt-new-window" = { source = personalHelpers + /jeebis-chatgpt-new-window; executable = true; };
     home.file.".local/bin/jeebis-theme-cycle" = { text = "#!${pkgs.runtimeShell}\nexec ${cfg.command} theme cycle\n"; executable = true; };
     home.activation = {

@@ -54,12 +54,11 @@ done
 autoload -Uz add-zle-hook-widget
 __unified_zle_begin() {
   [[ $TERM == dumb ]] && return 0
-  # tmux negotiates modifyOtherKeys, then emits CSI-u via extended-keys-format.
-  if [[ -n $TMUX ]]; then printf '\e[>4;2m'; else printf '\e[>1u'; fi
+  printf '\e[>1u'
 }
 __unified_zle_end() {
   [[ $TERM == dumb ]] && return 0
-  if [[ -n $TMUX ]]; then printf '\e[>4;0m'; else printf '\e[<u'; fi
+  printf '\e[<u'
 }
 add-zle-hook-widget line-init __unified_zle_begin
 add-zle-hook-widget line-finish __unified_zle_end
@@ -96,7 +95,7 @@ __unified_keyboard_compat() {
   escapes=($'\e' $'\e[27u')
   for lock in 0 64 128 192; do escapes+=($'\e[27;'$((1+lock))u); done
   for map_name in emacs viins vicmd; do
-    # tmux and application-cursor mode may use these legacy Home/End aliases.
+    # Application-cursor mode may use these legacy Home/End aliases.
     for legacy in $'\e[1~' $'\e[7~' $'\eOH'; do
       __unified_bind_widget "$map_name" "$legacy" $'\e[H' beginning-of-line
     done
@@ -180,16 +179,3 @@ __unified_keyboard_compat() {
 __unified_keyboard_compat
 unfunction __unified_bind_widget __unified_keyboard_compat
 unset __unified_widget_cache
-
-# Herdr popups forward all keys to their command, including the opener.
-# Only the scratch popup shell owns Alt-T; ordinary shells keep their bindings.
-if [[ ${HERDR_SCRATCH_POPUP:-} == 1 ]]; then
-  for keymap in emacs viins vicmd; do
-    bindkey -M "$keymap" '^[t' unified-exit
-    for lock in 0 64 128 192; do
-      for code in 84 116; do
-        bindkey -M "$keymap" $'\e['"$code;$((3+lock))"u unified-exit
-      done
-    done
-  done
-fi

@@ -1,0 +1,22 @@
+# Inherit bundled language/server definitions. Keep only necessary exceptions.
+[language-server.vtsls]
+command = "vtsls"
+args = ["--stdio"]
+[language-server.vtsls.config.vtsls]
+autoUseWorkspaceTsdk = true
+[[language-server.vtsls.config.vtsls.tsserver.globalPlugins]]
+name = "@vue/typescript-plugin"
+location = "@vuePlugin@"
+languages = ["vue"]
+configNamespace = "typescript"
+enableForWorkspaceTypeScriptVersions = true
+
+# nil needs a formatter command to provide LSP formatting.
+[language-server.nil.config.nil.formatting]
+command = ["nixfmt"]
+
+# Stable Helix's bundled Vue server cannot replace the validated Vue TS plugin.
+[[language]]
+name = "vue"
+language-servers = ["vtsls"]
+formatter = { command = "prettierd", args = ["%{buffer_name}"] }
