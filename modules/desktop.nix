@@ -24,7 +24,7 @@ let
     helixReload = "${personalHelpers}/jeebis-helix-reload";
     omarchyCycle = "${../packages/desktop}/omarchy-theme-cycle.sh";
     commands = {
-      terminal = "rio"; browser = if native then "chromium" else "helium"; editor = config.home.sessionVariables.EDITOR;
+      terminal = "jeebis-terminal"; browser = if native then "chromium" else "helium"; editor = config.home.sessionVariables.EDITOR;
     };
   });
   templates = pkgs.runCommand "jeebis-theme-templates" { } ''
