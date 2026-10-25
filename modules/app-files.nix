@@ -8,6 +8,7 @@
   home.sessionVariables.TERMINAL = "jeebis-terminal";
   xdg.desktopEntries.jeebis-terminal = {
     name = "Rio + TUIOS";
+    noDisplay = true;
     exec = "jeebis-terminal";
     icon = "rio";
     terminal = false;
