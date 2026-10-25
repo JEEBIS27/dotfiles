@@ -1,4 +1,4 @@
-# Stable Helix LSP configuration; no editor plugins or custom RPC bridge.
+# Inherit bundled language/server definitions. Keep only necessary exceptions.
 [language-server.vtsls]
 command = "vtsls"
 args = ["--stdio"]
@@ -11,135 +11,12 @@ languages = ["vue"]
 configNamespace = "typescript"
 enableForWorkspaceTypeScriptVersions = true
 
-[language-server.biome]
-command = "biome"
-args = ["lsp-proxy"]
-[language-server.eslint]
-command = "vscode-eslint-language-server"
-args = ["--stdio"]
-[language-server.eslint.config]
-validate = "on"
-run = "onType"
-nodePath = ""
-[language-server.eslint.config.codeAction]
-disableRuleComment = { enable = true, location = "separateLine" }
-showDocumentation = { enable = true }
-[language-server.eslint.config.experimental]
-useFlatConfig = true
-[language-server.eslint.config.workingDirectory]
-mode = "auto"
+# nil needs a formatter command to provide LSP formatting.
+[language-server.nil.config.nil.formatting]
+command = ["nixfmt"]
 
-[language-server.lua-language-server.config.Lua.hint]
-enable = true
-arrayIndex = "Disable"
-paramName = "Literal"
-paramType = true
-setType = false
-await = true
-semicolon = "Disable"
-
-[language-server.nixd]
-command = "nixd"
-[language-server.buf]
-command = "buf"
-args = ["lsp", "serve"]
-
-[[language]]
-name = "go"
-language-servers = ["gopls"]
-formatter = { command = "goimports", args = [] }
-
-[[language]]
-name = "lua"
-language-servers = ["lua-language-server"]
-formatter = { command = "stylua", args = ["-"] }
-indent = { tab-width = 2, unit = "  " }
-
-[[language]]
-name = "bash"
-language-servers = ["bash-language-server"]
-formatter = { command = "shfmt", args = ["-i", "2"] }
-indent = { tab-width = 2, unit = "  " }
-
-[[language]]
-name = "nix"
-language-servers = ["nixd"]
-formatter = { command = "nixfmt", args = [] }
-indent = { tab-width = 2, unit = "  " }
-
-[[language]]
-name = "python"
-language-servers = ["pyright"]
-
-[[language]]
-name = "jsonnet"
-language-servers = ["jsonnet-language-server"]
-indent = { tab-width = 2, unit = "  " }
-
-[[language]]
-name = "yaml"
-language-servers = ["yaml-language-server"]
-indent = { tab-width = 2, unit = "  " }
-
-[[language]]
-name = "prisma"
-language-servers = ["prisma-language-server"]
-indent = { tab-width = 2, unit = "  " }
-
-[[language]]
-name = "protobuf"
-language-servers = ["buf"]
-indent = { tab-width = 2, unit = "  " }
-
-[[language]]
-name = "dockerfile"
-language-servers = ["docker-langserver"]
-indent = { tab-width = 2, unit = "  " }
-
-[[language]]
-name = "graphql"
-language-servers = ["graphql-language-service"]
-formatter = { command = "prettierd", args = ["%{buffer_name}"] }
-indent = { tab-width = 2, unit = "  " }
-
-[[language]]
-name = "javascript"
-language-servers = ["vtsls", "eslint", "biome", "tailwindcss-ls"]
-formatter = { command = "biome", args = ["format", "--stdin-file-path", "%{buffer_name}"] }
-indent = { tab-width = 2, unit = "  " }
-
-[[language]]
-name = "typescript"
-language-servers = ["vtsls", "eslint", "biome", "tailwindcss-ls"]
-formatter = { command = "biome", args = ["format", "--stdin-file-path", "%{buffer_name}"] }
-indent = { tab-width = 2, unit = "  " }
-
-[[language]]
-name = "jsx"
-language-servers = ["vtsls", "eslint", "biome", "tailwindcss-ls"]
-formatter = { command = "biome", args = ["format", "--stdin-file-path", "%{buffer_name}"] }
-indent = { tab-width = 2, unit = "  " }
-
-[[language]]
-name = "tsx"
-language-servers = ["vtsls", "eslint", "biome", "tailwindcss-ls"]
-formatter = { command = "biome", args = ["format", "--stdin-file-path", "%{buffer_name}"] }
-indent = { tab-width = 2, unit = "  " }
-
-[[language]]
-name = "json"
-language-servers = ["vscode-json-language-server", "biome"]
-formatter = { command = "biome", args = ["format", "--stdin-file-path", "%{buffer_name}"] }
-indent = { tab-width = 2, unit = "  " }
-
-[[language]]
-name = "jsonc"
-language-servers = ["vscode-json-language-server", "biome"]
-formatter = { command = "biome", args = ["format", "--stdin-file-path", "%{buffer_name}"] }
-indent = { tab-width = 2, unit = "  " }
-
+# Stable Helix's bundled Vue server cannot replace the validated Vue TS plugin.
 [[language]]
 name = "vue"
 language-servers = ["vtsls"]
 formatter = { command = "prettierd", args = ["%{buffer_name}"] }
-indent = { tab-width = 2, unit = "  " }

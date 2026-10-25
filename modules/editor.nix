@@ -1,4 +1,4 @@
-{ config, lib, pkgs, appPkgs, ... }:
+{ config, lib, appPkgs, ... }:
 {
   # The single default-editor definition. This sets standard EDITOR and VISUAL.
   programs.helix = {
@@ -16,15 +16,17 @@
     };
   };
 
-  # Shared language tools, usable by Helix and the retained Neovim fallback.
-  # Do not depend on Neovim/Mason's private executable directory.
+  # Install servers used by Helix's bundled language definitions. Optional
+  # alternatives in those definitions need not all be installed.
   home.packages = with appPkgs; [
-    lua-language-server stylua shfmt go gopls gotools
-    biome prisma-language-server tailwindcss-language-server
-    vtsls vue-language-server vscode-langservers-extracted
-    jsonnet-language-server yaml-language-server bash-language-server
+    lua-language-server shfmt go gopls
+    typescript-language-server prisma-language-server
+    vscode-langservers-extracted jsonnet-language-server
+    yaml-language-server bash-language-server
     buf dockerfile-language-server graphql-language-service-cli
-    nixd pyright prettierd nixfmt
+    nil nixfmt ty ruff
+    # Vue is the only server/formatter integration beyond bundled defaults.
+    vtsls vue-language-server prettierd
   ];
 
   xdg.configFile."helix/themes/Desktop.toml".source =

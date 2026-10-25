@@ -4,15 +4,30 @@
 
 公式Helix 25.07.1を使用する。Neovimの設定・パッケージ・`nv`別名は代替として残す。独自Helix forkや未実装のプラグインAPIは使用しない。
 
-## 引き継ぐもの
+## Helix標準を優先する構成
 
-- 相対行番号、scrolloff 8、smart case、True Color、折り返しなし、カーソル行、保存時の末尾空白削除、LSP整形、ヒント表示。
-- システムクリップボード（Waylandのwl-clipboardを使用）。端末・リモート接続でのOSC 52往復は実機未確認。
-- 共通キー: Ctrl+S保存、Ctrl+Shift+S強制保存、Ctrl+N新規buffer（normal）、Ctrl+H/J/K/L・矢印で分割移動、Ctrl+Enter縦分割、Ctrl+Shift+Enter横分割、Ctrl+PageUp/Downでbuffer移動（normal）。
-- その他の文字キー・選択操作・Ctrl+Wメニュー・Space+fファイル検索・Space+/全文検索・Space+aコードアクションはHelix標準。
-- Go、Lua、シェル、Nix、Python、JSON/JSONC、YAML、Jsonnet、Prisma、Protocol Buffers、Dockerfile、GraphQL、JS/TS/JSX/TSX用の標準LSP。言語ツールを両OSでNix管理し、Neovim/Masonの私有PATHに依存しない。
-- Goのgoimports、LuaのStylua、shfmt -i 2、nixfmt、JS/TS/JSONのBiome、Vue/GraphQLのprettierdによる保存時整形。プロジェクトの設定・依存関係も必要。
-- Desktopテーマを共有パレットから生成する。テーマ切替時はSIGUSR1で再読込し、編集bufferを保持する。
+Neovimの操作・見た目を再現するための設定は持たない。相対行番号、scrolloff、カーソル形状、補完タイミング、ヒント表示、全言語への2スペース強制、末尾空白の一律削除、clipboardレジスターの上書きを外し、Helixの既定値とプロジェクト設定を使う。DesktopテーマとTrue Colorは共通デスクトップとの連携として残す。
+
+独自キーはCtrl+S保存だけにする。normal/selectモードでは標準の「選択位置をjumplistへ保存」を置き換える意図的な例外。Ctrl+H/J/K/LやCtrl+Enter等のNeovim由来の上書きは削除した。
+
+以下の操作はnormalモードで行う（入力中ならEscで戻る）。
+
+| 操作 | Helix標準 |
+|---|---|
+| 保存 | `:write`（共通キーとしてCtrl+Sも追加） |
+| 縦分割 / 横分割 | Ctrl+W → v / s |
+| 分割移動 | Ctrl+W → h / j / k / l |
+| ファイル検索 / 全文検索 | Space → f / / |
+| コードアクション | Space → a |
+| システムclipboardへコピー / 貼付け | Space → y / p |
+
+言語ごとのサーバー定義・インデント・整形はHelix 25.07.1の組み込み`languages.toml`を継承する。JS/TS/JSX/TSXは`typescript-language-server`、Goは`gopls`、Luaは`lua-language-server`、Pythonは`ty`と`ruff`、Nixは`nil`をNixで導入する。組み込み一覧の代替サーバーをすべて導入する必要はなく、`hx --health`で未導入の候補に×が出る場合がある。
+
+Biome・ESLint・Tailwindの一律同時起動、Pyright固定、Lua hintの細かな上書き、goimports・Stylua・shfmtの独自引数・GraphQL用prettierdなどの外部formatter強制を削除する。整形は利用可能なLSPの機能とHelixの既定auto-formatに従う。以前の保存時整形と同じ出力・タイミングを保証しない。必要になった場合はそのプロジェクトの`.helix/languages.toml`で追加する。
+
+例外はVueの検証済み連携と、nilが整形を提供するための`nixfmt`コマンド指定だけ。Neovim設定・本体は残すが、Helixの依存関係をNeovimのために増やさない。代替Neovimの全LSPまで同等動作することは保証しない。
+
+Desktopテーマは共有パレットから生成し、テーマ切替時はSIGUSR1で再読込して編集bufferを保持する。
 
 ## Vueの代替LSP
 
@@ -39,11 +54,11 @@ Neovimの保存時独自RPC（ESLint全修正など）、複数formatterの失�
 
 ## 検証と実機確認
 
-確認済み: Omarchy/NixOS両方のHome Managerビルド、flake check --no-build、Zsh/Bash/Lua/Python構文、Helixの実PTY起動・入力・Ctrl+S保存、Vue診断/補完、端末移行の既存check-terminal.py。分割キー入力はPTYに送信したが、実際の画面・フォーカス操作は実機で確認する。
+確認済み: Omarchy/NixOS両方のHome Managerビルド、flake check --no-build、Zsh/Bash/Lua/Python構文、Helixの実PTY起動・入力・Ctrl+S保存、標準typescript-language-serverの診断2322/文字列補完、Vue診断/補完、端末移行の既存check-terminal.py。Helix標準の分割・移動操作は実機でも確認する。
 
 - 新しいRioで`printf '%s / %s\n' "$EDITOR" "$VISUAL"`が`hx / hx`になる。
 - Omarchyのエディター起動、Yaziの編集、TUIOS歯車の設定編集がHelixになる。
-- 日本語入力・保存・クリップボード、Ctrl+Enter / Ctrl+Shift+Enter、Ctrl+H/J/K/L、TUIOS Alt系キーの衝突を確認する。
+- 日本語入力・保存・クリップボード、Ctrl+Wに続く分割・移動操作、TUIOS Alt系キーの衝突を確認する。
 - Vueプロジェクトで型エラー表示、補完、定義ジャンプ、整形を確認する。
 - テーマ変更でHelixの色も変わり、bufferが保持されることを確認する。
 - アプリ一覧にはRioだけが表示される。`jeebis-terminal.desktop`は端末起動用IDとして残し、NoDisplayで隠す。
