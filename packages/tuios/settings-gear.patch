@@ -216,10 +216,10 @@ index 810abd3..6362678 100644
  	msg = o.MapPointer(msg)
 diff --git 1/internal/app/gear.go 2/internal/app/gear.go
 new file mode 100644
-index 0000000..cdf7c9e
+index 0000000..673d940
 --- /dev/null
 +++ 2/internal/app/gear.go
-@@ -0,0 +1,231 @@
+@@ -0,0 +1,233 @@
 +package app
 +
 +import (
@@ -238,8 +238,10 @@ index 0000000..cdf7c9e
 +// GearAt owns only the three cells painted by the gear. All other input keeps
 +// going to the pane, even when its first row is under the gear.
 +func (m *OS) GearAt(x, y int) bool {
-+	return x >= 0 && x < min(3, m.GetRenderWidth()) && y >= 0 && y < m.GetRenderHeight() && y == m.gearY()
++	return x >= m.gearX() && x < m.GetRenderWidth() && y >= 0 && y < m.GetRenderHeight() && y == m.gearY()
 +}
++
++func (m *OS) gearX() int { return max(0, m.GetRenderWidth()-3) }
 +
 +func (m *OS) gearY() int {
 +	if m.Settings.DockbarPosition == "bottom" {
@@ -250,14 +252,14 @@ index 0000000..cdf7c9e
 +
 +func (m *OS) renderGear() *lipgloss.Layer {
 +	return lipgloss.NewLayer(m.gearText()).
-+		X(0).Y(m.gearY()).Z(config.ZIndexDock + 1).ID("settings-gear")
++		X(m.gearX()).Y(m.gearY()).Z(config.ZIndexDock + 1).ID("settings-gear")
 +}
 +
 +// OpenGearMenu builds rows from the same action registry used by keybindings.
 +// No row sends a synthetic key to a guest terminal.
 +func (m *OS) OpenGearMenu(group string) {
 +	m.CloseContextMenu()
-+	cm := &ContextMenu{Title: "TUIOS", AnchorX: 0, AnchorY: m.gearY() + 1, Selected: -1, ItemH: 1,
++	cm := &ContextMenu{Title: "TUIOS", AnchorX: m.gearX(), AnchorY: m.gearY() + 1, Selected: -1, ItemH: 1,
 +		WindowIndex: m.FocusedWindow, Workspace: m.CurrentWorkspace}
 +	add := func(label, action string) {
 +		item := m.item("", label, action, false)
@@ -407,7 +409,7 @@ index 0000000..cdf7c9e
 +	m.gearCanvas.Clear()
 +	uv.NewStyledString(frame).Draw(&m.gearCanvas, m.gearCanvas.Bounds())
 +	uv.NewStyledString(m.gearText()).Draw(&m.gearCanvas,
-+		image.Rect(0, m.gearY(), min(3, m.GetRenderWidth()), m.gearY()+1))
++		image.Rect(m.gearX(), m.gearY(), m.GetRenderWidth(), m.gearY()+1))
 +	return m.gearCanvas.Render()
 +}
 +

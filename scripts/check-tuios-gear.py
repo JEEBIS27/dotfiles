@@ -89,7 +89,7 @@ with tempfile.TemporaryDirectory(prefix='tuios-gear-test-') as temp:
         os.write(fd, data)
         pump(.3)
 
-    def click(x=2, y=1):
+    def click(x=119, y=1):
         keys(f'\x1b[<0;{x};{y}M\x1b[<0;{x};{y}m'.encode())
 
     def save(name):
@@ -101,7 +101,7 @@ with tempfile.TemporaryDirectory(prefix='tuios-gear-test-') as temp:
         return p.stdout
 
     try:
-        wait(lambda: '' in screen.display[0])
+        wait(lambda: '' in screen.display[0][-3:])
         save('01-overlay')
         click()
         wait(lambda: 'Edit configuration' in text())

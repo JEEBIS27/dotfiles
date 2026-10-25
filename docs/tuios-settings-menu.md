@@ -1,9 +1,9 @@
 # TUIOS settings and actions
 
-The patched nixpkgs TUIOS 0.10.1 client shows a gear in the three leftmost
+The patched nixpkgs TUIOS 0.10.1 client shows a gear in the three rightmost
 cells of row one. It overlays the existing row; it does not change the pane's
 rows, scrollback, or stored text. With a visible dock it sits at the dock's
-left edge (top or bottom). Click it, use arrows/j/k and Enter, or click a row.
+right edge (top or bottom). Click it, use arrows/j/k and Enter, or click a row.
 Escape closes the menu. It captures only its own mouse press and release.
 
 The Display page lists individual controls: border style, pane separators,
