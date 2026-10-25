@@ -216,10 +216,10 @@ index 810abd3..6362678 100644
  	msg = o.MapPointer(msg)
 diff --git 1/internal/app/gear.go 2/internal/app/gear.go
 new file mode 100644
-index 0000000..e89b22c
+index 0000000..7ab735e
 --- /dev/null
 +++ 2/internal/app/gear.go
-@@ -0,0 +1,233 @@
+@@ -0,0 +1,246 @@
 +package app
 +
 +import (
@@ -408,8 +408,21 @@ index 0000000..e89b22c
 +	m.gearCanvas.Resize(m.GetRenderWidth(), m.GetRenderHeight())
 +	m.gearCanvas.Clear()
 +	uv.NewStyledString(frame).Draw(&m.gearCanvas, m.gearCanvas.Bounds())
++	// Match the compositor's transparent overlay: retain the background of
++	// the underlying terminal or bar, rather than replacing it with a fill.
++	var behind [3]uv.Cell
++	for i := range min(3, m.GetRenderWidth()) {
++		if cell := m.gearCanvas.CellAt(m.gearX()+i, m.gearY()); cell != nil {
++			behind[i] = *cell
++		}
++	}
 +	uv.NewStyledString(m.gearText()).Draw(&m.gearCanvas,
 +		image.Rect(m.gearX(), m.gearY(), m.GetRenderWidth(), m.gearY()+1))
++	for i := range min(3, m.GetRenderWidth()) {
++		if cell := m.gearCanvas.CellAt(m.gearX()+i, m.gearY()); cell != nil {
++			cell.Style.Bg = behind[i].Style.Bg
++		}
++	}
 +	return m.gearCanvas.Render()
 +}
 +
