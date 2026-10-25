@@ -13,18 +13,20 @@ index c03b111..eab9642 100644
  	SettingsCategory   int    // active settings category (tab) index
  	SettingsSelected   int    // selected row within the active category
 diff --git i/internal/app/render.go w/internal/app/render.go
-index 4b806ee..3bbdded 100644
+index 4b806ee..edd4ea9 100644
 --- i/internal/app/render.go
 +++ w/internal/app/render.go
-@@ -411,6 +411,7 @@ func (m *OS) GetCanvas(render bool) *frameCanvas {
- 		if pipLayer := m.renderPiP(); pipLayer != nil {
- 			layers = append(layers, pipLayer)
- 		}
-+		layers = append(layers, m.renderGear())
- 		overlays := m.renderOverlays()
- 		layers = append(layers, overlays...)
+@@ -451,6 +451,9 @@ func (m *OS) GetCanvas(render bool) *frameCanvas {
+ 	}
  
-@@ -800,7 +801,7 @@ func (m *OS) composeFrameOnce() string {
+ 	m.composeLayersIn(canvas, layers, paneLayers)
++	if render && !m.screensaver.active && !m.effectPreview.capturing {
++		m.drawGear(canvas)
++	}
+ 
+ 	return canvas
+ }
+@@ -800,7 +803,7 @@ func (m *OS) composeFrameOnce() string {
  		// characters. The compositor replaces them, so it draws this frame.
  		if !strings.Contains(frame, vt.SixelMarkerLead) {
  			m.SixelPassthrough.SetFrame(nil, 0, 0, 0, 0)
@@ -216,10 +218,10 @@ index 810abd3..6362678 100644
  	msg = o.MapPointer(msg)
 diff --git 1/internal/app/gear.go 2/internal/app/gear.go
 new file mode 100644
-index 0000000..7ab735e
+index 0000000..501296a
 --- /dev/null
 +++ 2/internal/app/gear.go
-@@ -0,0 +1,246 @@
+@@ -0,0 +1,250 @@
 +package app
 +
 +import (
@@ -248,11 +250,6 @@ index 0000000..7ab735e
 +		return max(0, m.GetRenderHeight()-m.Settings.DockHeight())
 +	}
 +	return 0
-+}
-+
-+func (m *OS) renderGear() *lipgloss.Layer {
-+	return lipgloss.NewLayer(m.gearText()).
-+		X(m.gearX()).Y(m.gearY()).Z(config.ZIndexDock + 1).ID("settings-gear")
 +}
 +
 +// OpenGearMenu builds rows from the same action registry used by keybindings.
@@ -408,21 +405,7 @@ index 0000000..7ab735e
 +	m.gearCanvas.Resize(m.GetRenderWidth(), m.GetRenderHeight())
 +	m.gearCanvas.Clear()
 +	uv.NewStyledString(frame).Draw(&m.gearCanvas, m.gearCanvas.Bounds())
-+	// Match the compositor's transparent overlay: retain the background of
-+	// the underlying terminal or bar, rather than replacing it with a fill.
-+	var behind [3]uv.Cell
-+	for i := range min(3, m.GetRenderWidth()) {
-+		if cell := m.gearCanvas.CellAt(m.gearX()+i, m.gearY()); cell != nil {
-+			behind[i] = *cell
-+		}
-+	}
-+	uv.NewStyledString(m.gearText()).Draw(&m.gearCanvas,
-+		image.Rect(m.gearX(), m.gearY(), m.GetRenderWidth(), m.gearY()+1))
-+	for i := range min(3, m.GetRenderWidth()) {
-+		if cell := m.gearCanvas.CellAt(m.gearX()+i, m.gearY()); cell != nil {
-+			cell.Style.Bg = behind[i].Style.Bg
-+		}
-+	}
++	m.drawGear(&m.gearCanvas)
 +	return m.gearCanvas.Render()
 +}
 +
@@ -465,4 +448,27 @@ index 0000000..7ab735e
 +		glyph = " * "
 +	}
 +	return ansi.Truncate(lipgloss.NewStyle().Foreground(pal.Fg).Render(glyph), max(0, m.GetRenderWidth()), "")
++}
++
++// drawGear replaces only the gear's three cells, retaining the actual background
++// already drawn beneath each one. It never paints a separate surface or fill.
++func (m *OS) drawGear(canvas *frameCanvas) {
++	if m.GetRenderWidth() <= 0 || m.GetRenderHeight() <= 0 {
++		return
++	}
++	// Match the compositor's transparent overlay: retain the background of
++	// the underlying terminal or bar, rather than replacing it with a fill.
++	var behind [3]uv.Cell
++	for i := range min(3, m.GetRenderWidth()) {
++		if cell := canvas.CellAt(m.gearX()+i, m.gearY()); cell != nil {
++			behind[i] = *cell
++		}
++	}
++	uv.NewStyledString(m.gearText()).Draw(canvas,
++		image.Rect(m.gearX(), m.gearY(), m.GetRenderWidth(), m.gearY()+1))
++	for i := range min(3, m.GetRenderWidth()) {
++		if cell := canvas.CellAt(m.gearX()+i, m.gearY()); cell != nil {
++			cell.Style.Bg = behind[i].Style.Bg
++		}
++	}
 +}
