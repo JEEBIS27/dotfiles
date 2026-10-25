@@ -216,7 +216,7 @@ index 810abd3..6362678 100644
  	msg = o.MapPointer(msg)
 diff --git 1/internal/app/gear.go 2/internal/app/gear.go
 new file mode 100644
-index 0000000..673d940
+index 0000000..e89b22c
 --- /dev/null
 +++ 2/internal/app/gear.go
 @@ -0,0 +1,233 @@
@@ -451,5 +451,5 @@ index 0000000..673d940
 +	if m.Settings.UseASCIIOnly {
 +		glyph = " * "
 +	}
-+	return ansi.Truncate(lipgloss.NewStyle().Foreground(pal.Fg).Background(pal.Canvas).Render(glyph), max(0, m.GetRenderWidth()), "")
++	return ansi.Truncate(lipgloss.NewStyle().Foreground(pal.Fg).Render(glyph), max(0, m.GetRenderWidth()), "")
 +}
