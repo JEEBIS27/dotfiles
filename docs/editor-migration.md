@@ -6,20 +6,11 @@
 
 ## Helix標準を優先する構成
 
-Neovimの操作・見た目を再現するための設定は持たない。相対行番号、scrolloff、カーソル形状、補完タイミング、ヒント表示、全言語への2スペース強制、末尾空白の一律削除、clipboardレジスターの上書きを外し、Helixの既定値とプロジェクト設定を使う。DesktopテーマとTrue Colorは共通デスクトップとの連携として残す。
+文字キーの編集モデルと見た目はHelix標準を優先する。相対行番号、scrolloff、カーソル形状、補完タイミング、ヒント表示、全言語への2スペース強制、末尾空白の一律削除、clipboardレジスターの上書きを外し、Helixの既定値とプロジェクト設定を使う。DesktopテーマとTrue Colorは共通デスクトップとの連携として残す。
 
-独自キーはCtrl+S保存だけにする。normal/selectモードでは標準の「選択位置をjumplistへ保存」を置き換える意図的な例外。Ctrl+H/J/K/LやCtrl+Enter等のNeovim由来の上書きは削除した。
+AltはTUIOS、Ctrlはアプリという統一ルールを維持する。標準コマンドへ共通キーを割り当て、代替キーのない固有機能は退避する。Ctrl+S保存の元機能はCtrl+Shift+S、Altの編集・選択機能はnormal/selectのSpace→mメニューへ。Backspace/Enter/PageUp/PageDownなどで代替できる操作はそちらを使う。
 
-以下の操作はnormalモードで行う（入力中ならEscで戻る）。
-
-| 操作 | Helix標準 |
-|---|---|
-| 保存 | `:write`（共通キーとしてCtrl+Sも追加） |
-| 縦分割 / 横分割 | Ctrl+W → v / s |
-| 分割移動 | Ctrl+W → h / j / k / l |
-| ファイル検索 / 全文検索 | Space → f / / |
-| コードアクション | Space → a |
-| システムclipboardへコピー / 貼付け | Space → y / p |
+[共通キー、退避先一覧、固定UIの制限、再検証手順](editor-keybindings.md)を参照。署名・hoverの候補切替とpickerの背後オープンは、本体パッチを避けるユーザー判断により未対応として記録する。
 
 言語ごとのサーバー定義・インデント・整形はHelix 25.07.1の組み込み`languages.toml`を継承する。JS/TS/JSX/TSXは`typescript-language-server`、Goは`gopls`、Luaは`lua-language-server`、Pythonは`ty`と`ruff`、Nixは`nil`をNixで導入する。組み込み一覧の代替サーバーをすべて導入する必要はなく、`hx --health`で未導入の候補に×が出る場合がある。
 
@@ -48,17 +39,17 @@ hx --health vue
 
 ## 引き継がないもの・制限
 
-Copilotのインライン提案は追加せず、AI操作にはTUIOSのCodexを使う。NeovimのFlash・Snacks・Toggleterm・Yazi埋込・Noice・statuscolumn等のプラグインUIは移植しない。YaziはAlt+Y、スクラッチ端末はAlt+Tを利用する。Helix内の端末やtabpage、Neovim固有の分割リサイズ・入替キーをダミー実装しない。
+Copilotのインライン提案は追加せず、AI操作にはTUIOSのCodexを使う。NeovimのFlash・Snacks・Toggleterm・Yazi埋込・Noice・statuscolumn等のプラグインUIは移植しない。YaziはAlt+Y、スクラッチ端末はAlt+Tを利用する。Helix内の端末やtabpage、Neovim固有の任意リサイズ・可逆ズームをダミー実装しない。分割交換は標準コマンドで対応する。
 
 Neovimの保存時独自RPC（ESLint全修正など）、複数formatterの失敗時fallback、永続undo等は同等移植しない。コードアクションはSpace+aで手動選択する。GitHub Actions専用LSPは従来もパッケージ未導入で、今回も導入していない。フォーマッターやLSPは全言語の実プロジェクトで動作確認済みではない。
 
 ## 検証と実機確認
 
-確認済み: Omarchy/NixOS両方のHome Managerビルド、flake check --no-build、Zsh/Bash/Lua/Python構文、Helixの実PTY起動・入力・Ctrl+S保存、標準typescript-language-serverの診断2322/文字列補完、Vue診断/補完、端末移行の既存check-terminal.py。Helix標準の分割・移動操作は実機でも確認する。
+確認済み: Omarchy/NixOS両方のHome Managerビルド、flake check --no-build、Zsh/Bash/Lua/Python構文、Helixの実PTY起動・入力・Ctrl+S保存、標準typescript-language-serverの診断2322/文字列補完、Vue診断/補完、端末移行の既存check-terminal.py。共通キーと退避機能はcheck-helix-keys.pyの専用PTYでも確認する。実機操作は別途確認する。
 
 - 新しいRioで`printf '%s / %s\n' "$EDITOR" "$VISUAL"`が`hx / hx`になる。
 - Omarchyのエディター起動、Yaziの編集、TUIOS歯車の設定編集がHelixになる。
-- 日本語入力・保存・クリップボード、Ctrl+Wに続く分割・移動操作、TUIOS Alt系キーの衝突を確認する。
+- 日本語入力・保存・クリップボード、Ctrl+Enter / Ctrl+H/J/K/L / Ctrl+Shift+S / Space→mの操作、TUIOS Alt系キーの衝突を確認する。
 - Vueプロジェクトで型エラー表示、補完、定義ジャンプ、整形を確認する。
 - テーマ変更でHelixの色も変わり、bufferが保持されることを確認する。
 - アプリ一覧にはRioだけが表示される。`jeebis-terminal.desktop`は端末起動用IDとして残し、NoDisplayで隠す。
