@@ -25,8 +25,10 @@
 
 ## 設定
 
-Zsh、Sheldon、TUIOS、Neovim、Yazi、bat、Rio、Hyprland、Ruixenのシェル設定、Fcitx / Mozkey、テーマ・壁紙を`files/`に配置する。ChatGPT / Codex GUI等の本体はこの構成では導入しない。
+Zsh、Sheldon、TUIOS、Helix、Neovim（代替）、Yazi、bat、Rio、Hyprland、Ruixenのシェル設定、Fcitx / Mozkey、テーマ・壁紙を`files/`に配置する。ChatGPT / Codex GUI等の本体はこの構成では導入しない。
 
 Neovim・Sheldon等のプラグインは各マネージャーが取得する。NixOSではMasonのPATHをappendにしてNix製の実行ファイルを優先する。`gh_actions_ls`は設定には含まれるがパッケージ未導入。
 
 jeebis-shellは`vendor/jeebis-shell/`のローカルソースを`packages/jeebis-shell.nix`で構築する。補助ツールとしてCava・Fastfetchも導入する。
+
+既定エディターは`modules/editor.nix`の`programs.helix.defaultEditor`で定義する。`EDITOR` / `VISUAL`、Zsh、Hyprland、Omarchyの既定起動先はこの値に揃える。Helixの対応範囲と検証は[editor-migration.md](editor-migration.md)を参照。

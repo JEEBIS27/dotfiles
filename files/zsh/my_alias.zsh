@@ -36,7 +36,7 @@ function f() {
     file=$(rg --files --hidden --glob '!.git/*' 2>/dev/null | \
            fzf "${fzf_opts[@]}")
   fi
-  [ -n "$file" ] && ${EDITOR:-nvim} "$file"
+  [ -n "$file" ] && ${EDITOR:-vi} "$file"
 }
 
 # 文字列一致検索
@@ -65,7 +65,12 @@ function g() {
     local clean_result=$(echo "$result" | sed 's/\x1b\[[0-9;]*m//g')
     local file=$(echo "$clean_result" | cut -d: -f1)
     local line=$(echo "$clean_result" | cut -d: -f2)
-    nvim "+${line}" "$file"
+    local -a editor
+    editor=( ${(z)${EDITOR:-vi}} )
+    case ${editor[1]:t} in
+      hx|helix) "${editor[@]}" "${file}:${line}" ;;
+      *) "${editor[@]}" "+${line}" "$file" ;;
+    esac
   fi
 }
 

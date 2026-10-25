@@ -1,0 +1,80 @@
+# Official Helix 25.07.1; keep its selection-first editing and native menus.
+theme = "Desktop"
+
+[editor]
+line-number = "relative"
+scrolloff = 8
+cursorline = true
+true-color = true
+idle-timeout = 250
+completion-timeout = 250
+preview-completion-insert = false
+auto-format = true
+trim-trailing-whitespace = true
+default-yank-register = "+"
+bufferline = "never"
+popup-border = "none"
+
+[editor.search]
+smart-case = true
+
+[editor.cursor-shape]
+normal = "block"
+insert = "bar"
+select = "block"
+
+[editor.soft-wrap]
+enable = false
+
+[editor.lsp]
+display-inlay-hints = true
+
+[editor.indent-guides]
+render = false
+
+# Preserve only common operations that do not replace Helix's editing model.
+# Ctrl+W stays the native window menu; Space+f / Space+/ stay native pickers.
+[keys.normal]
+C-s = ":write"
+C-S-s = ":write!"
+C-n = ":new"
+C-h = "jump_view_left"
+C-j = "jump_view_down"
+C-k = "jump_view_up"
+C-l = "jump_view_right"
+C-left = "jump_view_left"
+C-down = "jump_view_down"
+C-up = "jump_view_up"
+C-right = "jump_view_right"
+C-ret = "vsplit"
+C-S-ret = "hsplit"
+C-pageup = "goto_previous_buffer"
+C-pagedown = "goto_next_buffer"
+
+[keys.insert]
+C-s = ":write"
+C-S-s = ":write!"
+C-h = "jump_view_left"
+C-j = "jump_view_down"
+C-k = "jump_view_up"
+C-l = "jump_view_right"
+C-left = "jump_view_left"
+C-down = "jump_view_down"
+C-up = "jump_view_up"
+C-right = "jump_view_right"
+C-ret = "vsplit"
+C-S-ret = "hsplit"
+
+[keys.select]
+C-s = ":write"
+C-S-s = ":write!"
+C-h = "jump_view_left"
+C-j = "jump_view_down"
+C-k = "jump_view_up"
+C-l = "jump_view_right"
+C-left = "jump_view_left"
+C-down = "jump_view_down"
+C-up = "jump_view_up"
+C-right = "jump_view_right"
+C-ret = "vsplit"
+C-S-ret = "hsplit"

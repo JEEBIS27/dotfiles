@@ -30,7 +30,7 @@ NixOSのGPU設定は既存ホストのhardware構成を引き継ぐ。実機の�
 ```sh
 jeebis-terminal                            # 必ず新規session
 jeebis-terminal --cwd ~/src                # 新規sessionの初期cwd
-jeebis-terminal -- nvim README.md          # 新規sessionにコマンドを1つ起動
+jeebis-terminal -- hx README.md          # 新規sessionにコマンドを1つ起動
 jeebis-codex-tuios                         # Codex用app-id
 
 tuios ls
@@ -132,3 +132,5 @@ nix --extra-experimental-features 'nix-command flakes' build '.#nixosConfigurati
 - [TUIOS 0.10.1実装](https://github.com/Gaurav-Gosain/tuios/tree/v0.10.1)、[Herdr互換](https://github.com/Gaurav-Gosain/tuios/blob/v0.10.1/skills/tuios/herdr.md)、[tmux shim](https://github.com/Gaurav-Gosain/tuios/blob/v0.10.1/skills/tuios/tmux.md)
 
 The native gear menu and writable settings are documented in [tuios-settings-menu.md](tuios-settings-menu.md).
+
+Helixへの既定エディター移行は[editor-migration.md](editor-migration.md)を参照。Neovim設定・パッケージは利用者の希望により代替として維持する。

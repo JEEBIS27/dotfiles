@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Helix reloads configuration and the selected theme on SIGUSR1, preserving buffers.
+@pkill@ -USR1 -u "$(id -u)" -x '(hx|\.hx-wrapped)' || test "$?" -eq 1

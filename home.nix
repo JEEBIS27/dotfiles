@@ -1,7 +1,7 @@
 { ... }:
 
 {
-  imports = [ ./modules/zsh-files.nix ./modules/apps.nix ./modules/app-files.nix ./modules/desktop.nix ./modules/mounts.nix ./modules/input-method-files.nix ];
+  imports = [ ./modules/zsh-files.nix ./modules/apps.nix ./modules/editor.nix ./modules/app-files.nix ./modules/desktop.nix ./modules/mounts.nix ./modules/input-method-files.nix ];
 
   home.username = "jeebis";
   home.homeDirectory = "/home/jeebis";

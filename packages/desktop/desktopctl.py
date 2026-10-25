@@ -131,6 +131,7 @@ def theme(action,values):
    if staging.exists():shutil.rmtree(staging)
  rio_dir=Path(os.environ.get('XDG_CONFIG_HOME',HOME/'.config'))/'rio'
  if rio_dir.is_dir():os.utime(rio_dir,None)
+ if cfg.get('helixReload'):call([cfg['helixReload']])
  if initializing:return
  call([command('hyprctl'),'reload'])
  try:call([command('bat'),'cache','--build'],stdout=subprocess.DEVNULL)

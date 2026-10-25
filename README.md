@@ -25,7 +25,7 @@ Omarchy / NixOS向けのHome Manager構成。Hyprland、Quickshell（Ruixen）�
 | 分類 | 主な内容 |
 |---|---|
 | シェル・CLI | Zsh、TUIOS、Sheldon、Yazi、Git、fzf、ripgrep、eza、bat、zoxide |
-| エディター | Neovim設定、NixOS用LSP・フォーマッター、Node.js・Rust |
+| エディター | Helix（既定）、共通LSP・フォーマッター、Neovim（代替） |
 | デスクトップ | Hyprland、Quickshell + Ruixen、Rio + TUIOS、固定テーマと壁紙 |
 | NixOS用アプリ・サービス | Chromium、Nautilus、Fcitx5 / Mozkey、音声・Bluetooth・電源管理 |
 | クラウドマウント | rclone（Google Drive / OneDrive、認証は別途） |

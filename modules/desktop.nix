@@ -21,9 +21,10 @@ let
     presets = presetDefinitions;
     templates = toString templates;
     renderer = "${../packages/desktop}/render-theme.sh";
+    helixReload = "${personalHelpers}/jeebis-helix-reload";
     omarchyCycle = "${../packages/desktop}/omarchy-theme-cycle.sh";
     commands = {
-      terminal = "jeebis-terminal"; browser = if native then "chromium" else "helium"; editor = "nvim";
+      terminal = "jeebis-terminal"; browser = if native then "chromium" else "helium"; editor = config.home.sessionVariables.EDITOR;
     };
   });
   templates = pkgs.runCommand "jeebis-theme-templates" { } ''
@@ -91,6 +92,7 @@ SH
     mkdir -p "$out"
     cp ${coreSource}/helpers/* "$out/"
     chmod +wx "$out/"*
+    substituteInPlace "$out/jeebis-helix-reload" --replace-fail '@pkill@' '${pkgs.procps}/bin/pkill'
     patchShebangs "$out"
   '';
   # Monitor setup stays local. Personal look-and-feel is managed from files/hypr.
@@ -135,9 +137,12 @@ in
       "omarchy/themed/preview.tmTheme.tpl".source = templates + /preview.tmTheme.tpl;
       "omarchy/themed/yazi.toml.tpl".source = templates + /yazi.toml.tpl;
       "omarchy/themed/rio.toml.tpl".source = templates + /rio.toml.tpl;
+      "omarchy/themed/helix.toml.tpl".source = templates + /helix.toml.tpl;
+      "omarchy/hooks/theme-set.d/refresh-helix.hook" = { source = ../files/omarchy/hooks/theme-set.d/refresh-helix.hook; executable = true; };
       "omarchy/hooks/theme-set.d/refresh-rio.hook" = { source = ../files/omarchy/hooks/theme-set.d/refresh-rio.hook; executable = true; };
       "omarchy/hooks/theme-set.d/refresh-bat.hook" = { source = ../files/omarchy/hooks/theme-set.d/refresh-bat.hook; executable = true; };
     });
+    home.file.".local/bin/jeebis-helix-reload" = { source = personalHelpers + /jeebis-helix-reload; executable = true; };
     home.file.".local/bin/jeebis-terminal" = { source = personalHelpers + /jeebis-terminal; executable = true; };
     home.file.".local/bin/jeebis-tuios" = { source = personalHelpers + /jeebis-tuios; executable = true; };
     home.file.".local/bin/jeebis-tuios-edit-config" = { source = personalHelpers + /jeebis-tuios-edit-config; executable = true; };
