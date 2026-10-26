@@ -1,0 +1,56 @@
+{
+  "helix": {
+    "owner": "mattwparas",
+    "repo": "helix",
+    "rev": "424add100eac9ca258d969b985a8ac370469ec05",
+    "hash": "sha256-wBjRHntxoxT+fo85i0rct/NWN/OG/Z6nVky/Efb2gjE="
+  },
+  "flash": {
+    "owner": "shybovycha",
+    "repo": "flash.hx",
+    "rev": "94ec40289f80333f0430b97312137cc5cd4c4f24",
+    "hash": "sha256-yxKgzoAbwsAUSZ3f8cNoDjC2u9TFMbRWHeJFGeq7inQ="
+  },
+  "pty": {
+    "owner": "mattwparas",
+    "repo": "steel-pty",
+    "rev": "4d41b6988107b50777d87e587fba7b6b272f069e",
+    "hash": "sha256-7teIMyLmfPkNEhTFlzmtKaewwwDrlcgmx06prUqXz1g="
+  },
+  "recentf": {
+    "owner": "mattwparas",
+    "repo": "helix-config",
+    "rev": "a101da0852932f10792f098dbb14ea88811985ff",
+    "hash": "sha256-N4Y78H9HDJernQkdH+24tylfl1bleBZewTB7Fk9LlGg="
+  },
+  "microscope": {
+    "owner": "chuwy",
+    "repo": "microscope.hx",
+    "rev": "7fe4e60f0c4fb715118591c71ed0a82b111f07a8",
+    "hash": "sha256-j1sNxa19bbskizNSzTYDCSXImfOkXMOEdb7hGg5tuxQ="
+  },
+  "matte": {
+    "owner": "waddie",
+    "repo": "matte.hx",
+    "rev": "fc24977e04177ef66142c45ca6436b50a8d279e6",
+    "hash": "sha256-Tldq41IySuhvZ/KSsOVImtJTLXpMwY90R9hXU44GX20="
+  },
+  "notify": {
+    "owner": "chuwy",
+    "repo": "notify.hx",
+    "rev": "0a328073e6d3e5041346374ae747c275ab8ce746",
+    "hash": "sha256-shKUVnJw2j0yYO+mTHsKie+d1VrJGWDTRul+PTpqlhs="
+  },
+  "moka": {
+    "owner": "Ra77a3l3-jar",
+    "repo": "moka.hx",
+    "rev": "22059191425b7dbefa44060048bede3fe8676933",
+    "hash": "sha256-5312U/diMFsU/XRdF91aLRPLLuK9+iEHJSJPvmsuHV4="
+  },
+  "glyph": {
+    "owner": "Ra77a3l3-jar",
+    "repo": "glyph.hx",
+    "rev": "c032131086358d4702ab134a5e081bcfdf7511b4",
+    "hash": "sha256-b4zg9bmXKfP2hRycNiYcLkkziZaQQ+kOmmntEjGEokE="
+  }
+}

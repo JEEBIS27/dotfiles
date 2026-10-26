@@ -1,0 +1,47 @@
+#!/usr/bin/env python3
+"""Yazi chooser for one Helix process; no shared chooser path or shell paths."""
+import os
+from pathlib import Path
+import signal
+import subprocess
+import tempfile
+import termios
+
+state = Path(os.environ["HELIX_YAZI_FILE"])
+start = state.with_name(state.name + ".start")
+request = start.read_text() if start.exists() else "1\n"
+mouse, _, initial = request.partition("\n")
+start.unlink(missing_ok=True)
+state.unlink(missing_ok=True)
+state.with_name(state.name + ".mode").unlink(missing_ok=True)
+try:
+    with tempfile.TemporaryDirectory(prefix="helix-yazi-") as directory:
+        chooser = Path(directory) / "selection"
+        args = ["@yazi@", "--chooser-file", str(chooser)]
+        if initial:
+            args.append(initial)
+        with open("/dev/tty", "r+b", buffering=0) as tty:
+            attributes = termios.tcgetattr(tty)
+            # Termina has a background input reader. Stop the editor while
+            # Yazi owns /dev/tty so the two applications never race for keys.
+            editor_pid = int(os.environ["HELIX_YAZI_EDITOR_PID"])
+            if editor_pid <= 1 or os.getpgid(editor_pid) != os.getpgrp():
+                raise OSError("Helix process is outside this terminal session")
+            os.kill(editor_pid, signal.SIGSTOP)
+            try:
+                result = subprocess.run(args, stdin=tty, stdout=tty, stderr=tty,
+                                        env=dict(os.environ, HELIX_YAZI_CHOOSER="1"))
+                if result.returncode == 0 and chooser.exists():
+                    state.write_bytes(chooser.read_bytes())
+            finally:
+                try:
+                    # Yazi's documented Helix restoration, plus mouse tracking.
+                    termios.tcsetattr(tty, termios.TCSANOW, attributes)
+                    tty.write(b"\x1b[?1049h\x1b[?2004h")
+                    if mouse == "1":
+                        tty.write(b"\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1015h\x1b[?1006h")
+                finally:
+                    os.kill(editor_pid, signal.SIGCONT)
+except OSError as error:
+    # Keep stdout empty: :insert-output must never insert diagnostics as text.
+    print(f"Yazi: {error}", file=__import__("sys").stderr)

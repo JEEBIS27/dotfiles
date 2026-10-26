@@ -81,3 +81,25 @@ python -m venv /tmp/helix-key-tests
 専用の一時HOME/XDGとPTYを使う。`--tuios`では私有daemon/sessionを作成し、終了後に私有daemonだけを停止する。保存、Undo境界、jumplist、選択反転、コピーせず削除、単語削除、分割移動、insertの行末削除、viewを閉じる操作を確認する。Shift文字はKittyのshifted Unicodeコードを使い、Ctrl+Sの単なる別名になっていないことも確認する。
 
 実機のIME、全メニュー項目、popup、物理キー入力の受入試験は別途行う。
+
+## Steel拡張で追加したキー
+
+Alt予約と既存のSpace mは維持する。以下はnormal/selectで使える。
+Ctrl+Y / Ctrl+Tはinsertでも使える。
+
+| キー | 操作 | Helix標準への影響 |
+| --- | --- | --- |
+| Ctrl+Y | Yaziでファイル選択 | 固定した本体の編集モードでは未割当 |
+| Ctrl+T | 埋め込み端末を開く | 編集モードでは未割当。Space w tの分割転置は保持 |
+| Space u f / F | Flashの画面内／後方ジャンプ | Space uは未割当。s / Sの標準選択操作は保持 |
+| Space u r | 最近使ったファイル | 同上 |
+| Space u p | Microscopeのファイル探索 | 同上。Ctrl+Fの標準pickerは保持 |
+| Space u z / m | ズーム／中央寄せ | 同上 |
+| Space u n | 通知にフォーカス | 同上 |
+| Space u t / T / s / h / q | 端末を開く／追加／切替／隠す／終了 | 同上 |
+| Space u b / B | Mokaのバッファライン有効／無効 | 同上 |
+
+拡張の詳細・復元制限・検証方法は[helix-steel.md](helix-steel.md)を参照。
+
+HelixのYazi chooser内: Enterは現在のview、Ctrl+Enterは左右分割、
+Ctrl+Shift+Enterは上下分割して開く。ディレクトリでは中へ移動する。

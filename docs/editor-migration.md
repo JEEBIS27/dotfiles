@@ -2,7 +2,7 @@
 
 `modules/editor.nix`の`programs.helix.defaultEditor = true`を唯一の既定定義にする。Home Managerが`EDITOR=hx` / `VISUAL=hx`を設定し、Zshの生成設定・Hyprlandの起動環境・Omarchyの標準`defaults/editor`・desktopコマンドも同じ値を参照する。YaziとTUIOSの設定エディターは標準環境変数を利用する。既存プロセスの環境変数は変わらないため、新しいRioから確認する。
 
-公式Helix 25.07.1を使用する。Neovimの設定・パッケージ・`nv`別名は代替として残す。独自Helix forkや未実装のプラグインAPIは使用しない。
+Steel拡張導入後の構成・操作は[Helix Steel extensions](helix-steel.md)を参照。移行当初は公式Helix 25.07.1を使用した。Neovimの設定・パッケージ・`nv`別名は代替として残す。現在は検証したSteel対応forkと拡張をNixで固定する。独自のHelix本体パッチは追加しない。
 
 ## Helix標準を優先する構成
 
@@ -39,7 +39,7 @@ hx --health vue
 
 ## 引き継がないもの・制限
 
-Copilotのインライン提案は追加せず、AI操作にはTUIOSのCodexを使う。NeovimのFlash・Snacks・Toggleterm・Yazi埋込・Noice・statuscolumn等のプラグインUIは移植しない。YaziはAlt+Y、スクラッチ端末はAlt+Tを利用する。Helix内の端末やtabpage、Neovim固有の任意リサイズ・可逆ズームをダミー実装しない。分割交換は標準コマンドで対応する。
+Copilotのインライン提案は追加せず、AI操作にはTUIOSのCodexを使う。移行当初はNeovimのプラグインUIを移植しなかった。後から追加したFlash・端末・Yaziなどの対応範囲は[Steel拡張の説明](helix-steel.md)を参照。TUIOSのYaziはAlt+Y、スクラッチ端末はAlt+Tを利用する。tabpageやNeovim固有の任意リサイズは追加しない。Steelのズーム復元には制限がある。分割交換は標準コマンドで対応する。
 
 Neovimの保存時独自RPC（ESLint全修正など）、複数formatterの失敗時fallback、永続undo等は同等移植しない。コードアクションはSpace+aで手動選択する。GitHub Actions専用LSPは従来もパッケージ未導入で、今回も導入していない。フォーマッターやLSPは全言語の実プロジェクトで動作確認済みではない。
 

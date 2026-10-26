@@ -16,6 +16,13 @@ import time
 import tomllib
 import pyte
 
+
+class TerminalScreen(pyte.Screen):
+    # Termina emits DEC private cursor queries that pyte does not implement.
+    def report_device_status(self, mode, private=False):
+        if not private:
+            return super().report_device_status(mode)
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--helix', default=shutil.which('hx'))
 parser.add_argument('--tuios', help='Test through a private TUIOS daemon as well')
@@ -63,7 +70,7 @@ with tempfile.TemporaryDirectory(prefix='helix-keys-') as temp:
             self.path.write_text(text)
             self.fd, slave = pty.openpty()
             fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 36, 120, 0, 0))
-            self.screen = pyte.Screen(120, 36)
+            self.screen = TerminalScreen(120, 36)
             self.stream = pyte.ByteStream(self.screen)
             self.output = b''
             command = [a.helix, str(self.path)]
@@ -88,6 +95,8 @@ with tempfile.TemporaryDirectory(prefix='helix-keys-') as temp:
                     break
                 self.output += data
                 self.stream.feed(data)
+                if b'\x1b[?6n' in data:
+                    os.write(self.fd, b'\x1b[?1;1R')
                 if b'\x1b[6n' in data:
                     os.write(self.fd, b'\x1b[1;1R')
                 if b'\x1b[c' in data:

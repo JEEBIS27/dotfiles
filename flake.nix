@@ -20,7 +20,14 @@
         modules = [ host ];
       };
     in {
-      packages.${system}.mozkey-fcitx5 = import ./packages/mozkey-fcitx5.nix { pkgs = appPkgs; };
+      packages.${system} = let
+        steel = import ./packages/helix-steel { pkgs = appPkgs; };
+      in {
+        mozkey-fcitx5 = import ./packages/mozkey-fcitx5.nix { pkgs = appPkgs; };
+        helix-steel = steel.editor;
+        helix-steel-plugins = steel.plugins;
+        helix-steel-terminal = steel.terminal;
+      };
       homeConfigurations = {
         "jeebis@omarchy" = mkHome ./hosts/omarchy.nix;
         "jeebis@nixos" = mkHome ./hosts/nixos.nix;

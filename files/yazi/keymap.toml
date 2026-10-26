@@ -6,6 +6,8 @@
 [mgr]
 
 keymap = [
+  { on = "<C-Enter>", run = "plugin helix-open vsplit", desc = "Helix chooser: open in right split" },
+  { on = "<C-S-Enter>", run = "plugin helix-open hsplit", desc = "Helix chooser: open in bottom split" },
   { on = "<C-y>", run = "plugin unified-tabs", desc = "Choose Yazi tab" },
   { on = ["<C-e>", "<PageUp>"], run = "tab_swap -1", desc = "Exchange tab left" },
   { on = ["<C-e>", "<PageDown>"], run = "tab_swap 1", desc = "Exchange tab right" },

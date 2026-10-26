@@ -1,9 +1,11 @@
 { config, lib, appPkgs, ... }:
+let steel = import ../packages/helix-steel { pkgs = appPkgs; };
+in
 {
   # The single default-editor definition. This sets standard EDITOR and VISUAL.
   programs.helix = {
     enable = true;
-    package = appPkgs.helix;
+    package = steel.editor;
     defaultEditor = true;
     settings = builtins.fromTOML (builtins.readFile ../files/helix/config.toml);
     languages = let
@@ -29,6 +31,26 @@
     vtsls vue-language-server prettierd
   ];
 
+  xdg.configFile."helix/init.scm".text = builtins.replaceStrings
+    [ "@zsh@" ] [ "${appPkgs.zsh}/bin/zsh" ]
+    (builtins.readFile ../files/helix/steel/init.scm);
+  xdg.configFile."helix/helix.scm".source = ../files/helix/steel/helix.scm;
+  # Keep cogs/ writable: Steel generates its own helix/ API modules there.
+  # Only the individual third-party plugin directories are immutable links.
+  xdg.dataFile = builtins.listToAttrs (map (name: {
+    name = "jeebis-helix-steel/cogs/${name}";
+    value.source = "${steel.plugins}/${name}";
+  }) [ "flash" "steel-pty" "recentf" "microscope" "matte.hx" "notify" "moka" "glyph" "yazi" ]) // {
+    "jeebis-helix-steel/native/libsteel_pty.so".source =
+      "${steel.terminal}/lib/libsteel_pty.so";
+  };
+  home.file.".local/bin/jeebis-helix-yazi" = {
+    executable = true;
+    text = builtins.replaceStrings [ "@yazi@" "/usr/bin/env python3" ]
+      [ "${appPkgs.yazi}/bin/yazi" "${appPkgs.python3}/bin/python3" ]
+      (builtins.readFile ../files/desktop/helpers/jeebis-helix-yazi);
+  };
+
   xdg.configFile."helix/themes/Desktop.toml".source =
     config.lib.file.mkOutOfStoreSymlink "${config.jeebis.desktop.themeDirectory}/helix.toml";
 
@@ -39,7 +61,8 @@
   '';
 
   # This is the standard file read by omarchy-launch-editor (hx is supported).
-  home.file = lib.optionalAttrs (config.jeebis.desktop.backend == "omarchy") {
-    ".local/state/omarchy/defaults/editor".text = config.home.sessionVariables.EDITOR + "\n";
-  };
+  home.file.".local/state/omarchy/defaults/editor" =
+    lib.mkIf (config.jeebis.desktop.backend == "omarchy") {
+      text = config.home.sessionVariables.EDITOR + "\n";
+    };
 }

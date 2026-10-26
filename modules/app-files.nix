@@ -64,6 +64,7 @@
     "yazi/flavors/tokyonight-night.yazi/flavor.toml".source = ../files/yazi/flavors/tokyonight-night.yazi/flavor.toml;
     "yazi/flavors/tokyonight-night.yazi/preview.png".source = ../files/yazi/flavors/tokyonight-night.yazi/preview.png;
     "yazi/flavors/tokyonight-night.yazi/tmtheme.xml".source = ../files/yazi/flavors/tokyonight-night.yazi/tmtheme.xml;
+    "yazi/plugins/helix-open.yazi/main.lua".source = ../files/yazi/plugins/helix-open.yazi/main.lua;
     "yazi/keymap.toml".source = ../files/yazi/keymap.toml;
     "yazi/package.toml".source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/Git/home-manager/files/yazi/package.toml";
     "yazi/plugins/unified-layout.yazi/main.lua".source = ../files/yazi/plugins/unified-layout.yazi/main.lua;

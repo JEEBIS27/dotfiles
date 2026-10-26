@@ -1,0 +1,20 @@
+diff --git i/Cargo.toml w/Cargo.toml
+index 1baab9b..25780e7 100644
+--- i/Cargo.toml
++++ w/Cargo.toml
+@@ -11,7 +11,7 @@ crate-type = ["cdylib"]
+ [dependencies]
+ portable-pty = "0.8.1"
+ # steel-core = { path = "/home/matt/Documents/steel/crates/steel-core", features = ["dylibs"] }
+-steel-core = { version = "0.8.2", features = ["anyhow", "dylibs", "sync"] }
++steel-core = { git = "https://github.com/mattwparas/steel.git", rev = "24cd21598c091fb88bc10a6375a1ded25e677c37", features = ["anyhow", "dylibs", "sync", "biased", "imbl"] }
+ abi_stable = "0.11.1"
+ futures = "0.3.26"
+ tokio = { version = "1.29.1", features = ["sync"]}
+@@ -21,3 +21,6 @@ wezterm-term = { git = "https://github.com/mattwparas/wezterm.git", branch = "mw
+ config = { git = "https://github.com/mattwparas/wezterm.git", branch = "mwp-public-scroll" }
+ parking_lot = "*"
+ futures-time = "3.0.0"
++
++[patch.crates-io]
++filedescriptor = { git = "https://github.com/mattwparas/wezterm.git", branch = "mwp-public-scroll" }

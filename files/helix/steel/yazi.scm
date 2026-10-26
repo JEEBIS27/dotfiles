@@ -1,0 +1,30 @@
+(require (prefix-in hx. "helix/commands.scm"))
+(require "helix/editor.scm")
+(require "helix/configuration.scm")
+(provide yazi)
+
+;; Follow Yazi's official :insert-output integration, using a scratch buffer
+;; so cancellation and empty output never change the user's selections/text.
+(define (yazi)
+  (define state (env-var "HELIX_YAZI_FILE"))
+  (define initial (editor-document->path (editor->doc-id (editor-focus))))
+  (call-with-output-file (string-append state ".start")
+    (lambda (port)
+      (write-string (if (get-config-option-value "mouse") "1\n" "0\n") port)
+      (when (string? initial) (write-string initial port))) #:exists 'truncate)
+  (hx.new)
+  (hx.insert-output "jeebis-helix-yazi")
+  (hx.buffer-close!)
+  (define mode-file (string-append state ".mode"))
+  (define mode (if (path-exists? mode-file)
+                  (call-with-input-file mode-file read-port-to-string) "open"))
+  (when (path-exists? mode-file) (delete-file! mode-file))
+  (when (path-exists? state)
+    (define paths (call-with-input-file state read-port-to-string))
+    (delete-file! state)
+    (for-each (lambda (path) (unless (equal? path "")
+                (cond [(equal? mode "vsplit") (hx.vsplit path)]
+                      [(equal? mode "hsplit") (hx.hsplit path)]
+                      [else (hx.open path)])))
+              (split-many paths "\n")))
+  (hx.redraw))
