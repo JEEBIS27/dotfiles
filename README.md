@@ -33,34 +33,38 @@ PC構成は `x86_64-linux`・ユーザー `jeebis`・配置先 `~/Git/home-manag
 
 Omarchyでは既存のデスクトップ・IME本体を使用する。Rio本体はOmarchyのパッケージ管理、TUIOSはHome Managerで導入する。[パッケージ一覧](docs/managed-items.md)を参照。
 
-## 導入（共通コマンド）
+## 初回の導入
 
-Nix導入後（AndroidはNix-on-Droidの初回セットアップ後）、各OSで同じコマンドを使う。
-Gitがなければ先に `nix-shell -p git` を起動する。
+PCではNixをインストールしてから、AndroidではNix-on-Droidアプリの初回セットアップを完了してから実行する。
+Androidでは、以下のコマンドをNix-on-Droidアプリ内で実行する。
+
+次のコマンドを上から順番に実行する。Omarchy・NixOS・Androidで共通。
 
 ```bash
+nix-shell -p git
+
 git clone https://github.com/JEEBIS27/dotfiles.git ~/Git/home-manager
+
 cd ~/Git/home-manager
+
 nix --extra-experimental-features 'nix-command flakes' run "path:$PWD#just" -- switch
 ```
 
-初回はNixからjustを一時起動する。適用時にjustも導入されるので、セッションを開き直した後は次の短いコマンドを使える。
+完了したら、ターミナルのセッションを開き直す。必要なアプリ・設定とjustが導入される。
+リポジトリを既に取得している場合は、cloneせず、そのディレクトリで `git pull --ff-only` を実行してから最後のコマンドを実行する。
+
+## 最新の設定へ更新する
+
+導入後は、次の2行を実行するだけでGitHubの最新設定を取得して適用できる。
 
 ```bash
 cd ~/Git/home-manager
-just host     # OS判定だけを確認
-just build    # ビルドのみ
-just switch   # ローカルの構成を適用
-just sync     # Gitをfast-forwardで更新して適用
+just sync
 ```
 
-| 環境 | `just switch` の処理 |
-|---|---|
-| Omarchy | 固定したHome Manager CLIをNixで起動し、`jeebis@omarchy`を適用 |
-| NixOS | 初回は既存OS設定をバックアップして統合flakeを生成・ビルドし、OS全体を適用 |
-| Android | Nix-on-Droidの`galaxy-tab-s11`構成を適用 |
+通常の導入・更新では `just build` や `just host` を使う必要はない。
 
-NixOSの初回 `just build` も `/etc/nixos` のバックアップと統合flake生成を行うが、稼働環境は切り替えない。
+NixOSでは初回に既存のOS設定をバックアップして統合用の設定を生成し、OS全体に適用する。
 既存のNixOS flakeは上書きしない。既存flakeへの統合・復旧は[NixOS導入手順](docs/nixos-install.md)を参照。
 
 OmarchyのRio本体は `omarchy pkg add rio` で別途導入する。移行時は[検証・制限事項](docs/terminal-migration.md)も確認する。
