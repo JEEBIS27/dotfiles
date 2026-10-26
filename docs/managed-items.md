@@ -1,5 +1,7 @@
 # パッケージ・設定一覧
 
+このページのデスクトップ設定・サービスはPC向け。Androidは`modules/cli.nix`のCLIと共有Zsh設定、公式Helixを使用する。バージョンと機能差は[Android導入手順](android-install.md)を参照。
+
 正確なパッケージとバージョンは各Nix定義と`flake.lock`を参照。
 
 ## 共通パッケージ

@@ -10,7 +10,7 @@ export FZF_CTRL_R_OPTS="
   --preview-window down:3:hidden:wrap
   --bind 'esc:abort'
 "
-if [[ -f "@themeDir@/preview.tmTheme" ]]; then
+if [[ -n "@themeDir@" && -f "@themeDir@/preview.tmTheme" ]]; then
   export BAT_THEME="Desktop"
 else
   export BAT_THEME="ansi"

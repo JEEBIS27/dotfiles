@@ -1,16 +1,20 @@
 # 構成とOS別バックエンド
 
-`home.nix`から共通モジュールを読み込み、`hosts/omarchy.nix` / `hosts/nixos.nix`でデスクトップの実装を切り替える。
+PCでは`home.nix`から共通モジュールを読み込み、`hosts/omarchy.nix` / `hosts/nixos.nix`でデスクトップの実装を切り替える。
 
 | 定義 | 役割 |
 |---|---|
-| `modules/apps.nix` | 共通CLI、NixOS用開発ツール |
+| `modules/common.nix` / `modules/cli.nix` | PC・Android共通のZsh設定とCLIパッケージ |
+| `modules/apps.nix` | PC用TUIOS、NixOS用開発ツール |
+| `hosts/nix-on-droid.nix` / `hosts/android.nix` | Android用入口。PCモジュールは読み込まない |
 | `modules/zsh-files.nix` / `app-files.nix` | シェル・アプリ設定の配置 |
 | `modules/desktop.nix` | Hyprland、Quickshellプラグイン、Rio + TUIOS、テーマ |
 | `modules/input-method-files.nix` | Fcitx / Mozkey設定・NixOS用IMEサービス |
 | `modules/mounts.nix` | rcloneとuser systemd unit |
 | `nixos/desktop.nix` | Hyprland / UWSM、IME、PAM、通信・音声・電源管理 |
 | `nixosModules.personal` | NixOSとHome Managerの統合 |
+
+Androidの読み込み経路・機能差は[Android導入手順](android-install.md)を参照。以下はPC用デスクトップの説明。
 
 ## 同梱ランタイム
 

@@ -1,16 +1,16 @@
 # dotfiles
 
-Omarchy / NixOS向けのHome Manager構成。Hyprland、Quickshell（jeebis-shell）、ターミナル・エディター設定とアプリを管理する。
+Omarchy / NixOS / Android（Nix-on-Droid）向けのHome Manager構成。Hyprland、Quickshell（jeebis-shell）、ターミナル・エディター設定とアプリを管理する。
 
-現構成は `x86_64-linux`・ユーザー `jeebis`・配置先 `~/Git/home-manager` を前提とする。他の環境ではユーザー名・パス・ハードウェア設定の変更が必要。
+PC構成は `x86_64-linux`・ユーザー `jeebis`・配置先 `~/Git/home-manager` を前提とする。Androidは `aarch64-linux`、Nix-on-Droid既定のユーザーとホームを使用する。他の環境ではユーザー名・パス・ハードウェア設定の変更が必要。
 
 ## 構成
 
 ```text
 .
 ├── flake.nix / flake.lock   # 入力の固定・Home Manager・NixOSモジュール
-├── home.nix                # Home Managerの共通設定
-├── hosts/                  # Omarchy / NixOSの切替
+├── home.nix                # PC用Home Manager構成
+├── hosts/                  # Omarchy / NixOS / Androidの入口
 ├── modules/                # アプリ・設定ファイル・サービス
 ├── nixos/                  # NixOSのデスクトップ設定
 ├── files/                  # アプリ設定・Hyprland・シェル設定・テーマ・壁紙
@@ -59,6 +59,18 @@ NixとHome Managerが導入済みの環境で実行する。Rio本体は `omarch
 home-manager build --flake "path:$HOME/Git/home-manager#jeebis@omarchy"
 home-manager switch --flake "path:$HOME/Git/home-manager#jeebis@omarchy"
 ```
+
+## Android（Galaxy Tab S11）への導入
+
+Nix-on-Droid内で実行する。
+
+```bash
+git clone https://github.com/JEEBIS27/dotfiles.git ~/Git/home-manager
+cd ~/Git/home-manager
+nix-on-droid switch --flake "path:$PWD#galaxy-tab-s11"
+```
+
+Zsh・CLIパッケージを共有し、PC用のHyprland・Quickshell・Rio・IME・クラウドマウントは読み込まない。バージョンと機能差、事前ビルド、更新手順は[Android導入手順](docs/android-install.md)を参照。
 
 ## ドキュメント
 
