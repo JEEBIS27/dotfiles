@@ -1,23 +1,6 @@
 #!/usr/bin/env bash
-# Covers a direct live report: in docked mode, the app-icon group at the
-# far left ("A", ruixen.applauncher, hosted in menuPill) sat too close to
-# the screen edge -- "needs to be relaxed just a bit with padding so it's
-# not too close to the dock edge".
-#
-# menuPill's own leftMargin (12) was deliberately trimmed down from an
-# original 20 for floating mode specifically: floating's own per-pill
-# GroupPill background gives the icon visual separation from
-# ruixen.frame-widget's rounded corner on its own, so bare content needs
-# less raw clearance. Docked mode doesn't have that cushion -- its own
-# GroupPill is hidden (visible: !root.docked) and replaced by one
-# continuous leftDockedBg shape flush with the frame's own corner, so the
-# reasoning that justified the smaller floating value never applied
-# there. Fixed by making the margin mode-aware: back to the original,
-# already-tuned 20 specifically when docked, unchanged 12 when floating.
-#
-# Can't drive a real Quickshell instance here (no compositor in CI), so
-# this is a static invariant check against the actual QML source instead
-# -- same style as tests/lint-shell.sh's own pattern-based guards.
+# Ruixen docked chrome retains its inset. Jeebis floating mode reads the
+# editable screenSideGap instead of the old fixed 12px screen-edge margin.
 set -Eeuo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -37,9 +20,9 @@ check() {
   fi
 }
 
-margin_line="$(grep -m1 'anchors.leftMargin: barWindow.barRoot.docked ? 20 : 12' "$barpanel_qml")"
-check "menuPill's own leftMargin is mode-aware: 20 docked, 12 floating" \
-  "$margin_line" '        anchors.leftMargin: barWindow.barRoot.docked ? 20 : 12'
+margin_line="$(grep -m1 'anchors.leftMargin: barWindow.barRoot.docked ? 20 : ShellConfig.screenSideGap' "$barpanel_qml" || true)"
+check "menuPill's own leftMargin is mode-aware: 20 docked, configured screenSideGap floating" \
+  "$margin_line" '        anchors.leftMargin: barWindow.barRoot.docked ? 20 : ShellConfig.screenSideGap'
 
 # leftDockedBg's own outer bounds must stay anchored to the true screen
 # edge (x: 0) regardless of this -- the fix is meant to be purely

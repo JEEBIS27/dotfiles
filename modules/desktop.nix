@@ -6,7 +6,7 @@ let
   runtime = import ../packages/desktop/runtime.nix { pkgs = appPkgs; };
   themeDir = "${config.xdg.stateHome}/${if native then "jeebis-desktop" else "omarchy"}/current/theme";
   coreSource = ../files/desktop;
-  ruixen = import ../packages/jeebis-shell.nix { pkgs = appPkgs; inherit native; };
+  jeebisShell = import ../packages/jeebis-shell.nix { pkgs = appPkgs; inherit native; };
   presetDefinitions = builtins.fromJSON (builtins.readFile ../files/desktop/presets.json);
   presetFiles = builtins.listToAttrs (map (preset: {
     name = "omarchy/themes/${preset.name}/colors.toml";
@@ -111,7 +111,7 @@ in
   };
   config = {
     home.packages = [ package appPkgs.fuzzel appPkgs.cava appPkgs.fastfetch ];
-    xdg.dataFile."ruixen-shell/hyprland".source = ruixen + /hyprland;
+    xdg.dataFile."jeebis-shell/hyprland".source = jeebisShell + /hyprland;
     xdg.dataFile."jeebis-desktop/backgrounds".source = coreSource + /backgrounds;
     xdg.configFile = fileLinks // {
       "jeebis/desktop.lua".text = ''
@@ -128,8 +128,9 @@ in
         function M.bind(...) return o.bind(...) end
         return M
       '';
-      "jeebis/curvature.lua".source = ruixen + /hyprland/jeebis-curvature.lua;
-      "${hostConfigDir}/plugins".source = ruixen + /plugins;
+      "jeebis/motion.lua".source = jeebisShell + /hyprland/jeebis-motion.lua;
+      "jeebis/curvature.lua".source = jeebisShell + /hyprland/jeebis-curvature.lua;
+      "${hostConfigDir}/plugins".source = jeebisShell + /plugins;
       "${hostConfigDir}/shell.json".source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/Git/home-manager/files/desktop/jeebis-shell.json";
     }
     // lib.optionalAttrs (!native) (presetFiles // {
@@ -151,7 +152,21 @@ in
     home.file.".local/bin/jeebis-chatgpt-new-window" = { source = personalHelpers + /jeebis-chatgpt-new-window; executable = true; };
     home.file.".local/bin/jeebis-theme-cycle" = { text = "#!${pkgs.runtimeShell}\nexec ${cfg.command} theme cycle\n"; executable = true; };
     home.activation = {
-      initializeRuixenHypr = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+      migrateJeebisShellData = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+        old="$HOME/.local/share/ruixen-shell"
+        new="$HOME/.local/share/jeebis-shell"
+        if [ -d "$old" ]; then
+          run mkdir -p "$new"
+          for entry in "$old"/*; do
+            [ -e "$entry" ] || [ -L "$entry" ] || continue
+            name="''${entry##*/}"
+            if [ ! -e "$new/$name" ] && [ ! -L "$new/$name" ]; then
+              run cp -a "$entry" "$new/$name"
+            fi
+          done
+        fi
+      '';
+      initializeJeebisShellHypr = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
       run mkdir -p "$HOME/.config/hypr"
       if [ ! -e "$HOME/.config/hypr/monitors.lua" ]; then
         run install -m644 ${../files/hypr/monitors.lua} "$HOME/.config/hypr/monitors.lua"

@@ -45,7 +45,7 @@ check "leftPluginPinsContent excludes every left-side structural id (applauncher
   "$(grep -A8 'id: leftPluginPinsContent$' "$barpanel_qml" | grep -c 'ruixen\.applauncher.*ruixen\.workspaces\|entryId(e) !== "ruixen.applauncher"' || true)" "1"
 
 check "leftPluginPinsPill uses the zero-collapse width pattern (same as pinnedappsPill), not a fixed width" \
-  "$(grep -A6 'id: leftPluginPinsPill$' "$barpanel_qml" | grep -c 'width: leftPluginPinsContent\.width > 0 ? leftPluginPinsContent\.width + 8 \* 2 : 0' || true)" "1"
+  "$(grep -A6 'id: leftPluginPinsPill$' "$barpanel_qml" | grep -c 'width: leftPluginPinsContent\.width > 0 ? leftPluginPinsContent\.width + ShellConfig.islandPadding \* 2 : 0' || true)" "1"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail_count"
 [[ "$fail_count" -eq 0 ]]

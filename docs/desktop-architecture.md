@@ -18,8 +18,8 @@
 
 `omarchy-*`の名前はQMLやスクリプトの呼出し互換のため保持する。NixOSでは`packages/desktop/runtime.nix`でパス等を調整した専用ランタイムをNix storeへ構築する。ホストの`/usr/share/omarchy`は不要。Omarchy側は既存OSの実装を利用する。直接の呼出しだけでなくスクリプト間の呼出しもあるため、名前だけを根拠に`bin/`の部品を削除しない。
 
-## Ruixen
+## jeebis-shell
 
-バー・notch・ランチャーは[Ruixen](ruixen-shell.md)を使用する。プラグイン本体は`vendor/jeebis-shell/`の編集可能なソースからNixで構築し、設定は`files/desktop/jeebis-shell.json`に置く。OmarchyではOSのシェル、NixOSでは同梱ランタイムに読み込む。RuixenはOmarchyシェルを必要とし、独立したシェルではない。
+バー・notch・ランチャーは[jeebis-shell](jeebis-shell.md)を使用する。プラグイン本体は`vendor/jeebis-shell/`の編集可能なソースからNixで構築し、設定は`files/desktop/jeebis-shell.json`に置く。OmarchyではOSのシェル、NixOSでは同梱ランタイムに読み込む。内部ではOmarchy互換の上流由来プラグインを使用する。
 
-画面スケールと曲率はRuixenが書き換えるローカル設定として初期化し、固定のHome Managerリンクにはしない。テーマプリセットは共通の宣言から管理する。
+画面スケールと曲率はjeebis-shellが書き換えるローカル設定として初期化し、固定のHome Managerリンクにはしない。テーマプリセットは共通の宣言から管理する。

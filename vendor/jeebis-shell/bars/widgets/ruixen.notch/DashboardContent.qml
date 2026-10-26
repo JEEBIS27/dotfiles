@@ -26,12 +26,6 @@ import "NotificationModel.js" as NotificationModel
 Item {
   id: root
 
-  signal agentsRequested()
-  Timer {
-    id: agentsMenuDelay
-    interval: 200
-    onTriggered: Quickshell.execDetached(["omarchy-shell", "omarchy.agents", "open"])
-  }
   property var shell: null
   // Whether the dashboard panel itself is currently open -- see this
   // property's own comment at its Overlay.qml call site for why this
@@ -1102,7 +1096,7 @@ Item {
       Layout.fillHeight: true
       spacing: 8
 
-      // Quick controls; Agents opens the existing usage/limits panel via public IPC.
+      // Quick controls. Agent usage is a dedicated dashboard tab.
       Pane {
         Layout.fillWidth: true
         Layout.preferredHeight: 60
@@ -1152,15 +1146,6 @@ Item {
             // sendIdleAction's own comment for the real (inverted)
             // mapping to the underlying enable/disable IPC calls.
             onActivated: root.sendIdleAction(!root.stayAwakeEnabled)
-          }
-
-          QuickToggle {
-            size: 40
-            glyph: "\udb85\udea3"
-            onActivated: {
-              root.agentsRequested()
-              agentsMenuDelay.restart()
-            }
           }
         }
       }

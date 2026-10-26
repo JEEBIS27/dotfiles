@@ -1,83 +1,9 @@
 #!/usr/bin/env bash
-# Covers a direct request to rework the bar's right side. Went through
-# many corrections before landing on the final shape -- condensed
-# history, oldest first:
-#
-# 1. ruixen.stayawake ("the coffee cup") anchors a small group of its
-#    own -- it's the boundary a newly-enabled third-party widget lands
-#    to the LEFT of by default (Omarchy's own bar-widget placement,
-#    PluginRegistry.qml's defaultBarWidgetSection/barTarget, hardcodes
-#    ruixen.tray as the "right" section's anchor; a widget with no
-#    placement inserts right after it in shell.json's own array).
-#    omarchy.system-update/power/omarchy.agents/ruixen.quickactions/
-#    ruixen.settingsbutton merged into one curated group; the catch-all
-#    for unrecognized ids moved from next to clockPill to between
-#    trayPill and stayawake's own pill, so the anchor role held true on
-#    SCREEN, not just in the config.
-# 2. ruixen.pluginpins (new: the pin/unpin dropdown for every other
-#    installed bar-widget) joined the curated group.
-# 3. stayawake's own separate pill merged into the curated group
-#    ("can we collapse this with the plugin pin one... i dont think
-#    anything shows up on this group other than that") -- read back as
-#    "blowing up the icon groups, this doesnt make any sense".
-# 4. Redrawn into four *named* groups per an explicit spec ("starting
-#    from the first left icon group, the onepassword and open app pill
-#    group, next pill group is the PLUGSINSPIN..., then more actions
-#    and setting, then weather and time") -- but system-update/power
-#    and then stayawake/agents each went through a wrong-group
-#    correction before landing on the final answer below.
-# 5. Final correction ("the plugs in toggle inside the pill it
-#    toggles... microphone network cofee ai [are] toggleable from the
-#    plugins pin so they stay pinnable or not in the plugin group" /
-#    "system is POWER UPDATE MORE ACTIONS AND SETTING"): the toggle
-#    icon lives together with whatever it toggles, and the "system"
-#    group is an exact, fixed list that's never a catch-all.
-#
-# Final shape, left to right:
-#   1. trayPill -- ruixen.tray ONLY. Literal open apps (1Password,
-#      etc.), nothing else.
-#   2. pluginPinsPill -- ruixen.pluginpins itself PLUS everything pinned
-#      through it (stayawake, agents, microphone, network, any
-#      third-party widget). This is the catch-all now: every id in
-#      "right" that's neither tray nor the fixed system list.
-#   3. curatedPill ("SYSTEM") -- system-update, power, quickactions,
-#      settingsbutton, launcherbutton. An exact id-match list, not a
-#      catch-all -- nothing joins it except by being explicitly added here.
-#   4. clockPill -- weather + clock, unchanged throughout every pass
-#      above.
-#
-# ruixen.launcherbutton (magnifying-glass icon opening ruixen.launcher,
-# direct request: "adding a magnify glass icon to the right of the
-# pluginspin icon... apparentely people dont even know it exists")
-# joins curatedPill rather than pill 2's catch-all -- same always-on
-# reasoning as settingsbutton: a discoverability icon that can be
-# silently unpinned through the generic pin dropdown defeats its own
-# purpose. Trails the group (direct follow-up correction: "reorder it so
-# this group, its power, more actions, setting, and then search icon"),
-# not leading it -- curatedPill's own render order follows shell.json's
-# layout array, not curatedRightIds' own declaration order, so this is a
-# layout-array change (lib/ruixen-bar-canonical.json), not just a
-# reordering of the id list below.
-#
-# ruixen.peripherals (wireless device battery pins) passed through
-# curatedRightIds for a while (#6, since reverted) -- direct follow-up
-# once it was live: "its kinda crowding to put it in the pinplugins
-# group, can we move this so it works inside the setting more actions
-# group instead. we already have a power there so it kinda make sense."
-# Later moved back out of curatedRightIds and into pill 2 for good
-# (direct follow-up, to reduce clutter: "its not that important for me
-# to always see it right now") -- pinned on demand through
-# ruixen.pluginpins now, same as stayawake/agents, not listed in
-# curatedRightIds at all any more.
-#
-# curatedRightIds is that exact fixed list. There's no third named
-# list (no more "sideRightIds") -- pill 2's own filter is just "not
-# tray, not curatedRightIds", so a newly-pinned third-party widget
-# lands there automatically with no id list to maintain.
-#
-# Can't drive a real Quickshell instance here (no compositor in CI), so
-# this is a static invariant check against the actual QML source instead
-# -- same style as tests/lint-shell.sh's own pattern-based guards.
+# Ruixen's optional system/pinned/tray grouping, with Jeebis date/load
+# islands inserted into the right-hand anchor chain:
+# tray -> load -> plugin pins (including Agent) -> system -> date -> clock.
+# Empty optional groups must collapse; shared padding comes from ShellConfig.
+# These are source-wiring checks; visible layout still needs a live shell.
 set -Eeuo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -124,16 +50,16 @@ for old_id in togglesPill rightPill stayawakePill stayawakeGroupPill thirdPartyP
     "$(grep -c "id: $old_id\$" "$barpanel_qml" || true)" "0"
 done
 
-# --- anchor chain: tray -> pluginPins -> curated -> clock
+# --- Jeebis anchor chain: tray -> load -> pluginPins -> curated -> date -> clock
 #
 # This exact order is what makes "third-party lands left of the coffee"
 # true on screen and not just in shell.json's own array order.
-check "curatedPill anchors off clockPill (rightmost of this cluster)" \
-  "$(grep -A2 'id: curatedPill$' "$barpanel_qml" | grep -c 'anchors.right: clockPill.left' || true)" "1"
+check "curatedPill anchors off the date island" \
+  "$(grep -A2 'id: curatedPill$' "$barpanel_qml" | grep -c 'anchors.right: datePill.left' || true)" "1"
 check "pluginPinsPill anchors off curatedPill (sits just left of SYSTEM)" \
   "$(grep -A2 'id: pluginPinsPill$' "$barpanel_qml" | grep -c 'anchors.right: curatedPill.left' || true)" "1"
-check "trayPill anchors off pluginPinsPill (leftmost of this cluster)" \
-  "$(grep -A2 'id: trayPill$' "$barpanel_qml" | grep -c 'anchors.right: pluginPinsPill.left' || true)" "1"
+check "trayPill anchors off the optional load island" \
+  "$(grep -A2 'id: trayPill$' "$barpanel_qml" | grep -c 'anchors.right: loadPill.left' || true)" "1"
 
 # --- docked-mode rendering: rightShoulderWing/rightDockedBg seam -------
 #
@@ -153,7 +79,7 @@ check "rightShoulderWing overlaps rightDockedBg by 1px, not flush against it" \
 
 # --- each pill's own ModuleList filters on the right id list -----------
 check "curatedContent filters on the exact curatedRightIds membership" \
-  "$(grep -A3 'id: curatedContent$' "$barpanel_qml" | grep -c 'barWindow\.barRoot\.curatedRightIds\.indexOf' || true)" "1"
+  "$(grep -A6 'id: curatedContent$' "$barpanel_qml" | grep -c 'barWindow\.barRoot\.curatedRightIds\.indexOf' || true)" "1"
 check "trayContent is tray ONLY (exact id match, not a catch-all)" \
   "$(grep -A5 'id: trayContent$' "$barpanel_qml" | grep -c 'barWindow\.barRoot\.entryId(e) === "ruixen.tray"' || true)" "1"
 check "pluginPinsContent is the catch-all now: not tray, not in curatedRightIds" \
@@ -175,8 +101,8 @@ check "pluginPinsToggle (the toggle icon's own slot) exists, exactly once" \
   "$(grep -c 'id: pluginPinsToggle$' "$barpanel_qml" || true)" "1"
 check "pluginPinsToggle anchors to this pill's own right edge" \
   "$(grep -A2 'id: pluginPinsToggle$' "$barpanel_qml" | grep -c 'anchors.right: parent.right' || true)" "1"
-check "pluginPinsToggle reserves its own 8px right margin (not flush against the pill's own edge)" \
-  "$(grep -A12 'id: pluginPinsToggle$' "$barpanel_qml" | grep -c 'anchors.rightMargin: 8' || true)" "1"
+check "pluginPinsToggle reserves the same configured padding as other islands" \
+  "$(grep -A12 'id: pluginPinsToggle$' "$barpanel_qml" | grep -c 'anchors.rightMargin: ShellConfig.islandPadding' || true)" "1"
 
 # Direct live report after the toggle was first pulled into its own
 # slot: "it doesnt shrink or expand anymore" and "the pill is lop

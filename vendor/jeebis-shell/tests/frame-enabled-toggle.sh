@@ -104,11 +104,7 @@ check "bar visibility preserves personal gaps" \
 check "the bar never writes live compositor gaps" \
   "$(grep -c 'hl.config({.*gaps_out' "$bar_qml" || true)" "0"
 
-# --- Overlay.qml / NotchWindow.qml: direct follow-up -- the painted
-# edge-band fix above wasn't well received live ("the user kinda didnt
-# like the the top frame only"), so the notch instead collapses its own
-# reserved top space when the frame is off, sitting flush against the
-# true screen edge instead of keeping a gap nothing visually justifies.
+# --- Jeebis: frame visibility must not move the attached notch ------------
 check "Overlay.qml declares its own frameEnabled, defaulting to on, mirroring Bar.qml's shape" \
   "$(grep -c 'property bool frameEnabled: true' "$overlay_qml")" "1"
 check "applyBarSurfaceState takes frameEnabled as a third argument" \
@@ -117,35 +113,16 @@ check "a missing/non-false frameEnabled value in the state file still defaults t
   "$(grep -c 'root.frameEnabled = frameEnabled !== false' "$overlay_qml")" "1"
 check "loadBarSurfaceState passes the parsed frameEnabled field through" \
   "$(grep -c 'root.applyBarSurfaceState(p && p.color, p && p.material, p && p.frameEnabled)' "$overlay_qml")" "1"
-check "notchOuter's restY collapses to 0 with the frame off instead of keeping the 4px resting gap" \
-  "$(grep -A20 'id: notchOuter' "$notch_window_qml" | grep -c 'readonly property int restY: panel.notchRoot.frameEnabled ? 4 : 0')" "1"
+check "personal notch always attaches to the screen edge, independent of frame visibility" \
+  "$(grep -A20 'id: notchOuter' "$notch_window_qml" | grep -c 'readonly property int restY: 0')" "1"
 
-# --- Bar.qml: direct follow-up -- the painted edge-band compromise
-# wasn't well received live either ("the user kinda didnt like the the
-# top frame only"), so the bar's own floating pills get a similar
-# treatment to the notch/shelf, routed through the one property
-# (contentTopInset) everything else already derives the real on-screen
-# top position from -- not a second condition threaded through every
-# call site. frameInset, not 0 -- a flush-to-the-edge version shipped
-# first and was corrected live ("way too close to the edge... bar
-# should still have a bit of top padding"), landing on the same small
-# inset docked mode already uses instead of fully flush.
-check "contentTopInset drops to frameInset (not 0) with the frame off; docked is untouched" \
-  "$(grep -c 'readonly property int contentTopInset: docked ? frameInset : (resolvedFrameEnabled ? topInset : frameInset)' "$bar_qml")" "1"
+# Floating top spacing is configured by ShellConfig, independent of frame mode.
+check "personal floating top inset stays configured independently of frame visibility" \
+  "$(grep -c 'readonly property real contentTopInset: docked ? frameInset : topInset' "$bar_qml")" "1"
 
-# --- Bar.qml: direct follow-up -- "in frameless mode, the hyprland
-# window goes up a bit high, its touching the notch edge... on frame
-# mode, it has just a bit of gap". Root cause: notchClearance was a
-# hand-kept-in-sync literal (31) that only matched the documented
-# invariant (contentTopInset + notchClearance = 44) for ONE of
-# contentTopInset's two floating values (topInset) -- disabling the
-# frame switched it to the other (frameInset) without notchClearance
-# following, leaving the real Hyprland reservation 7px short of the
-# notch's actual footprint. Computed instead of hardcoded closes that
-# gap for either value, matching how docked's own exclusiveZone
-# formula already derives itself instead of using a second literal.
-check "notchClearance is computed from contentTopInset, not a hand-kept-in-sync literal" \
-  "$(grep -c 'readonly property int notchClearance: 44 - contentTopInset' "$bar_qml")" "1"
+# Reservation follows the actual configured footprint rather than old 44px math.
+check "notchClearance follows the configured island/notch footprint" \
+  "$(grep -c 'readonly property int notchClearance: ShellConfig.reservedHeight(Style) - contentTopInset' "$bar_qml")" "1"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail_count"
 [[ "$fail_count" -eq 0 ]]

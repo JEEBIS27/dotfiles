@@ -28,6 +28,7 @@ backup = state / ('backup-' + str(time.time_ns()))
 backup.mkdir()
 links = {
     config / host / 'plugins': built / 'plugins',
+    config / 'jeebis/motion.lua': built / 'hyprland/jeebis-motion.lua',
     config / 'jeebis/curvature.lua': built / 'hyprland/jeebis-curvature.lua',
     **{config / 'hypr' / f: source / f for f in ('looknfeel.lua', 'window-animations.lua', 'hyprland.lua')},
 }

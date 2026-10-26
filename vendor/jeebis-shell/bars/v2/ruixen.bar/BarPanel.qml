@@ -1309,16 +1309,9 @@ PanelWindow {
         ModuleSlot {
           id: pluginPinsToggle
           anchors.right: parent.right
-          // Was missing entirely -- with pluginPinsContent sitting
-          // flush against this slot's own left edge (0 margin, same
-          // 0-gap convention every other multi-icon pill already
-          // uses), the pill's own width formula (content.width +
-          // toggle.implicitWidth + 8*2) only reads as a symmetric 8px
-          // each side if THIS edge also reserves its own 8px. Without
-          // it, the missing 8 silently doubled onto the LEFT side
-          // instead (content's own left edge floated out to 16px, not
-          // 8) -- confirmed live: "the pill is lop sided now".
-          anchors.rightMargin: pluginPinsToggle.implicitWidth > 0 ? 8 : ShellConfig.islandPadding
+          // Jeebis: keep both sides symmetric when islandPadding changes,
+          // including when the optional pin toggle is shown.
+          anchors.rightMargin: ShellConfig.islandPadding
           anchors.verticalCenter: parent.verticalCenter
           entry: barWindow.barRoot.layoutEntries("right").filter(function(e) { return barWindow.barRoot.entryId(e) === "ruixen.pluginpins" })[0] || null
           region: "right"

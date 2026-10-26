@@ -2,6 +2,7 @@ import "../../../ShellConfig.js" as ShellConfig
 import QtQuick
 import QtQuick.Window
 import Quickshell
+import Quickshell.Io
 import Quickshell.Hyprland
 import qs.Commons
 import qs.Ui
@@ -13,8 +14,6 @@ Ui.BarWidget {
   id: root
   moduleName: "ruixen.apps"
   property var coordinator: null
-  property var layerArrivalKeys: ({})
-  property var layerArrivalDirections: ({})
   property bool detachedEntry: false
   required property bool floatingGroup
   property bool switchHeld: false
@@ -355,7 +354,7 @@ Ui.BarWidget {
       holdComposition(ShellConfig.appDeparture.settledMs)
       departures.append({ appKey: key, identity: candidate.identity, appName: candidate.appName, icon: candidate.icon,
         phase: pendingIndex >= 0 ? 1 : 0, skipSplit: pendingIndex >= 0,
-        initialX: pendingItem ? pendingItem.x : 0, initialOpacity: pendingItem ? pendingItem.entryProgress : 1, transferDirection: 0 })
+        initialX: pendingItem ? pendingItem.x : 0, initialOpacity: pendingItem ? pendingItem.entryProgress : 1 })
       departureRevision++
       root.reveal()
     }
@@ -376,7 +375,6 @@ Ui.BarWidget {
     updateDisplayedApps()
     root.settleComposition(ShellConfig.appDeparture.settledMs)
     Qt.callLater(root.tryStartDeparture)
-    if (coordinator) coordinator.splitFinished(key, floatingGroup)
   }
   readonly property real departureExtent: {
     var revision = departureGeometryRevision
@@ -410,79 +408,28 @@ Ui.BarWidget {
     }
     // appItems already follows compositor coordinates; ListModel.move animates reorders.
     var ordered = eligible.slice()
-    // A Float→App transfer starts beside the App island, so place it at the
-    // Float island's left edge before splitting. App→Float exits from the right;
-    // ordinary closes also stay queued at the far right.
+    // Only real closes remain queued at the right edge. Layer transfers are
+    // rendered once by the coordinator and never enter the departure model.
     var arranged = []
-    for (var q = departures.count - 1; q >= 0; q--) {
-      var transfer = departures.get(q)
-      if (transfer.phase === 0 && transfer.transferDirection < 0)
-        arranged.push({ identity: transfer.identity, name: transfer.appName, icon: transfer.icon })
-    }
     for (var o = 0; o < ordered.length; o++)
       if (departureIndex(ordered[o].identity.toLowerCase()) < 0) arranged.push(ordered[o])
     for (var c = departures.count - 1; c >= 0; c--) {
       var queued = departures.get(c)
-      if (queued.phase === 0 && queued.transferDirection >= 0)
+      if (queued.phase === 0)
         arranged.push({ identity: queued.identity, name: queued.appName, icon: queued.icon })
     }
     ordered = arranged
     // Preserve old icons through the normal final exit animation.
-    if (ordered.length > 0 || arrivals.count > 0 || departures.count > 0 || trackedWorkspaceId !== currentWorkspaceId)
+    if (ordered.length > 0 || arrivals.count > 0 || departures.count > 0 || trackedWorkspaceId !== currentWorkspaceId
+        || (coordinator && coordinator.transferActive))
       displayedApps = ordered
   }
   readonly property int currentWorkspaceId: WindowOrder.logicalWorkspaceId(Hyprland.focusedWorkspace)
-  function hasDisplayedKey(key) {
-    return displayedApps.some(function(app) { return app.identity.toLowerCase() === key })
-  }
-  function departurePhase(key) {
-    var index = departureIndex(key)
-    return index < 0 ? -1 : departures.get(index).phase
-  }
-  function markLayerDeparture(key, direction) {
-    var index = departureIndex(key)
-    if (index < 0) return false
-    departures.setProperty(index, "transferDirection", Number(direction))
-    departureRevision++
-    return true
-  }
-  function queueLayerDeparture(key, direction) {
-    var app = appMetadataCache[key]
-    if (!app || departureIndex(key) >= 0) return
-    // The coordinator publishes its transfer map after queuing this departure,
-    // so receive the direction explicitly instead of querying stale state.
-    holdComposition(ShellConfig.appDeparture.settledMs)
-    departures.append({ appKey: key, identity: app.identity, appName: app.name, icon: app.icon,
-      phase: 0, skipSplit: false, initialX: 0, initialOpacity: 1,
-      transferDirection: direction === undefined ? 0 : Number(direction) })
-    departureRevision++
-    updateDisplayedApps()
-    reveal()
-  }
-  function queueLayerArrival(key) {
-    var next = Object.assign({}, layerArrivalKeys)
-    next[key] = Date.now()
-    layerArrivalKeys = next
-    Qt.callLater(root.syncApplications)
-  }
-  function queueTransferArrival(key, fromLeft) {
-    var next = Object.assign({}, layerArrivalKeys)
-    next[key] = Date.now()
-    layerArrivalKeys = next
-    var directions = Object.assign({}, layerArrivalDirections)
-    directions[key] = !!fromLeft
-    layerArrivalDirections = directions
-    Qt.callLater(root.syncApplications)
-  }
   function cancelLayerTransfer(key) {
     var departure = departureIndex(key)
     if (departure >= 0) { departures.remove(departure); departureRevision++ }
     var arrival = arrivalIndex(key)
     if (arrival >= 0) { arrivals.remove(arrival); arrivalRevision++ }
-    var next = Object.assign({}, layerArrivalKeys)
-    delete next[key]; layerArrivalKeys = next
-    var directions = Object.assign({}, layerArrivalDirections)
-    delete directions[key]; layerArrivalDirections = directions
   }
   function syncApplications() {
     var snapshot = globalWindows
@@ -490,8 +437,6 @@ Ui.BarWidget {
     var nextApplications = ({})
     var archive = Object.assign({}, windowArchive)
     var newKeys = trackedWorkspaceId === currentWorkspaceId ? Object.assign({}, awaitingApplications) : ({})
-    for (var forcedKey in layerArrivalKeys) newKeys[forcedKey] = layerArrivalKeys[forcedKey]
-    layerArrivalKeys = ({})
     for (var i = 0; i < snapshot.length; i++) {
       var window = snapshot[i]
       if (!window.key) continue
@@ -538,16 +483,10 @@ Ui.BarWidget {
     for (var n = 0; n < appItems.length; n++) {
       var app = appItems[n]
       var key = app.identity.toLowerCase()
+      if (coordinator && coordinator.moving(key)) delete newKeys[key]
       if (!switchHeld && newKeys[key] && Date.now() - newKeys[key] < 2000 && arrivalIndex(key) < 0) {
         holdComposition(ShellConfig.appArrival.settledMs)
-        var isTransferArrival = layerArrivalDirections[key] !== undefined
-        arrivals.append({ appKey: key, identity: app.identity, appName: app.name, icon: app.icon, phase: 0,
-          transfer: isTransferArrival, fromLeft: isTransferArrival ? layerArrivalDirections[key] : false })
-        if (isTransferArrival) {
-          var remainingDirections = Object.assign({}, layerArrivalDirections)
-          delete remainingDirections[key]
-          layerArrivalDirections = remainingDirections
-        }
+        arrivals.append({ appKey: key, identity: app.identity, appName: app.name, icon: app.icon, phase: 0 })
         arrivalRevision++
         delete newKeys[key]
       }
@@ -600,7 +539,7 @@ Ui.BarWidget {
     for (var i = 0; i < appIcons.count; i++) {
       if (appIcons.get(i).appKey !== key) continue
       var item = iconRepeater.itemAt(i)
-      if (item) return item.mapToItem(root, 0, 0).x
+      if (item) return appViewport.x + iconRow.x + item.x
     }
     return targetX(key)
   }
@@ -641,7 +580,7 @@ Ui.BarWidget {
   property real centeringWidth: desiredCenteringWidth
   Behavior on centeringWidth {
     enabled: root.recentering && !root.directHandoff && !root.switchHeld
-    NumberAnimation { duration: ShellConfig.centerCompanions.movingMs; easing.type: Easing.InOutCubic }
+    JeebisNumberAnimation { bounded: true; duration: ShellConfig.centerCompanions.movingMs }
   }
   readonly property real mainIslandOffsetX: detachedEntry ? 0 : -Style.space(16) * (1 - islandRevealProgress)
   readonly property real arrivalExtent: {
@@ -681,12 +620,13 @@ Ui.BarWidget {
 
   Behavior on islandRevealProgress {
     enabled: !root.directHandoff && !root.switchHeld
-    NumberAnimation { duration: root.islandRequested ? ShellConfig.appIsland.enteringMs : ShellConfig.appIsland.leavingMs; easing.type: Easing.InOutCubic }
+    JeebisNumberAnimation { bounded: true; duration: root.islandRequested ? ShellConfig.appIsland.enteringMs : ShellConfig.appIsland.leavingMs }
   }
   Behavior on contentWidth {
     enabled: !root.directHandoff && !root.switchHeld
-    NumberAnimation { duration: arrivals.count > 0 ? ShellConfig.appArrival.joiningMs
-        : departures.count > 0 ? ShellConfig.appDeparture.separatingMs : ShellConfig.appIsland.resizingMs; easing.type: Easing.InOutCubic }
+    JeebisNumberAnimation { bounded: true; duration: root.coordinator && root.coordinator.transferActive ? ShellConfig.appTransfer.movingMs
+        : arrivals.count > 0 ? ShellConfig.appArrival.joiningMs
+        : departures.count > 0 ? ShellConfig.appDeparture.separatingMs : ShellConfig.appIsland.resizingMs }
   }
 
   // Omarchy --app windows expose a Chromium URL-derived class, rather than
@@ -788,13 +728,12 @@ Ui.BarWidget {
       if (!identity) continue
 
       var key = identity.toLowerCase()
-      if (coordinator && coordinator.incomingBlocked(key, floatingGroup)) continue
       if (seen[key]) continue
       seen[key] = true
 
       var terminalApp = AppIdentity.terminalApplication(client)
       var entry = terminalApp ? null : root.desktopEntryForClient(identity, client.title)
-      var terminalIcons = { nvim: "nvim", yazi: "yazi", codex: "utilities-terminal" }
+      var terminalIcons = { nvim: "nvim", yazi: "yazi", codex: "jeebis-codex" }
       var terminalNames = { nvim: "Neovim", yazi: "Yazi", codex: "Codex" }
       var icon = terminalApp ? terminalIcons[terminalApp] : entry && entry.icon ? String(entry.icon) : identity
       var name = terminalApp ? terminalNames[terminalApp] : entry && entry.name ? String(entry.name) : String(client.title || identity)
@@ -809,8 +748,39 @@ Ui.BarWidget {
     return result
   }
 
+  property string dragSource: ""
+  property string dragTarget: ""
+  function reorderApps(source, target) {
+    if (reorderProcess.running) return
+    var clients = WindowOrder.spatial(Hyprland.toplevels.values || [])
+    var windows = []
+    for (var i = 0; i < clients.length; i++) {
+      var logical = logicalWindow(clients[i])
+      if (logical.workspaceId === currentWorkspaceId && logical.floating === floatingGroup)
+        windows.push({address: String(clients[i].address), identity: clientIdentity(clients[i])})
+    }
+    var ids = displayedApps.map(function(app) { return app.identity })
+    var desired = WindowOrder.reorderPlan(windows, ids, source, target)
+    var code = WindowOrder.reorderScript(windows, desired, floatingGroup)
+    if (code) { reorderProcess.command = ["hyprctl", "eval", code]; reorderProcess.running = true }
+  }
+  function iconAt(point) {
+    if (point.y < -8 || point.y > iconRow.height + 8) return ""
+    for (var i = 0; i < iconRepeater.count; i++) {
+      var item = iconRepeater.itemAt(i)
+      if (item && point.x >= item.x && point.x <= item.x + item.width) return item.appIdentity
+    }
+    return ""
+  }
+  Process {
+    id: reorderProcess
+    onExited: Hyprland.refreshToplevels()
+  }
+
   function iconSource(icon) {
     var value = String(icon || "application-x-executable")
+    // Jeebis: preserve normal app grouping; only replace the Codex mark.
+    if (value === "jeebis-codex") return Qt.resolvedUrl("icons/jeebis-codex.svg")
     return value.indexOf("file:") === 0 || value.charAt(0) === "/" ? value : (Quickshell.iconPath(value, true) || Quickshell.iconPath("application-x-executable"))
   }
 
@@ -833,7 +803,7 @@ Ui.BarWidget {
       opacity: root.islandRevealProgress
       move: Transition {
         enabled: root.islandRevealProgress > 0.99
-        NumberAnimation { properties: "x,y"; duration: ShellConfig.appDeparture.reorderingMs; easing.type: Easing.InOutCubic }
+        JeebisNumberAnimation { properties: "x,y"; duration: ShellConfig.appDeparture.reorderingMs }
       }
       Repeater {
         id: iconRepeater
@@ -856,13 +826,48 @@ Ui.BarWidget {
           fixedHeight: ShellConfig.islandHeight
           horizontalMargin: 0
           verticalPadding: 0
+          Rectangle {
+            anchors.fill: parent
+            radius: ShellConfig.radius
+            color: Qt.rgba(1, 1, 1, 0.15)
+            visible: root.dragTarget === parent.appIdentity && root.dragSource !== root.dragTarget
+          }
+          MouseArea {
+            id: iconGesture
+            anchors.fill: parent
+            acceptedButtons: Qt.LeftButton
+            enabled: parent.interactive
+            hoverEnabled: true
+            preventStealing: true
+            cursorShape: pressed && dragging ? Qt.ClosedHandCursor : Qt.PointingHandCursor
+            property point origin
+            property bool dragging: false
+            onEntered: if (root.bar) root.bar.showTooltip(parent, parent.appName)
+            onExited: if (root.bar) root.bar.hideTooltip(parent)
+            onPressed: function(mouse) { origin = Qt.point(mouse.x, mouse.y); dragging = false }
+            onPositionChanged: function(mouse) {
+              if (!pressed) return
+              if (Math.abs(mouse.x - origin.x) + Math.abs(mouse.y - origin.y) > Qt.styleHints.startDragDistance) {
+                dragging = true
+                root.dragSource = parent.appIdentity
+                root.dragTarget = root.iconAt(mapToItem(iconRow, mouse.x, mouse.y))
+                if (root.bar) root.bar.hideTooltip(parent)
+              }
+            }
+            onReleased: {
+              if (dragging && root.dragTarget) root.reorderApps(root.dragSource, root.dragTarget)
+              root.dragSource = ""; root.dragTarget = ""
+            }
+            onClicked: if (!dragging) root.focusApp(parent.appIdentity)
+            onCanceled: { dragging = false; root.dragSource = ""; root.dragTarget = "" }
+          }
           Image {
             anchors.centerIn: parent
             width: Style.bar.iconCanvas
             height: Style.bar.iconCanvas
             sourceSize: Qt.size(Math.ceil(width * Screen.devicePixelRatio), Math.ceil(height * Screen.devicePixelRatio))
             source: root.iconSource(appIcon)
-            visible: !parent.pending
+            visible: !parent.pending && !(root.coordinator && root.coordinator.iconInFlight(parent.appIdentity.toLowerCase(), root.floatingGroup))
             fillMode: Image.PreserveAspectFit
             smooth: true
             mipmap: true
@@ -885,24 +890,20 @@ Ui.BarWidget {
       required property string appName
       required property string icon
       required property int phase
-      required property bool transfer
-      required property bool fromLeft
       property real mergeProgress: 0
       property real entryProgress: 0
       property real mergeStartX: 0
       readonly property real restingX: (root.mainIslandWidth > 0 ? root.mainIslandWidth + Style.space(16) : Style.space(16))
         + index * (Style.bar.iconSlot + Style.space(16))
       x: phase > 0 ? mergeStartX + ((phase === 2 ? 0 : root.targetX(appKey)) - mergeStartX) * mergeProgress
-        : transfer ? (fromLeft ? -width - Style.space(16) : root.mainIslandWidth + Style.space(16))
-          : restingX + Style.space(8) * (1 - entryProgress)
+        : restingX + Style.space(8) * (1 - entryProgress)
       width: Style.bar.iconSlot
       height: ShellConfig.islandHeight
       anchors.verticalCenter: parent.verticalCenter
       opacity: entryProgress
       z: 5
       Component.onCompleted: {
-        if (transfer) { entryProgress = 1; dwell.start() }
-        else if (root.displayedApps.length > 0) showBaseFirst.start()
+        if (root.displayedApps.length > 0) showBaseFirst.start()
         else entryAnimation.start()
       }
       Timer {
@@ -910,31 +911,30 @@ Ui.BarWidget {
         interval: ShellConfig.appArrival.preparingMs
         onTriggered: entryAnimation.start()
       }
-      NumberAnimation {
+      JeebisNumberAnimation {
         id: entryAnimation
+        bounded: true
         target: arrival
         property: "entryProgress"
         to: 1
         duration: ShellConfig.appArrival.enteringMs
-        easing.type: Easing.OutCubic
         onFinished: dwell.start()
       }
       Timer {
         id: dwell
-        interval: arrival.transfer ? 1 : ShellConfig.appArrival.presentMs
+        interval: ShellConfig.appArrival.presentMs
         onTriggered: {
           arrival.mergeStartX = arrival.x
           if (root.beginMerge(arrival.appKey)) mergeAnimation.start()
           else dwell.restart()
         }
       }
-      NumberAnimation {
+      JeebisNumberAnimation {
         id: mergeAnimation
         target: arrival
         property: "mergeProgress"
         to: 1
         duration: ShellConfig.appArrival.joiningMs
-        easing.type: Easing.InOutCubic
         onFinished: root.finishMerge(arrival.appKey)
       }
       AppCapsule {
@@ -943,7 +943,7 @@ Ui.BarWidget {
         width: parent.width + Style.space(16)
         anchors.verticalCenter: parent.verticalCenter
         height: ShellConfig.islandHeight * (0.84 + 0.16 * arrival.entryProgress)
-        opacity: arrival.phase === 2 ? 1 : 1 - arrival.mergeProgress
+        opacity: arrival.phase === 2 ? 1 : Math.max(0, Math.min(1, 1 - arrival.mergeProgress))
       }
       WidgetButton {
         anchors.fill: parent
@@ -987,19 +987,15 @@ Ui.BarWidget {
       required property bool skipSplit
       required property real initialX
       required property real initialOpacity
-      required property int transferDirection
       property bool prepared: false
       function startSplit() {
         if (phase !== 0) return
         // Capture the rendered position before removing the original delegate.
         startX = root.renderedIconX(appKey)
         root.beginDeparture(appKey)
-        if (departure.transferDirection !== 0 && root.coordinator)
-          root.coordinator.splitStarted(appKey, root.floatingGroup)
         var remainingWidth = root.displayedApps.length * Style.bar.iconSlot
           + Math.max(0, root.displayedApps.length - 1) * root.iconSpacing
-        endX = departure.transferDirection < 0 ? -width - Style.space(16)
-          : Math.max(remainingWidth, root.arrivalExtent) + Style.space(16)
+        endX = Math.max(remainingWidth, root.arrivalExtent) + Style.space(16)
         splitAnimation.start()
       }
       property real splitProgress: 0
@@ -1026,34 +1022,36 @@ Ui.BarWidget {
           root.tryStartDeparture()
         }
       }
-      NumberAnimation {
+      JeebisNumberAnimation {
         id: splitAnimation
         target: departure
         property: "splitProgress"
         to: 1
         duration: ShellConfig.appDeparture.separatingMs
-        easing.type: Easing.InOutCubic
         onFinished: fadeOut.start()
       }
-      NumberAnimation {
+      JeebisNumberAnimation {
         id: fadeOut
+        bounded: true
         target: departure
         property: "lifeOpacity"
         to: 0
         duration: ShellConfig.appDeparture.leavingMs
-        easing.type: Easing.InCubic
         onFinished: {
           var key = departure.appKey
           Qt.callLater(root.finishDeparture, key)
         }
       }
       AppCapsule {
+        // Jeebis: grow a soft capsule around the moving icon, as in a layer
+        // transfer. A real close keeps its capsule at the end, then fades out.
+        readonly property real emergence: departure.skipSplit ? 1 : Math.sin(Math.PI * departure.splitProgress / 2)
         barRoot: root.bar
-        x: -Style.space(8)
-        width: parent.width + Style.space(16)
+        anchors.horizontalCenter: parent.horizontalCenter
         anchors.verticalCenter: parent.verticalCenter
-        height: ShellConfig.islandHeight
-        opacity: departure.skipSplit ? 1 : departure.splitProgress
+        width: parent.width + 2 * ShellConfig.islandPadding * emergence
+        height: ShellConfig.islandHeight * (0.92 + 0.08 * emergence)
+        opacity: emergence
       }
       Image {
         anchors.centerIn: parent

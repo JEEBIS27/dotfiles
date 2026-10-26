@@ -1342,15 +1342,8 @@ Item {
   // unit-testable without a live Quickshell instance. This wrapper is
   // the only part that genuinely needs to be here: root.shell itself.
   function dropBarModule(source, toRegion, beforeName) {
-    if (!source || !source.region || !source.moduleName || !toRegion) return false
-    if (source.region === toRegion && source.moduleName === beforeName) return false
-    if (!root.shell || typeof root.shell.mutateShellConfig !== "function") return false
-
-    var changed = false
-    root.shell.mutateShellConfig(function(config) {
-      changed = BarModel.moveModuleInConfig(config, source.region, source.moduleName, toRegion, beforeName)
-    })
-    return changed
+    // Jeebis: fixed widget placement; only inner icon gestures may reorder.
+    return false
   }
 
   function moduleDropAtScene(scenePoint, sourceSlot) {

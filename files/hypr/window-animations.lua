@@ -1,18 +1,21 @@
--- Restored from the 2026-10-21 pre-Ruixen backup.
+-- Durations and popin style retained from the 2026-10-21 personal backup.
+-- Easing follows ShellConfig.js through the generated jeebis.motion module.
 -- Window appearance/disappearance: popin 87%, without Ruixen slide profiles.
 hl.config({ animations = { enabled = true } })
 
-hl.curve("easeOutQuint", { type = "bezier", points = { { 0.23, 1 }, { 0.32, 1 } } })
-hl.curve("easeInOutCubic", { type = "bezier", points = { { 0.65, 0.05 }, { 0.36, 1 } } })
-hl.curve("linear", { type = "bezier", points = { { 0, 0 }, { 1, 1 } } })
-hl.curve("almostLinear", { type = "bezier", points = { { 0.5, 0.5 }, { 0.75, 1.0 } } })
-hl.curve("quick", { type = "bezier", points = { { 0.15, 0 }, { 0.1, 1 } } })
-hl.animation({ leaf = "global", enabled = true, speed = 10, bezier = "default" })
-hl.animation({ leaf = "border", enabled = true, speed = 5.39, bezier = "easeOutQuint" })
-hl.animation({ leaf = "windows", enabled = true, speed = 3.79, bezier = "easeOutQuint" })
-hl.animation({ leaf = "windowsIn", enabled = true, speed = 4.1, bezier = "easeOutQuint", style = "popin 87%" })
-hl.animation({ leaf = "windowsOut", enabled = true, speed = 1.49, bezier = "linear", style = "popin 87%" })
-hl.animation({ leaf = "fadeIn", enabled = true, speed = 1.73, bezier = "almostLinear" })
-hl.animation({ leaf = "fadeOut", enabled = true, speed = 1.46, bezier = "almostLinear" })
-hl.animation({ leaf = "fade", enabled = true, speed = 3.03, bezier = "quick" })
+local motion = require("jeebis.motion")
+hl.animation({ leaf = "global", enabled = true, speed = 10, bezier = motion.bounded })
+hl.animation({ leaf = "border", enabled = true, speed = 5.39, bezier = motion.bounded })
+hl.animation({ leaf = "windows", enabled = true, speed = 3.79, bezier = motion.curve })
+hl.animation({ leaf = "windowsMove", enabled = true, speed = 3.79, bezier = motion.curve })
+hl.animation({ leaf = "windowsIn", enabled = true, speed = 4.1, bezier = motion.curve, style = "popin 87%" })
+hl.animation({ leaf = "windowsOut", enabled = true, speed = 1.49, bezier = motion.curve, style = "popin 87%" })
+hl.animation({ leaf = "fadeIn", enabled = true, speed = 1.73, bezier = motion.bounded })
+hl.animation({ leaf = "fadeOut", enabled = true, speed = 1.46, bezier = motion.bounded })
+hl.animation({ leaf = "fade", enabled = true, speed = 3.03, bezier = motion.bounded })
 hl.animation({ leaf = "fadeSwitch", enabled = false })
+
+-- Jeebis: workspace numbers represent a horizontal row, without wraparound.
+-- Larger numbers enter from the right; smaller numbers enter from the left.
+hl.config({ animations = { workspace_wraparound = false } })
+hl.animation({ leaf = "workspaces", enabled = true, speed = 3.6, bezier = motion.curve, style = "slide" })

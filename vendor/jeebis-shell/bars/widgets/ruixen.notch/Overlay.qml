@@ -917,7 +917,7 @@ Item {
     // to bottom. An unrecognized name is a no-op on the tab (still
     // opens on whichever tab was already selected).
     function openDashboardTab(tab: string): void {
-      var tabNames = ["widgets", "wallpapers", "metrics", "kanban"]
+      var tabNames = ["widgets", "wallpapers", "metrics", "kanban", "agents"]
       var index = tabNames.indexOf(tab)
       if (index >= 0) root.dashboardTab = index
       root.pinnedOpen = true

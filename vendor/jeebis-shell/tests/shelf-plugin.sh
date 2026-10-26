@@ -166,9 +166,9 @@ check "Shape: the center overlaps both flanks by seamOverlap (no fractional-scal
 check "Shape: the mask is a real, named shape source (a typo here renders nothing)" \
   "$(grep -c 'maskSource: shelfMask' "$shelf")$(grep -c 'id: shelfMask' "$shelf")" "11"
 check "Shape: the shoulders use the shared personal radius" \
-  "$(grep -c 'readonly property int cornerSize: Geometry.radius' "$shelf")" "1"
+  "$(grep -c 'readonly property int cornerSize: ShellConfig.radius' "$shelf")" "1"
 check "Shape: the bottom corners use the shared personal radius" \
-  "$(grep -c 'readonly property int bottomRadius: Geometry.radius' "$shelf")" "1"
+  "$(grep -c 'readonly property int bottomRadius: ShellConfig.radius' "$shelf")" "1"
 check "Shape: content is inset by the shoulders (it lives in the body, not the wings)" \
   "$(grep -c 'anchors.leftMargin: root.cornerSize$' "$shelf")$(grep -c 'anchors.rightMargin: root.cornerSize$' "$shelf")" "11"
 check "Shape: content clears the frame's top edge" \
@@ -406,7 +406,7 @@ check "Shelf holds references only: no cp/mv/rm in the QML" \
 # --- the notch: only the quick-drop relay, no Shelf UI ----------------
 check "Notch: no Shelf service/content/tab left behind" \
   "$(grep -cE 'ShelfService|ShelfContent|dashboardTab === 4|% 5|toggleShelf|shelfAdd|shelfList' "$notch")" "0"
-check "Notch: still four dashboard tabs" "$(grep -c 'dashboardTab + 1) % 4' "$notch_window")" "1"
+check "Notch: five dashboard tabs including Agent usage" "$(grep -c 'dashboardTab + 1) % 5' "$notch_window")" "1"
 check "Notch: quick-drop DropArea on the collapsed footprint" \
   "$(grep -c 'id: shelfQuickDrop' "$notch_window")" "1"
 check "Notch: quick-drop is inert while expanded" \

@@ -104,7 +104,7 @@ check "Bar.qml: read proc detects looknfeel.half.lua" \
   '          root.lookFeelVariant = "half"'
 
 check "FrameWindow.qml: both frame corner masks use the personal shared radius" \
-  "$(grep -c 'frameCornerRadius.*Geometry.radius' "$frame_qml")" "2"
+  "$(grep -c 'frameCornerRadius.*ShellConfig.radius' "$frame_qml")" "2"
 
 check "Bar.qml: no stale sharpCorners left behind (any case -- catches onSharpCornersChanged handlers too)" \
   "$(grep -ci 'sharpcorners' "$bar_qml")" "0"

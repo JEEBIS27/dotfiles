@@ -167,7 +167,8 @@ Item {
 
     anchors.fill: parent
     acceptedButtons: Qt.LeftButton
-    enabled: slot.visible && slot.width > 0 && slot.height > 0
+    // Jeebis: widget placement is fixed; inner widgets own their gestures.
+    enabled: false
     propagateComposedEvents: true
     // Coordinates come from moduleHover (the HoverHandler below), not
     // this MouseArea's own mouseX/mouseY -- those only update live

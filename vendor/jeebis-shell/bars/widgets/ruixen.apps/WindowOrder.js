@@ -25,3 +25,32 @@ function logicalWorkspaceId(workspace) {
   }
   return Number(workspace.id) || 0
 }
+
+// Jeebis: move one application's entire block to the target icon's slot.
+function reorderPlan(windows, identities, source, target) {
+  var from = identities.indexOf(source), to = identities.indexOf(target)
+  if (from < 0 || to < 0 || from === to) return []
+  var order = identities.slice()
+  order.splice(to, 0, order.splice(from, 1)[0])
+  var desired = []
+  for (var i = 0; i < order.length; i++)
+    for (var j = 0; j < windows.length; j++)
+      if (windows[j].identity === order[i]) desired.push(windows[j].address)
+  return desired
+}
+function reorderScript(windows, desired, floating) {
+  if (!desired.length || windows.length !== desired.length) return ""
+  function quoted(value) {
+    var address = String(value)
+    if (!/^(?:0x)?[0-9a-f]+$/i.test(address)) throw Error("Invalid window address")
+    return JSON.stringify(address.indexOf("0x") === 0 ? address : "0x" + address)
+  }
+  var current = windows.map(function(w) { return quoted(w.address) })
+  var wanted = desired.map(quoted)
+  return 'local current={' + current.join(',') + '}; local wanted={' + wanted.join(',') + '}; '
+    + 'local ws={}; for _,w in ipairs(hl.get_windows({mapped=true})) do ws[w.address]=w end; '
+    + 'for _,a in ipairs(current) do if not ws[a] or ws[a].floating~=' + (floating ? 'true' : 'false') + ' then return end end; '
+    + (floating
+      ? 'local positions={}; for i,a in ipairs(current) do positions[i]={x=ws[a].at.x,y=ws[a].at.y} end; for i,a in ipairs(wanted) do hl.dispatch(hl.dsp.window.move({window=ws[a],x=positions[i].x,y=positions[i].y,relative=false})) end'
+      : 'for i,a in ipairs(wanted) do if current[i]~=a then local j=i+1; while current[j]~=a do j=j+1 end; hl.dispatch(hl.dsp.window.swap({window=ws[current[i]],target=ws[a]})); current[i],current[j]=current[j],current[i] end end')
+}

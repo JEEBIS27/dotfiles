@@ -1,4 +1,4 @@
-# jeebis-shell（Ruixenベース）
+# jeebis-shell（Ruixenを基にした個人用構成）
 
 [Ruixen](https://github.com/gitcoder89431/ruixen-shell)はOmarchyシェル向けのプラグイン群。独立したQuickshellシェルではなく、Omarchyの基盤を必要とする。
 
@@ -52,9 +52,9 @@ Ruixenのテーマ・壁紙操作は[jeebis-desktopのテーマツール](theme-
 - ノッチ：`vendor/jeebis-shell/bars/widgets/ruixen.notch/NotchWindow.qml`
 - 配置・有効な機能：`files/desktop/jeebis-shell.json`
 
-プロジェクト名はjeebis-shell。内部の`ruixen.*` IDは互換性のため維持する。
+このリポジトリでは個人用の構成・配布名をjeebis-shellに統一する。Omarchyが認識する上流由来の`ruixen.*`プラグインIDと上流コードの出典表示は互換性・ライセンス上維持する。
 `vendor/jeebis-shell/LICENSE`と上流の著作権表示を保持する。
-`files/desktop/ruixen-shell.json`は現在の適用済み世代用の互換リンク。新しい世代の適用までは削除しない。
+`files/desktop/jeebis-shell.json`を唯一の管理設定とする。
 
 ソースはNixでビルドするため、QMLの保存だけでは起動中のシェルに反映されない。
 新規ファイルをGit管理に追加してから通常のflakeビルドを行う。未追加のまま検証する場合は`path:/home/jeebis/Git/home-manager`を指定する。
@@ -64,7 +64,7 @@ Home Manager適用やシェル再起動は別途承認を得て実施する。
 
 角丸の共通値は`vendor/jeebis-shell/ShellConfig.js`の`radius = 10`。導入前の`files/hypr/looknfeel.lua`の値に合わせる。ノッチのスカート・本体・影、Shelf、バー、ランチャーやカードに共通で使用する。円形アイコン、微小なインジケーター、接合部の直角は形状を維持する。QMLの半径は寸法の半分で制限される。
 
-ビルド時に同じ値から`jeebis/curvature.lua`を生成し、Hyprlandのlooknfeel読込後に適用する。ウィンドウアニメーションは`files/hypr/window-animations.lua`で導入前のpopin 87%と速度・曲線に戻す。既存の不透明度・隙間・ブラー設定は変更しない。
+ビルド時に同じ値から`jeebis/curvature.lua`を生成し、Hyprlandのlooknfeel読込後に適用する。ウィンドウアニメーションは`files/hypr/window-animations.lua`で導入前のpopin 87%と速度を保ち、曲線はShellConfig.jsの共通プリセットを使う。既存の不透明度・隙間・ブラー設定は変更しない。
 
 ## 変更の反映
 
@@ -121,3 +121,20 @@ Trayは`trayCollapseEnabled = false`で常時全表示、trueで矢印への収�
 App島はタイリング用とFloat用を同時に持ち、Float島を右隣に配置する。各グループはウィンドウの左端座標、同じ場合は上端座標で並べる。同じアプリの複数ウィンドウは従来どおりまとめ、最も左のウィンドウを基準にする。並べ替えは既存のappDeparture.reorderingMsでアニメーションする。Float切替は出発側の分離が始まると同時に、隣接側から到着アイコンを動かす。App島からFloat島へは右、Float島からApp島へは左へ向かう。Float専用special workspaceに一時退避しているウィンドウも、タグに記録した元のワークスペースを使ってFloat島に残す。単なる表示切替では新規起動アニメーションを再生せず、途中で逆方向に切り替えた場合は最新の操作を優先する。
 
 `workspaceResizeDuration`は丸の増減と選択幅の変化による伸縮時間、`appOrderPollMs`は実配置の更新間隔。処理の待機時間を含む合流・分離は既存のappArrival/appDepartureを使う。
+
+## 共通アニメーションプリセット（第1段階）
+
+`vendor/jeebis-shell/ShellConfig.js`の先頭で選択する。
+
+```js
+var animationPreset = "smooth"; // "linear" / "smooth" / "overshoot"
+var animationOvershoot = 1.70158;
+```
+
+- `linear`: 一定速度。
+- `smooth`: ゆっくり出発・加速・減速。QMLはInOutSine（(1-cos(πt))/2）、Hyprlandはベジェ近似（最大進捗誤差約0.022%）。
+- `overshoot`: Qt OutBack。目的地を行き過ぎて戻る。強さは0〜3、1.70158で約10%。Hyprlandにも同じ多項式をベジェとして生成する。
+
+対応範囲はApp島・Float島の合流、分離、並べ替え、島間移動と、Hyprlandのウィンドウ移動・リサイズ・開閉・横方向のワークスペース切り替え。範囲に制約のある表示率・透明度・島の幅はovershootでもsmoothを使用する。各動作の時間は既存設定を維持する。ノッチ・その他の島のアニメーションは今後の段階で対応する。
+
+Nixビルド時に`hyprland/jeebis-motion.lua`を生成し、Home Managerと`jeebis-shell-apply.sh`が`~/.config/jeebis/motion.lua`へ配置する。生成ファイルは直接編集しない。適用スクリプトはHyprlandの再読み込みも行うため、実行時はその変更も画面へ反映される。

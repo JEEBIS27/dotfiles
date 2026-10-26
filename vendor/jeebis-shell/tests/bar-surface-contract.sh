@@ -50,8 +50,8 @@ check "floating pills resolve their fill through the surface resolver" \
 check "floating pills resolve material opacity in one helper" \
   "$(grep -c 'readonly property color floatingPillFill: surfaceFillForMaterial(floatingPillSurface, floatingSurfaceMaterial)' "$bar_qml")" "1"
 
-check "glass material uses a translucent fill" \
-  "$(grep -A4 'function surfaceFillForMaterial' "$bar_qml" | grep -c 'material === "glass" ? 0.68')" "1"
+# Jeebis: glass/solid alpha behavior is exercised with actual colors in
+# tests/js/JeebisShellAppearance.test.js; the user-selected opacity is not fixed.
 
 check "surface color identity is resolved in one helper" \
   "$(grep -A2 'function resolveSurfaceColor' "$bar_qml" | grep -c 'mode === "theme" ? Color.background : root.surfaceBlack')" "1"

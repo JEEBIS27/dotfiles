@@ -33,8 +33,16 @@ check() {
   fi
 }
 
-fake_home="$(mktemp -d)"
-trap 'rm -rf "$fake_home"' EXIT
+# Jeebis vendors the upstream scripts without a nested .git directory.
+# Exercise upstream repair's checkout requirement inside a disposable fixture,
+# leaving both the real source tree and its Git metadata untouched.
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+fake_home="$work/home"
+mkdir -p "$fake_home"
+cp -a "$repo_dir" "$work/checkout"
+repo_dir="$work/checkout"
+git -C "$repo_dir" init -q
 
 run_install() {
   ( HOME="$fake_home" PATH="$fake_bin:$PATH" "$repo_dir/install.sh" ) >"$fake_home/install.out" 2>&1

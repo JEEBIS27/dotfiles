@@ -1,81 +1,7 @@
 #!/usr/bin/env bash
-# Covers a direct live report: in floating mode, opening weather's own
-# popup (and, confirmed separately, stock Omarchy's clock calendar popup)
-# visibly cut through the Notch's collapsed body.
-#
-# Both panels are built on qs.Ui's KeyboardPanel (centerOnBar: true), which
-# is NOT ours to edit -- it's under /usr/share/omarchy, pacman-owned. Its
-# cardOrigin math opens the popup at `anchorWindow.height + gap`, where
-# anchorWindow is ruixen.bar's own BarPanel window and gap is
-# Style.gapsOut (5 on the machine this was tuned against, from the real
-# Hyprland gaps_out config). That calculation has zero awareness of
-# ruixen.notch.
-#
-# First attempt (see git history) reused shoulderWingSize (docked's own
-# existing +24, tuned for an unrelated reason -- room for the frame-hem
-# corner wing graphic below the pill row) as the popup-clearing height in
-# both modes. That cleared the Notch but overshot: popups opened
-# noticeably lower than ruixen.quickactions' own "More Actions" popup (a
-# DIFFERENT popup component, PopupCard, anchored off its own icon rather
-# than this window's height, and already sitting right at the reserved
-# zone's own edge). Direct follow-up report: "can it go a bit higher...
-# the border matches the top of our hyprland window" pointing at that
-# popup as the reference.
-#
-# Fixed by deriving the minimum height from the Notch's own real collapsed
-# geometry instead (notchCollapsedBottomEdge) -- max(barSize,
-# notchCollapsedBottomEdge). Originally sourced live from ruixen.notch's
-# own NotchGeometry.qml service via shell.firstPartyServiceFor(); Omarchy
-# v4.0.3 restricts that call to a fixed allowlist "ruixen.notch" was never
-# going to be in (ruixen-shell issue #41/#38), so this is now a plain
-# constant, manually kept in sync with Overlay.qml's own real numbers
-# instead (same convention this file's own cornerSize already uses for a
-# different pair of plugins' shared numbers). NotchGeometry.qml itself --
-# the now-unconsumed service this used to read live -- was deleted
-# entirely once ruixen.bar became its last reader (ruixen-shell issue
-# #38's own cleanup pass); Overlay.qml was always the real source of
-# truth these numbers mirrored, so this file reads directly from there
-# now instead of through a middleman nothing else uses. Docked keeps a
-# higher floor
-# (barSize + shoulderWingSize) regardless of the Notch's numbers:
-# leftFrameHemWing/rightFrameHemWing (the frame-hem corner wing graphics,
-# docked only) occupy this window's own [barSize, barSize +
-# shoulderWingSize] band, and sizing the window any shorter when docked
-# would clip their bottom edge against the window's own Wayland surface
-# bounds.
-#
-# Originally a per-mode split (docked used the taller floor, floating used
-# the shorter one -- both cleared the Notch either way). Unified to the
-# SAME floor in both modes after a direct follow-up report: floating's
-# shorter height happened to line up with where Hyprland windows actually
-# tile, but docked's couldn't safely come down to match (the wing-clip
-# constraint above), so the two modes opened popups at two different
-# heights -- "it looks kinda sloppy... i think its better they either
-# lower or higher rather than having its own thing". Docked's floor can't
-# move, so floating moved up to match it instead: consistent behavior
-# across both modes over exactly hugging the window-tiling boundary in
-# floating alone.
-#
-# Purely a window-height change -- does NOT touch
-# margins.top/frameInset/topInset, so it doesn't move any pill's own
-# on-screen position (the docked/floating split top margin from before
-# #29 was reverted is untouched by this file).
-#
-# A follow-up attempt (see git history) tried pushing this shared value
-# further down toward true screen-center, matching ruixen.settings' own
-# dead-center dialog look. Reverted: the same shared `anchorWindow.height`
-# every popup reads doesn't scale to every popup's own, wildly different
-# content height -- a target tuned for weather's own ~228px popup pushed
-# omarchy.agents' own popup (up to 640px, a scrollable dashboard) toward
-# the bottom of the screen instead, via KeyboardPanel's own on-screen
-# clamp. Confirmed live ("the ai agent popup... showing up at the bottom
-# now"). Back to visibleBarHeight only (clears the Notch, no reach for
-# center) -- this file's own checks guard THAT reverted state, not the
-# center attempt.
-#
-# Can't drive a real Quickshell instance here (no compositor in CI), so
-# this is a static invariant check against the actual QML source instead
-# -- same style as tests/lint-shell.sh's own pattern-based guards.
+# Jeebis popup reservation uses ShellConfig's actual notch/island dimensions.
+# Preserve Ruixen's docked shoulder, seam and popup-hosting protections.
+# Numerical variations are exercised in tests/js/JeebisShellAppearance.test.js.
 set -Eeuo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -101,66 +27,18 @@ check() {
   fi
 }
 
-bar_size="$(grep -oP 'readonly property int barSize:\s*\K[0-9]+' "$bar_qml")"
-shoulder_wing_size="$(grep -oP 'property int shoulderWingSize:\s*\K[0-9]+' "$bar_qml")"
-# The old single margins.top (4) split into two pieces once "On Hover"
-# mode needed the surface itself to reach the true top edge (closing a
-# real dead zone -- see margins.top's own comment in Overlay.qml): the
-# PanelWindow's own margins.top (now 0, a real Wayland surface inset)
-# and notchOuter's own restY (4, a plain property -- anchors.top/
-# topMargin were dropped entirely once notchOuter needed to animate
-# its own y for the slide-down reveal, see its own comment) -- their
-# SUM is still the pill's real on-screen resting top offset, which is
-# what notchCollapsedBottomEdge actually needs. Scoped to the few
-# lines right after notchOuter's own `id:` (grep -A10) since a bare
-# file-wide match on a name as short as restY would be too easy to
-# collide with something unrelated later.
-notch_top_margin="$(grep -oP 'margins\.top:\s*\K[0-9]+' "$notch_overlay_qml")"
-# restY is now a ternary (Frame Border off collapses it to 0, issue #114
-# follow-up) -- the frame-enabled branch (4) is the value this invariant
-# actually protects, since notchCollapsedBottomEdge is a floor/ceiling the
-# frame-off case (a strictly smaller real edge) stays safely under either way.
-notch_outer_top_margin="$(grep -A16 'id: notchOuter' "$notch_overlay_qml" | grep -oP 'property int restY:.*\?\s*\K[0-9]+')"
-notch_collapsed_height="$(grep -oP 'panel\.pinnedOpen \? 400 : \K[0-9]+' "$notch_overlay_qml")"
-notch_body_width="$(grep -oP 'panel\.pinnedOpen \? 900 : \K[0-9]+' "$notch_overlay_qml")"
-notch_corner_size="$(grep -oP 'readonly property int cornerSize:\s*\K[0-9]+' "$notch_overlay_qml")"
-
-check "barSize is a single, real value (not empty/multiple matches)" \
-  "$(printf '%s' "$bar_size" | wc -l | tr -d ' ')" "0"
-check "shoulderWingSize is a single, real value (not empty/multiple matches)" \
-  "$(printf '%s' "$shoulder_wing_size" | wc -l | tr -d ' ')" "0"
-check "Overlay.qml's own collapsed margins.top is a single, real value (not empty/multiple matches)" \
-  "$(printf '%s' "$notch_top_margin" | wc -l | tr -d ' ')" "0"
-check "Overlay.qml's own notchOuter restY is a single, real value (not empty/multiple matches)" \
-  "$(printf '%s' "$notch_outer_top_margin" | wc -l | tr -d ' ')" "0"
-check "Overlay.qml's own collapsed notchOuter height is a single, real value (not empty/multiple matches)" \
-  "$(printf '%s' "$notch_collapsed_height" | wc -l | tr -d ' ')" "0"
-
-# ruixen.bar's own manually-synced constant has to track Overlay.qml's
-# real numbers, or a future change to either file silently drifts the two
-# out of sync (see ruixen-shell issue #41: this was a live service read
-# with a fallback constant before Omarchy v4.0.3 broke that read; now it
-# is just the constant, so this check matters more than it used to, not
-# less -- there is no live path left to mask a drift). NotchGeometry.qml,
-# the service this used to read live through, was deleted once ruixen.bar
-# became its last consumer -- Overlay.qml was always the real source of
-# truth those numbers mirrored, so this reads it directly now.
-notch_bottom_edge_fallback="$(grep -oP 'readonly property int notchCollapsedBottomEdge: \K[0-9]+' "$bar_qml")"
-check "ruixen.bar's own notchCollapsedBottomEdge matches Overlay.qml's real collapsed margins.top + notchOuter restY + notchOuter height" \
-  "$notch_bottom_edge_fallback" "$((notch_top_margin + notch_outer_top_margin + notch_collapsed_height))"
-
-# Same drift risk, same fix, for the OTHER constant ruixen.bar used to
-# read live from NotchGeometry.qml (issue #28's own horizontal-space
-# reservation, not this file's own popup-clearance feature, but broken
-# by the exact same v4.0.3 change and fixed the exact same way -- worth
-# checking here since this file already parses Overlay.qml's own values).
-check "Overlay.qml's own collapsed bodyWidth is a single, real value (not empty/multiple matches)" \
-  "$(printf '%s' "$notch_body_width" | wc -l | tr -d ' ')" "0"
-check "Overlay.qml's own notchOuter cornerSize is a single, real value (not empty/multiple matches)" \
-  "$(printf '%s' "$notch_corner_size" | wc -l | tr -d ' ')" "0"
-notch_reserved_width="$(grep -oP 'readonly property int notchReservedWidth:\s*\K[0-9]+' "$bar_qml")"
-check "ruixen.bar's own notchReservedWidth matches Overlay.qml's real collapsed bodyWidth + cornerSize * 2" \
-  "$notch_reserved_width" "$((notch_body_width + notch_corner_size * 2))"
+check "floating bar size comes from the configured row height" \
+  "$(grep -Fc 'readonly property int barSize: docked ? 34 : ShellConfig.barRowHeight(Style)' "$bar_qml")" "1"
+check "bar and notch use the same collapsed bottom helper" \
+  "$(grep -Fc 'readonly property int notchCollapsedBottomEdge: ShellConfig.collapsedBottom(Style)' "$bar_qml")$(grep -Fc 'height: panel.launcherOpen ? 190 : (panel.pinnedOpen ? 400 : ShellConfig.collapsedBottom(Style))' "$notch_overlay_qml")" "11"
+check "bar horizontal reservation includes configured body width and both shoulders" \
+  "$(grep -Fc 'readonly property int notchReservedWidth: ShellConfig.notchWidth + ShellConfig.radius * 2' "$bar_qml")" "1"
+check "notch uses the configured body width" \
+  "$(grep -Fc 'panel.pinnedOpen ? 900 : ShellConfig.notchWidth' "$notch_overlay_qml")" "1"
+check "notch shoulders use the shared radius" \
+  "$(grep -Fc 'readonly property int cornerSize: ShellConfig.radius' "$notch_overlay_qml")" "1"
+check "notch attaches to the true screen edge" \
+  "$(grep -Fc 'margins.top: 0' "$notch_overlay_qml")$(grep -Fc 'readonly property int restY: 0' "$notch_overlay_qml")" "11"
 
 check "Overlay.qml's notchOuter has a small seamOverlap for fractional-scale mask joins" \
   "$(grep -c 'readonly property int seamOverlap: 2' "$notch_overlay_qml" || true)" "1"
@@ -210,7 +88,7 @@ check "implicitHeight is visibleBarHeight, optionally + root.seamOverlap -- not 
 check "root.frameInset (docked's own top margin) still exists, exactly once" \
   "$(grep -c 'readonly property int frameInset:' "$bar_qml" || true)" "1"
 check "root.topInset (floating's own, separately-tuned top margin) still exists, exactly once" \
-  "$(grep -c 'readonly property int topInset:' "$bar_qml" || true)" "1"
+  "$(grep -c 'readonly property real topInset:' "$bar_qml" || true)" "1"
 # v2: margins.top resolves per-mode via root.contentTopInset now, not
 # root.screenMarginTop directly -- BarPanel's own seam-overlap trick
 # (see its own comment) needed a DIFFERENT number for "how far content
@@ -225,8 +103,8 @@ check "margins.top still resolves per-mode via root.contentTopInset" \
 # Frame Border off, same "sit flush at the true edge" treatment the
 # notch/shelf already got. Docked is untouched -- resolvedFrameEnabled
 # is already forced true whenever docked.
-check "root.contentTopInset exists, exactly once (docked ? frameInset : resolvedFrameEnabled ? topInset : frameInset)" \
-  "$(grep -c 'readonly property int contentTopInset: docked ? frameInset : (resolvedFrameEnabled ? topInset : frameInset)' "$bar_qml" || true)" "1"
+check "root.contentTopInset keeps personal floating spacing independent of the frame" \
+  "$(grep -c 'readonly property real contentTopInset: docked ? frameInset : topInset' "$bar_qml" || true)" "1"
 
 # --- root.screenMarginTop (bar hosting infra) --------------------------
 #

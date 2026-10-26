@@ -1,0 +1,10 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),path=require('node:path');
+const root=path.join(__dirname,'../../bars/widgets/ruixen.notch');const c=vm.createContext({});vm.runInContext(fs.readFileSync(root+'/JeebisAgentUsageModel.js','utf8').replace(/^\.pragma library$/m,''),c);
+assert.equal(c.parse('invalid'),null);assert.equal(c.parse('[]'),null);assert.equal(c.parse('null'),null);
+assert.equal(c.count(-1),0);assert.equal(c.count('x'),0);assert.equal(c.count(Infinity),0);assert.equal(c.count('25'),25);
+const record={modelUsage:{small:{inputTokens:10,outputTokens:2},large:{inputTokens:20,outputTokens:5,cacheReadInputTokens:30,cacheCreationInputTokens:4}}};
+assert.equal(c.models(record)[0].name,'large');assert.equal(c.total(record),71);assert.equal(c.total(null),0);assert.equal(c.format(181108000),'181,108,000');
+assert.equal(c.days({recentDays:Array.from({length:10},(_,i)=>({date:'2026-10-'+String(i+1).padStart(2,'0')}))}).length,7);
+const window=fs.readFileSync(root+'/NotchWindow.qml','utf8');assert.ok(window.includes('JeebisAgentUsageContent'));assert.ok(window.includes('dashboardTab + 1) % 5'));
+const dashboard=fs.readFileSync(root+'/DashboardContent.qml','utf8');assert.ok(!dashboard.includes('agentsMenuDelay'));assert.ok(!dashboard.includes('signal agentsRequested'));
+console.log('Agent usage: parsing, invalid counts, cache breakdown, totals, seven days and dashboard routing passed.');

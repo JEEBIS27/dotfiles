@@ -82,8 +82,8 @@ check "decorative Ruixen BarIconButtons use iconForeground" \
 check "ruixen.weather does not override foreground with iconForeground (mismatched clock pill)" \
   "$(grep -c 'foreground: root\.bar ? root\.bar\.iconForeground' "$repo_dir/bars/widgets/ruixen.weather/BarWidget.qml" || true)" "0"
 
-check "symbolic tray icons use iconForeground" \
-  "$(grep -c 'colorizationColor: root.iconForeground' "$repo_dir/bars/widgets/ruixen.tray/Tray.qml")" "1"
+check "personal symbolic tray icons retain the shared foreground" \
+  "$(grep -c 'colorizationColor: root.foreground' "$repo_dir/bars/widgets/ruixen.tray/Tray.qml")" "1"
 
 check "screen recording control uses semantic bad only while active and icon tone while idle" \
   "$(grep -c 'root\.recording ? (root\.bar ? root\.bar\.semanticBad : Color\.urgent) : (root\.bar ? root\.bar\.iconForeground : "#ffffff")' "$repo_dir/bars/widgets/ruixen.capturestatus/BarWidget.qml")" "1"

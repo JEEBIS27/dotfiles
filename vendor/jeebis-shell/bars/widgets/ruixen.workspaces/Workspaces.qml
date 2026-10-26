@@ -1,4 +1,5 @@
 import "../../../ShellConfig.js" as ShellConfig
+import "JeebisWorkspaceOrder.js" as WorkspaceOrder
 import QtQuick
 import Quickshell
 import Quickshell.Hyprland
@@ -24,6 +25,23 @@ import qs.Ui
 BarWidget {
   id: root
   moduleName: "ruixen.workspaces"
+  property int dragWorkspace: 0
+  property int dropWorkspace: 0
+  function workspaceAt(point) {
+    if (point.y < -10 || point.y > row.height + 10) return 0
+    for (var i = 0; i < workspaceRepeater.count; i++) {
+      var item = workspaceRepeater.itemAt(i)
+      if (item && point.x >= item.x - 4 && point.x <= item.x + item.width + 4) return item.workspaceNumber
+    }
+    return 0
+  }
+  function swapWorkspaces(source, target) {
+    var code = WorkspaceOrder.swapScript(source, target)
+    if (!code || workspaceSwap.running) return
+    workspaceSwap.command = ["hyprctl", "eval", code]
+    workspaceSwap.running = true
+  }
+  Process { id: workspaceSwap; onExited: Hyprland.refreshToplevels() }
 
   // White-theme-only override for the focused pill (see its own color
   // binding below) -- direct report after shipping that hardcoded
@@ -233,7 +251,7 @@ BarWidget {
     for (var i = workspaceModel.count; i < ids.length; ++i) workspaceModel.append({ workspaceNumber: ids[i] })
   }
   implicitWidth: row.implicitWidth + sidePadding * 2
-  Behavior on implicitWidth { NumberAnimation { duration: ShellConfig.workspaceResizeDuration; easing.type: Easing.OutCubic } }
+  Behavior on implicitWidth { NumberAnimation { duration: ShellConfig.workspaceResizeDuration; easing.type: Easing.InOutCubic } }
   implicitHeight: row.implicitHeight
 
   Row {
@@ -255,7 +273,7 @@ BarWidget {
         Component.onCompleted: entryProgress = 1
         opacity: entryProgress
         scale: entryProgress
-        Behavior on entryProgress { NumberAnimation { duration: ShellConfig.workspaceResizeDuration; easing.type: Easing.OutCubic } }
+        Behavior on entryProgress { NumberAnimation { duration: ShellConfig.workspaceResizeDuration; easing.type: Easing.InOutCubic } }
         property bool launchPulse: false
         readonly property bool busy: launchPulse || root.busyWorkspaces[String(modelData)] === true
         function pulseLaunch() { launchPulse = true; root.setLaunchPulse(modelData, true); launchPulseTimer.restart() }
@@ -274,7 +292,7 @@ BarWidget {
         height: root.dotSize
         anchors.verticalCenter: parent.verticalCenter
 
-        Behavior on width { NumberAnimation { duration: ShellConfig.workspaceResizeDuration; easing.type: Easing.OutCubic } }
+        Behavior on width { NumberAnimation { duration: ShellConfig.workspaceResizeDuration; easing.type: Easing.InOutCubic } }
 
         Rectangle {
           visible: !indicator.busy
@@ -289,8 +307,19 @@ BarWidget {
           Behavior on color { ColorAnimation { duration: 180 } }
         }
 
+        Rectangle {
+          anchors.fill: parent
+          anchors.margins: -3
+          radius: ShellConfig.radius
+          color: "transparent"
+          border.width: 1
+          border.color: root.focusedColor
+          visible: root.dropWorkspace === indicator.modelData && root.dragWorkspace !== root.dropWorkspace
+        }
         Text {
           anchors.centerIn: parent
+          // Jeebis: braille glyphs sit above the visual centre of the dots.
+          anchors.verticalCenterOffset: ShellConfig.workspaceSpinnerOffsetY
           visible: indicator.busy
           text: root.spinnerFrames.charAt(root.spinnerFrame)
           color: root.focusedColor
@@ -304,7 +333,24 @@ BarWidget {
           // this project's other small-icon click targets.
           anchors.margins: -6
           cursorShape: Qt.PointingHandCursor
-          onClicked: root.focusWorkspace(indicator.modelData)
+          preventStealing: true
+          property point origin
+          property bool dragging: false
+          onPressed: function(mouse) { origin = Qt.point(mouse.x, mouse.y); dragging = false }
+          onPositionChanged: function(mouse) {
+            if (!pressed) return
+            if (Math.abs(mouse.x - origin.x) + Math.abs(mouse.y - origin.y) > Qt.styleHints.startDragDistance) {
+              dragging = true
+              root.dragWorkspace = indicator.modelData
+              root.dropWorkspace = root.workspaceAt(mapToItem(row, mouse.x, mouse.y))
+            }
+          }
+          onReleased: {
+            if (dragging && root.dropWorkspace) root.swapWorkspaces(root.dragWorkspace, root.dropWorkspace)
+            root.dragWorkspace = 0; root.dropWorkspace = 0
+          }
+          onClicked: if (!dragging) root.focusWorkspace(indicator.modelData)
+          onCanceled: { dragging = false; root.dragWorkspace = 0; root.dropWorkspace = 0 }
         }
       }
     }

@@ -1,6 +1,6 @@
 # dotfiles
 
-Omarchy / NixOS向けのHome Manager構成。Hyprland、Quickshell（Ruixen）、ターミナル・エディター設定とアプリを管理する。
+Omarchy / NixOS向けのHome Manager構成。Hyprland、Quickshell（jeebis-shell）、ターミナル・エディター設定とアプリを管理する。
 
 現構成は `x86_64-linux`・ユーザー `jeebis`・配置先 `~/Git/home-manager` を前提とする。他の環境ではユーザー名・パス・ハードウェア設定の変更が必要。
 
@@ -26,7 +26,7 @@ Omarchy / NixOS向けのHome Manager構成。Hyprland、Quickshell（Ruixen）�
 |---|---|
 | シェル・CLI | Zsh、TUIOS、Sheldon、Yazi、Git、fzf、ripgrep、eza、bat、zoxide |
 | エディター | Helix（既定）、共通LSP・フォーマッター、Neovim（代替） |
-| デスクトップ | Hyprland、Quickshell + Ruixen、Rio + TUIOS、固定テーマと壁紙 |
+| デスクトップ | Hyprland、Quickshell + jeebis-shell、Rio + TUIOS、固定テーマと壁紙 |
 | NixOS用アプリ・サービス | Chromium、Nautilus、Fcitx5 / Mozkey、音声・Bluetooth・電源管理 |
 | クラウドマウント | rclone（Google Drive / OneDrive、認証は別途） |
 
@@ -67,7 +67,7 @@ home-manager switch --flake "path:$HOME/Git/home-manager#jeebis@omarchy"
 
 - [構成とOS別バックエンド](docs/desktop-architecture.md)
 - [導入するパッケージ・設定](docs/managed-items.md)
-- [jeebis-shell（Ruixenベース）](docs/ruixen-shell.md)
+- [jeebis-shell（Ruixen由来の互換プラグインを使用）](docs/jeebis-shell.md)
 - [テーマツール：配色・壁紙の設定と切替](docs/theme-tooling.md)
 - [日本語入力・クラウドマウント](docs/input-and-mounts.md)
 

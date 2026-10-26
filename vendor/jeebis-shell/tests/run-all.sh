@@ -105,7 +105,11 @@ suites=(
 overall_status=0
 for suite in "${suites[@]}"; do
   printf '\n##### %s #####\n' "$(basename "$suite")"
-  if ! "$suite"; then
+  if "$suite"; then
+    :
+  else
+    suite_status=$?
+    printf 'FAIL - %s exited with status %s\n' "$(basename "$suite")" "$suite_status" >&2
     overall_status=1
   fi
 done

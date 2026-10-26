@@ -40,3 +40,22 @@ radius = int(re.search(r"var radius = (\d+);", config).group(1))
 (root / "hyprland/jeebis-curvature.lua").write_text(
     "-- Generated from jeebis-shell/ShellConfig.js.\n"
     f"hl.config({{ decoration = {{ rounding = {radius} }} }})\n")
+
+# One source of truth for shell and compositor easing. Hyprland accepts cubic
+# Beziers: smooth approximates the cosine; OutBack is exactly cubic in time.
+preset_match = re.search(r'var animationPreset\s*=\s*"([^"\n]*)";', config)
+preset = preset_match.group(1) if preset_match else "smooth"
+if preset not in ("linear", "smooth", "overshoot"):
+    preset = "smooth"
+strength_match = re.search(r"var animationOvershoot\s*=\s*([+-]?[\d.]+);", config)
+strength = float(strength_match.group(1)) if strength_match else 1.70158
+strength = max(0, min(3, strength))
+curve = {"linear": "jeebisLinear", "smooth": "jeebisSmooth", "overshoot": "jeebisOvershoot"}[preset]
+bounded = "jeebisLinear" if preset == "linear" else "jeebisSmooth"
+(root / "hyprland/jeebis-motion.lua").write_text(
+    "-- Generated from ShellConfig.js; edit animationPreset / animationOvershoot there.\n"
+    'hl.curve("jeebisLinear", { type = "bezier", points = { {0, 0}, {1, 1} } })\n'
+    '-- Cosine S-curve approximation, zero endpoint slopes.\n'
+    'hl.curve("jeebisSmooth", { type = "bezier", points = { {0.3642, 0}, {0.6358, 1} } })\n'
+    f'hl.curve("jeebisOvershoot", {{ type = "bezier", points = {{ {{0.3333333333333333, {(strength + 3) / 3:.15g}}}, {{0.6666666666666667, 1}} }} }})\n'
+    f'return {{ curve = "{curve}", bounded = "{bounded}", preset = "{preset}" }}\n')

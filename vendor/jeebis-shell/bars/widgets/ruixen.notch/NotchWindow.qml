@@ -762,7 +762,7 @@ PanelWindow {
         panel.notchRoot.launcherOpen = false
         event.accepted = true
       } else if (event.key === Qt.Key_Tab && panel.pinnedOpen && !panel.launcherOpen) {
-        panel.notchRoot.dashboardTab = (panel.notchRoot.dashboardTab + 1) % 4
+        panel.notchRoot.dashboardTab = (panel.notchRoot.dashboardTab + 1) % 5
         event.accepted = true
       }
     }
@@ -1194,6 +1194,12 @@ PanelWindow {
               onActivated: { panel.notchRoot.dashboardTab = 3; panel.openPinned() }
             }
 
+            TabButton {
+              glyph: "\udb85\udea3"
+              active: panel.dashboardTab === 4
+              onActivated: { panel.notchRoot.dashboardTab = 4; panel.openPinned() }
+            }
+
             Item { Layout.fillHeight: true }
 
             // The one real action in this tab bar -- opens Omarchy's
@@ -1227,7 +1233,6 @@ PanelWindow {
               // issue #43) can gate on the same "only while actually
               // visible" condition brightnessStateProc's own Timer
               // above already uses, instead of polling forever.
-              onAgentsRequested: panel.notchRoot.pinnedOpen = false
               panelExpanded: panel.expanded
               textColor: panel.notchRoot.textColor
               muted: panel.notchRoot.muted
@@ -1284,6 +1289,16 @@ PanelWindow {
               // Same reasoning, for Theme mode's own Bjarneo Themes
               // jump button.
               onOpenThemeBrowserRequested: panel.notchRoot.pinnedOpen = false
+            }
+
+            JeebisAgentUsageContent {
+              anchors.fill: parent
+              visible: panel.dashboardTab === 4
+              active: panel.dashboardTab === 4 && panel.expanded
+              textColor: panel.notchRoot.textColor
+              muted: panel.notchRoot.muted
+              accent: panel.notchRoot.accent
+              fontFamily: panel.notchRoot.fontFamily
             }
 
             MetricsContent {

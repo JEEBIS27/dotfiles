@@ -23,12 +23,18 @@ Item {
   readonly property int unreadCount: notificationHistory ? notificationHistory.entries.filter(function(n) { return n.unread }).length : 0
   property string hoverTarget: ""
   readonly property string tooltipText: {
-    if (hoverTarget === "clock") return Qt.formatDateTime(clock.date, "yyyy-MM-dd HH:mm:ss t (UTCttt)")
+    if (hoverTarget === "clock") return Qt.formatDateTime(clock.date, "yyyy-MM-dd HH:mm:ss t")
     if (hoverTarget === "network") return wired ? "有線接続" : (network ? "Wi-Fi 信号 " + Math.round(network.signalStrength * 100) + "%" : "ネットワーク未接続")
     if (hoverTarget === "battery") return "バッテリー " + batteryPercent + "%" + (charging ? "（充電中）" : "")
     if (hoverTarget === "notifications") return "未読通知 " + unreadCount + "件" + (dnd ? "（消音中）" : "")
     if (hoverTarget === "volume") return "音量 " + volumePercent + "%" + (muted ? "（ミュート）" : "")
     return ""
+  }
+  // Jeebis: keep the last label while hiding so its width and centered anchor
+  // do not collapse and move the popup during the native window unmap.
+  property string displayedTooltipText: ""
+  onTooltipTextChanged: {
+    if (tooltipText !== "") displayedTooltipText = tooltipText
   }
   function openMenu(id) {
     hoverTarget = ""
@@ -272,7 +278,7 @@ Item {
       Text {
         id: tooltipLabel
         anchors.centerIn: parent
-        text: root.tooltipText
+        text: root.displayedTooltipText
         font.family: ShellConfig.notchFontFamily
         font.pixelSize: ShellConfig.notchTooltipFontSize
         color: root.foreground

@@ -3,6 +3,23 @@
 // 単位：寸法・文字サイズは論理px、時間はms、使用率は%。
 // 編集後: bash /home/jeebis/Git/home-manager/scripts/jeebis-shell-apply.sh
 
+// ===== 共通アニメーション（第1段階：App島・Float島・Hyprland） =====
+// linear: 一定速度 / smooth: 三角関数S字 / overshoot: 行き過ぎて戻る
+// 編集後は再ビルド・シェル再起動で反映。時間は下の各アニメーション設定を使用。
+var animationPreset = "smooth";
+// Qt OutBackの強さ。0で行き過ぎなし、1.70158で移動距離の約10%。範囲0〜3。
+var animationOvershoot = 1.70158;
+// 透明度・表示率・幅など範囲を守る必要がある値はovershoot時もsmoothにする。
+function motionPreset(bounded) {
+  if (animationPreset === "linear") return "linear";
+  if (animationPreset === "overshoot" && !bounded) return "overshoot";
+  return "smooth";
+}
+function motionOvershoot() {
+  var value = Number(animationOvershoot);
+  return isFinite(value) ? Math.max(0, Math.min(3, value)) : 1.70158;
+}
+
 // ===== 共通の見た目・バーの配置 =====
 var radius = 15; // 全体の角丸。島の高さ30なら15で両端が半円
 var islandHeight = 30;           // 島の高さ（内容より小さくしすぎない）
@@ -16,6 +33,7 @@ var barBottomGap = 2;            // バーの下の追加余白（Hyprlandの隙
 // ===== ワークスペース：表示数・選択幅・処理中判定 =====
 var workspaceMinimumCount = 3; // 最低限並べるワークスペース数。使用中は追加表示
 var workspaceActiveWidth = 11;    // 現在のワークスペースの横幅。11で他の丸と同幅
+var workspaceSpinnerOffsetY = 2; // スピナーの上下補正（論理px）。正の値で下へ
 var workspaceCpuBusyThreshold = 10; // このCPU使用率（%）が続くワークスペースにスピナーを表示
 var workspaceCpuResetThreshold = 5; // このCPU使用率（%）未満でスピナーを解除
 
@@ -105,6 +123,11 @@ var appIsland = Object.freeze({
   presentMs: 2000,
   // カーソルがアプリ島とワークスペース島を離れてから隠し始める猶予。
   releasingMs: 150
+});
+// App島⇔Float島専用。起動・終了のフェードや待機時間から独立。
+var appTransfer = Object.freeze({
+  movingMs: 360,  // 同じアイコンを消さずに移動する時間
+  settledMs: 1000 // 移動後に島を表示し続ける時間
 });
 var appArrival = Object.freeze({
   // 既存アプリがある場合、新規アプリを除いたアプリ島を先に表示する。空なら省略。

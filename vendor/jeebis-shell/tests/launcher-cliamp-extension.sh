@@ -199,7 +199,7 @@ check "CliampStationPanel shows a LIVE/PAUSED badge" \
 check "LIVE/clock sit grouped in one pill, with only the live segment keeping the accent color" \
   "$(( $(grep -c 'id: statusPill' "$station_panel_qml") + $(grep -c 'id: pillRow' "$station_panel_qml") + $(grep -c 'color: root.playing ? root.accent' "$station_panel_qml") ))" "3"
 check "Pill segments use real per-corner radius, not a clip:true mask that only clips to the bounding box" \
-  "$(( $(grep -c 'topLeftRadius: Geometry.radius' "$station_panel_qml") + $(grep -c 'bottomLeftRadius: Geometry.radius' "$station_panel_qml") + $(grep -c 'topRightRadius: Geometry.radius' "$station_panel_qml") + $(grep -c 'bottomRightRadius: Geometry.radius' "$station_panel_qml") + $(grep -c 'clip: true' "$station_panel_qml") ))" "4"
+  "$(( $(grep -c 'topLeftRadius: ShellConfig.radius' "$station_panel_qml") + $(grep -c 'bottomLeftRadius: ShellConfig.radius' "$station_panel_qml") + $(grep -c 'topRightRadius: ShellConfig.radius' "$station_panel_qml") + $(grep -c 'bottomRightRadius: ShellConfig.radius' "$station_panel_qml") + $(grep -c 'clip: true' "$station_panel_qml") ))" "4"
 check "LIVE/PAUSED badge and clock sit on the title line itself, not a row that appears/disappears" \
   "$(( $(grep -c 'id: titleRow' "$station_panel_qml") + $(grep -c 'id: titleText' "$station_panel_qml") + $(grep -c "visible: root.hasNowPlaying\$" "$station_panel_qml") ))" "3"
 check "CliampStationPanel ticks a real elapsed-listening clock, re-synced from cliamp's own position each poll" \

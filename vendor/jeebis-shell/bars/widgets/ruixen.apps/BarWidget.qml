@@ -1,6 +1,7 @@
 import "../../../ShellConfig.js" as ShellConfig
 import QtQuick
 import Quickshell.Hyprland
+import qs.Commons
 import qs.Ui as Ui
 import "WindowOrder.js" as WindowOrder
 
@@ -15,6 +16,9 @@ Ui.BarWidget {
   property var transfers: ({})
   property int transferRevision: 0
   property int transferWorkspace: 0
+  property int transferSerial: 0
+  readonly property bool transferActive: transferVisuals.count > 0
+  ListModel { id: transferVisuals }
   readonly property int workspaceId: WindowOrder.logicalWorkspaceId(Hyprland.focusedWorkspace)
   readonly property real padding: ShellConfig.islandPadding
   readonly property bool hasApplications: tiledSurface.group.appItems.length > 0 || floatingSurface.group.appItems.length > 0
@@ -33,23 +37,52 @@ Ui.BarWidget {
   function group(floating) { return floating ? floatingSurface.group : tiledSurface.group }
   function setHoverHeld(held) { hoverHeld = held; group(false).setHoverHeld(held); group(true).setHoverHeld(held) }
   function reveal(durationMs) { group(false).reveal(durationMs); group(true).reveal(durationMs) }
-  function incomingBlocked(key, floating) {
+  // One proxy owns the moving icon for the entire journey. Neither the normal
+  // close animation nor the normal new-app animation participates in a move.
+  function transferIndex(key) {
+    for (var i = 0; i < transferVisuals.count; i++)
+      if (transferVisuals.get(i).appKey === key) return i
+    return -1
+  }
+  function iconInFlight(key, floating) {
     var revision = transferRevision
     var move = transfers[key]
-    // Keep the destination's regular icon suppressed through split and fade.
-    // splitFinished removes the transfer only after the source delegate is gone.
-    return !!move && move.toFloating === floating
+    return !!move && ((move.toFloating === floating && !move.destinationUsed)
+      || (move.fromFloating === floating && !move.sourceUsed))
   }
-  function isLayerTransfer(key, fromFloating) {
+  function moving(key) {
+    var revision = transferRevision
+    return !!transfers[key]
+  }
+  function transferTargetX(key, floating) {
+    var destination = group(floating)
+    return destination.parent.x + destination.x + destination.renderedIconX(key)
+  }
+  function finishTransfer(key, serial) {
     var move = transfers[key]
-    return !!move && move.fromFloating === fromFloating
+    if (!move || move.serial !== serial) return
+    var next = Object.assign({}, transfers)
+    delete next[key]
+    transfers = next
+    transferRevision++
+    var index = transferIndex(key)
+    if (index >= 0) transferVisuals.remove(index)
   }
   function syncTransfers(snapshot) {
     if (syncingTransfers) return
     syncingTransfers = true
     var archive = ({}), next = Object.assign({}, transfers)
     var sameWorkspace = transferWorkspace === workspaceId
-    if (!sameWorkspace) next = ({})
+    if (!sameWorkspace) { next = ({}); transferVisuals.clear() }
+    // Closed windows and workspace changes cancel their proxy, never relaunch it.
+    for (var key in next) {
+      var move = next[key]
+      if (!snapshot.some(function(w) { return w.address === move.address && w.key === key && w.workspaceId === root.workspaceId })) {
+        var removed = transferIndex(key)
+        if (removed >= 0) transferVisuals.remove(removed)
+        delete next[key]
+      }
+    }
     for (var i = 0; i < snapshot.length; ++i) {
       var current = snapshot[i]
       archive[current.address] = current
@@ -57,65 +90,40 @@ Ui.BarWidget {
       if (!groupsReady || !sameWorkspace || !previous || previous.floating === current.floating
           || previous.workspaceId !== workspaceId || current.workspaceId !== workspaceId) continue
       var key = current.key
-      if (next[key]) {
-        group(false).cancelLayerTransfer(key)
-        group(true).cancelLayerTransfer(key)
-        delete next[key]
-      }
-      // If another window still owns the source icon, retain it there and add
-      // the destination icon from the neighboring edge. This is still a layer
-      // transfer, not a generic new-app arrival from the far side.
-      var sourceStillUsed = snapshot.some(function(w) {
+      var source = group(previous.floating)
+      var destinationUsed = snapshot.some(function(w) {
+        var old = root.layerArchive[w.address]
+        return w.address !== current.address && w.key === key && w.workspaceId === root.workspaceId
+          && old && old.floating === current.floating
+      })
+      var sourceUsed = snapshot.some(function(w) {
         return w.address !== current.address && w.key === key && w.workspaceId === root.workspaceId && w.floating === previous.floating
       })
-      var source = group(previous.floating)
-      if (sourceStillUsed) {
-        group(current.floating).queueTransferArrival(key, !previous.floating)
-      } else if (!source.hasDisplayedKey(key)) {
-        // The source row can lose the icon before the transfer snapshot is
-        // processed, while its separate departure capsule is still visible.
-        // Adopt that in-flight departure instead of starting a second capsule
-        // immediately at the destination.
-        var departurePhase = source.departurePhase(key)
-        if (departurePhase >= 0) {
-          next[key] = { fromFloating: previous.floating, toFloating: current.floating,
-            started: departurePhase > 0 }
-          source.markLayerDeparture(key, previous.floating ? -1 : 1)
-        } else {
-          // There is no source rendering left to hand off from. Preserve the
-          // neighboring-edge direction rather than using a generic arrival.
-          group(current.floating).queueTransferArrival(key, !previous.floating)
-        }
-      } else {
-        next[key] = { fromFloating: previous.floating, toFloating: current.floating, started: false }
-        source.queueLayerDeparture(key, previous.floating ? -1 : 1)
+      var index = transferIndex(key)
+      var proxy = index >= 0 ? transferRepeater.itemAt(index) : null
+      var startX = proxy ? proxy.x : source.mapToItem(root, source.renderedIconX(key), 0).x
+      var app = source.appMetadataCache[key] || group(current.floating).appMetadataCache[key]
+      if (!app) continue
+      group(false).cancelLayerTransfer(key)
+      group(true).cancelLayerTransfer(key)
+      if (sourceUsed && destinationUsed) {
+        if (index >= 0) transferVisuals.remove(index)
+        delete next[key]
+        continue
       }
+      var serial = ++transferSerial
+      next[key] = { address: current.address, fromFloating: previous.floating, toFloating: current.floating,
+        sourceUsed: sourceUsed, destinationUsed: destinationUsed, serial: serial }
+      var record = { appKey: key, appIcon: app.icon, startX: startX, toFloating: current.floating, serial: serial }
+      if (index >= 0) transferVisuals.set(index, record)
+      else transferVisuals.append(record)
+      source.reveal(ShellConfig.appTransfer.settledMs)
+      group(current.floating).reveal(ShellConfig.appTransfer.settledMs)
     }
     layerArchive = archive
     transferWorkspace = workspaceId
     if (JSON.stringify(transfers) !== JSON.stringify(next)) { transfers = next; transferRevision++ }
     syncingTransfers = false
-  }
-  function splitStarted(key, fromFloating) {
-    var move = transfers[key]
-    if (!move || move.fromFloating !== fromFloating || move.started) return
-    var next = Object.assign({}, transfers)
-    next[key] = { fromFloating: move.fromFloating, toFloating: move.toFloating, started: true }
-    transfers = next
-    transferRevision++
-    // Keep the destination absent while the source delegate is splitting and
-    // fading. finishDeparture() calls splitFinished only after it is removed.
-  }
-  function splitFinished(key, fromFloating) {
-    var move = transfers[key]
-    if (!move || move.fromFloating !== fromFloating) return
-    var next = Object.assign({}, transfers)
-    delete next[key]
-    transfers = next
-    transferRevision++
-    // The source ghost has now been removed, so the destination can enter
-    // from its neighboring edge without a duplicate icon or extra width.
-    group(move.toFloating).queueTransferArrival(key, !fromFloating)
   }
   Component.onCompleted: groupsReady = true
   Timer {
@@ -134,6 +142,14 @@ Ui.BarWidget {
     id: floatingSurface
     floatingLayer: true
     x: tiledSurface.width + (tiledSurface.width > 0 && width > 0 ? ShellConfig.islandGap : 0)
+  }
+  Repeater {
+    id: transferRepeater
+    model: transferVisuals
+    JeebisLayerTransfer {
+      coordinator: root
+      barRoot: root.bar
+    }
   }
   component GroupSurface: Item {
     id: surface
