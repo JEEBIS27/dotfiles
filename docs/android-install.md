@@ -47,28 +47,32 @@ AndroidのUID/GIDをGitに書き込まない。リポジトリの配置先は任
    cd ~/Git/home-manager
    ```
 
-3. 必要なら先にビルドだけを行う。ログインシェルや現在の設定は切り替えない。
+3. 初回はNixからjustを一時起動し、ビルドだけで確認する。
 
    ```bash
-   nix --extra-experimental-features 'nix-command flakes' build      "path:$PWD#nixOnDroidConfigurations.galaxy-tab-s11.activationPackage" --no-link
+   nix --extra-experimental-features 'nix-command flakes' run "path:$PWD#just" -- host
+   nix --extra-experimental-features 'nix-command flakes' run "path:$PWD#just" -- build
    ```
 
-4. 適用する。
+4. 適用する。justもCLIパッケージとして導入される。
 
    ```bash
-   nix-on-droid switch --flake "path:$PWD#galaxy-tab-s11"
+   nix --extra-experimental-features 'nix-command flakes' run "path:$PWD#just" -- switch
    ```
 
 5. Nix-on-Droidのセッションを開き直す。`echo "$HOME"`、`echo "$EDITOR"`、
-   `zsh --version`、`hx --version`、`yazi --version` を確認する。
+   `just --version`、`zsh --version`、`hx --version`、`yazi --version` を確認する。
    初回のZsh起動ではSheldonが外部プラグインを取得するためネット接続が必要。
+   以後はリポジトリ内で `just switch`、更新も含める場合は `just sync` を使う。
+
+従来の `nix-on-droid switch --flake "path:$PWD#galaxy-tab-s11"` も引き続き使える。
 
 既存ファイルと衝突したら、表示された対象だけをバックアップして再実行する。
 自動上書きや全ホームの移行は行わない。PC用の `scripts/nixos.sh` は実行しない。
 
 ## 更新・検証
 
-通常の設定更新はリポジトリを更新して同じswitchを実行する。
+通常の設定更新はリポジトリ内で `just sync` を実行する。ローカル編集の適用は `just switch`、ビルドのみは `just build`。
 Androidだけの依存更新は `nix flake lock --update-input nixpkgs-droid --update-input home-manager-droid --update-input nix-on-droid`。
 アプリの更新はPCと共有する `nixpkgs-apps` のpinを更新する。
 PC用の入力まで意図せず更新しないよう `flake.lock` の差分を確認する。

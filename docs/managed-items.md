@@ -9,7 +9,7 @@
 | 分類 | パッケージ |
 |---|---|
 | シェル・ファイル操作 | zsh、tuios、sheldon、yazi、eza、bat、delta、dust、fzf、zoxide、ripgrep、fd |
-| 開発・通信 | git、curl、wget、neovim、gcc、gnumake、pkg-config |
+| 開発・通信 | git、curl、wget、just、neovim、gcc、gnumake、pkg-config |
 | アーカイブ・データ | unzip、7zz、stow、jq |
 | メディア | ffmpeg、poppler-utils、imagemagick、mediainfo、exiftool |
 | 起動・マウント | fuzzel、rclone |

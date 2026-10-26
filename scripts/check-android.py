@@ -49,7 +49,7 @@ assert data['themeDirectory'] == '', data
 assert not data['services'], data
 assert not data['assertions'], data
 packages = set(data['packages'])
-assert {'zsh', 'sheldon', 'git', 'fzf', 'yazi', 'helix', 'neovim'} <= packages, data
+assert {'zsh', 'sheldon', 'git', 'just', 'fzf', 'yazi', 'helix', 'neovim'} <= packages, data
 for forbidden in ('hyprland', 'quickshell', 'rio', 'fcitx', 'mozkey', 'rclone',
                   'tuios', 'jeebis-desktop', 'jeebis-shell', 'steel'):
     assert not any(forbidden in p.lower() for p in packages), (forbidden, packages)

@@ -42,9 +42,13 @@
         modules = [ ./hosts/nix-on-droid.nix ];
       };
 
+      # Bootstrap tools use the same app pin as the installed CLI tools.
+      packages.aarch64-linux.just = nixpkgs-apps.legacyPackages.aarch64-linux.just;
       packages.${system} = let
         steel = import ./packages/helix-steel { pkgs = appPkgs; };
       in {
+        just = appPkgs.just;
+        home-manager = home-manager.packages.${system}.home-manager;
         mozkey-fcitx5 = import ./packages/mozkey-fcitx5.nix { pkgs = appPkgs; };
         helix-steel = steel.editor;
         helix-steel-plugins = steel.plugins;

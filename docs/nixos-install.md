@@ -10,12 +10,13 @@ Gitにはアプリ・設定・サービスの宣言を保存する。Google Driv
 ```bash
 git clone https://github.com/JEEBIS27/dotfiles.git ~/Git/home-manager
 cd ~/Git/home-manager
-bash scripts/nixos.sh setup
-bash scripts/nixos.sh switch
+nix --extra-experimental-features 'nix-command flakes' run "path:$PWD#just" -- switch
 ```
 
-setupは既存の/etc/nixosを日時付きでバックアップし、OS設定と共通デスクトップ・Home Managerを接続するflakeを生成してビルドする。稼働環境はまだ切り替えない。ビルド結果と既存OS設定の重複を確認してからswitchする。別デスクトップ・IME等が既存設定で有効なら、必要に応じて/etc/nixos/configuration.nixを整理する。
-既存flakeがある場合は上書きせず停止する。その場合はdotfiles入力とdotfiles.nixosModules.personalを既存flakeに統合する。
+初回の `just switch` は既存の/etc/nixosを日時付きでバックアップし、OS設定と共通デスクトップ・Home Managerを接続するflakeを生成・ビルドして適用する。
+先にビルドで確認する場合は初回コマンドの末尾を `-- build` にする。この場合も統合flakeを生成するが、稼働環境は切り替えない。確認後に同じNixコマンドの末尾を `-- switch` にして適用する。
+設定生成とビルドだけを明示的に行う `just setup` も残している。別デスクトップ・IME等が既存設定で有効なら、必要に応じて/etc/nixos/configuration.nixを整理する。
+既存flakeがある場合は生成をスキップし、上書きしない。dotfilesが未統合なら自動追加はしないため、dotfiles入力とdotfiles.nixosModules.personalを既存flakeに統合する。
 
 configuration.nixから読み込むハードウェア・ディスク・ブート設定、ユーザーとパスワード、system.stateVersionは移行先の既存値を維持する。VM用の仮ディスク定義は使わない。Home Managerの管理先に既存の実ファイルがある場合は、エラーに出た対象だけを退避して再実行する。強制上書きはしない。
 
@@ -24,12 +25,13 @@ configuration.nixから読み込むハードウェア・ディスク・ブート
 ## 更新
 
 ```bash
-bash ~/Git/home-manager/scripts/nixos.sh sync
+cd ~/Git/home-manager
+just sync
 ```
 
 Gitをfast-forwardで更新し、/etc/nixos側が参照するローカルリポジトリのスナップショットを更新してswitchする。リポジトリ内flake.lockのパッケージ固定は更新しない。未コミット変更によるpull失敗時は停止する。同期処理はGitにある宣言が対象で、Google Driveのファイル同期とは独立している。
 
-ローカル編集だけを適用する場合はswitch、適用せず確認する場合はbuildを指定する。NixOS側はこの方式に統一し、別途home-manager switchは実行しない。
+ローカル編集だけを適用する場合は `just switch`、適用せず確認する場合は `just build` を指定する。justは構成の一部として導入される。既存の `bash scripts/nixos.sh {setup|build|switch|sync}` も利用できる。NixOS側はこの方式に統一し、別途home-manager switchは実行しない。
 
 ## 復旧
 

@@ -9,6 +9,7 @@ PC構成は `x86_64-linux`・ユーザー `jeebis`・配置先 `~/Git/home-manag
 ```text
 .
 ├── flake.nix / flake.lock   # 入力の固定・Home Manager・NixOSモジュール
+├── justfile                # 共通入口: switch / build / sync / host
 ├── home.nix                # PC用Home Manager構成
 ├── hosts/                  # Omarchy / NixOS / Androidの入口
 ├── modules/                # アプリ・設定ファイル・サービス
@@ -32,45 +33,41 @@ PC構成は `x86_64-linux`・ユーザー `jeebis`・配置先 `~/Git/home-manag
 
 Omarchyでは既存のデスクトップ・IME本体を使用する。Rio本体はOmarchyのパッケージ管理、TUIOSはHome Managerで導入する。[パッケージ一覧](docs/managed-items.md)を参照。
 
-## NixOSへの導入
+## 導入（共通コマンド）
 
-インストール済みNixOSで実行する。`setup`は既存OS設定をバックアップしてビルドし、`switch`で適用する。
-
-```bash
-git clone https://github.com/JEEBIS27/dotfiles.git ~/Git/home-manager
-cd ~/Git/home-manager
-bash scripts/nixos.sh setup
-bash scripts/nixos.sh switch
-```
-
-以後の更新:
-
-```bash
-bash ~/Git/home-manager/scripts/nixos.sh sync
-```
-
-既存flakeがある場合や復旧方法は[導入手順](docs/nixos-install.md)を参照。
-
-## Omarchyへの適用
-
-NixとHome Managerが導入済みの環境で実行する。Rio本体は `omarchy pkg add rio` で導入する。移行時は先に[検証・制限事項](docs/terminal-migration.md)を確認する。
-
-```bash
-home-manager build --flake "path:$HOME/Git/home-manager#jeebis@omarchy"
-home-manager switch --flake "path:$HOME/Git/home-manager#jeebis@omarchy"
-```
-
-## Android（Galaxy Tab S11）への導入
-
-Nix-on-Droid内で実行する。
+Nix導入後（AndroidはNix-on-Droidの初回セットアップ後）、各OSで同じコマンドを使う。
+Gitがなければ先に `nix-shell -p git` を起動する。
 
 ```bash
 git clone https://github.com/JEEBIS27/dotfiles.git ~/Git/home-manager
 cd ~/Git/home-manager
-nix-on-droid switch --flake "path:$PWD#galaxy-tab-s11"
+nix --extra-experimental-features 'nix-command flakes' run "path:$PWD#just" -- switch
 ```
 
-Zsh・CLIパッケージを共有し、PC用のHyprland・Quickshell・Rio・IME・クラウドマウントは読み込まない。バージョンと機能差、事前ビルド、更新手順は[Android導入手順](docs/android-install.md)を参照。
+初回はNixからjustを一時起動する。適用時にjustも導入されるので、セッションを開き直した後は次の短いコマンドを使える。
+
+```bash
+cd ~/Git/home-manager
+just host     # OS判定だけを確認
+just build    # ビルドのみ
+just switch   # ローカルの構成を適用
+just sync     # Gitをfast-forwardで更新して適用
+```
+
+| 環境 | `just switch` の処理 |
+|---|---|
+| Omarchy | 固定したHome Manager CLIをNixで起動し、`jeebis@omarchy`を適用 |
+| NixOS | 初回は既存OS設定をバックアップして統合flakeを生成・ビルドし、OS全体を適用 |
+| Android | Nix-on-Droidの`galaxy-tab-s11`構成を適用 |
+
+NixOSの初回 `just build` も `/etc/nixos` のバックアップと統合flake生成を行うが、稼働環境は切り替えない。
+既存のNixOS flakeは上書きしない。既存flakeへの統合・復旧は[NixOS導入手順](docs/nixos-install.md)を参照。
+
+OmarchyのRio本体は `omarchy pkg add rio` で別途導入する。移行時は[検証・制限事項](docs/terminal-migration.md)も確認する。
+AndroidはZsh・CLIを共有し、PC用のHyprland・Quickshell・Rio・IME・クラウドマウントを読み込まない。[Android導入手順](docs/android-install.md)を参照。
+
+未対応OSはエラーで停止する。PC構成のユーザー名・配置先は現構成の前提を維持する。
+Nixのインストール自体やAndroidアプリの導入は、このコマンドの対象外。
 
 ## ドキュメント
 
