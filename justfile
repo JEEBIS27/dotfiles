@@ -24,3 +24,14 @@ host:
 # NixOS only: back up /etc/nixos, create the integration flake and build.
 setup:
     @bash scripts/manage.sh setup
+
+# Installer routing tests; never activate the host.
+test:
+    python3 scripts/check-manage.py
+
+# Check installer shell syntax without modifying files.
+lint:
+    bash -n scripts/manage.sh
+
+# Focused installer checks (not every desktop component).
+check: lint test
