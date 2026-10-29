@@ -3,22 +3,101 @@
 // 単位：寸法・文字サイズは論理px、時間はms、使用率は%。
 // 編集後: bash /home/jeebis/Git/home-manager/scripts/jeebis-shell-apply.sh
 
-// ===== 共通アニメーション（第1段階：App島・Float島・Hyprland） =====
-// linear: 一定速度 / smooth: 三角関数S字 / overshoot: 行き過ぎて戻る
-// 編集後は再ビルド・シェル再起動で反映。時間は下の各アニメーション設定を使用。
-var animationPreset = "smooth";
-// Qt OutBackの強さ。0で行き過ぎなし、1.70158で移動距離の約10%。範囲0〜3。
+// ===== アニメーション：プリセット（Qt Quick Easing名、Easing.は不要） =====
+// Hyprlandで使える値:
+//   Linear: 一定速度 / InOutSine: 三角関数S字（ベジェ近似）
+//   OutBack: 行き過ぎて戻る（ベジェ変換）
+// ノッチ・バーで使える値:
+//   上記3つ + OutBounce: 到着時に跳ね返る / InQuart: ゆっくり出発して加速
+// 無効な値はInOutSineに戻る。HyprlandはOutBounce・InQuart未対応。
+// 通常: 展開・縮小・並べ替え等。Show/Hide: バーやノッチ全体の出現/退場。
+// 一体のbarモードではノッチもbar用のShow/Hideに従う。
+// Delay after a floating window stops moving before resolving excessive overlap (milliseconds).
+// Applied to Hyprland by the desktop build.
+var floatOverlapDelayMs = 100;
+// Move when this percentage of the moving window's own area overlaps another float.
+var floatOverlapThresholdPercent = 90;
+
+var hyprlandAnimationPreset = "InOutSine";
+var notchAnimationPreset = "OutBack";
+var notchShowAnimationPreset = "OutBack";
+var notchHideAnimationPreset = "InBounce";
+var barAnimationPreset = "OutBack"; // その他のShell UI（ランチャー等）の既定も兼ねる
+var barShowAnimationPreset = "OutBounce";
+var barHideAnimationPreset = "InQuart";
+// 編集後は再ビルド・シェル再起動。Hyprland設定変更は再読み込みも必要。
+// 共通の速度倍率。1=従来、2=2倍速（半分の時間）、0.5=半速。範囲0.1〜10。
+// アニメーションだけを変更。表示待機・ツールチップ・処理待ちは変更しない。
+var animationSpeed = 1.2;
+
+function motionSpeed() {
+  var value = Number(animationSpeed);
+  return isFinite(value) && value > 0 ? Math.max(0.1, Math.min(10, value)) : 1;
+}
+function motionDuration(milliseconds) {
+  return Math.max(1, Math.round(milliseconds / motionSpeed()));
+}
+
+// Qt OutBackの強さ。OutBounceのバウンドには影響しない。
 var animationOvershoot = 1.70158;
-// 透明度・表示率・幅など範囲を守る必要がある値はovershoot時もsmoothにする。
-function motionPreset(bounded) {
-  if (animationPreset === "linear") return "linear";
-  if (animationPreset === "overshoot" && !bounded) return "overshoot";
-  return "smooth";
+
+function motionPreset(bounded, group, direction) {
+  var preset = group === "notch" ? notchAnimationPreset : barAnimationPreset;
+  if (direction === "show")
+    preset = group === "notch" ? notchShowAnimationPreset : barShowAnimationPreset;
+  else if (direction === "hide")
+    preset = group === "notch" ? notchHideAnimationPreset : barHideAnimationPreset;
+  preset = String(preset);
+  if (["Linear", "InOutSine", "OutBack", "OutBounce", "InQuart"].indexOf(preset) < 0)
+    return "InOutSine";
+  // Bounce stays within 0..1; only Back needs a bounded replacement.
+  return bounded && preset === "OutBack" ? "InOutSine" : preset;
+}
+
+// Normalized easing for frame-driven decorative motion, matching the Qt types.
+function motionProgress(progress, bounded, group) {
+  var t = Math.max(0, Math.min(1, Number(progress) || 0));
+  var preset = motionPreset(bounded, group);
+  if (preset === "Linear") return t;
+  if (preset === "InQuart") return t * t * t * t;
+  if (preset === "InOutSine") return (1 - Math.cos(Math.PI * t)) / 2;
+  if (preset === "OutBounce") {
+    // Qt's default-amplitude, piecewise parabolic OutBounce curve.
+    if (t < 1 / 2.75) return 7.5625 * t * t;
+    if (t < 2 / 2.75) { t -= 1.5 / 2.75; return 7.5625 * t * t + 0.75; }
+    if (t < 2.5 / 2.75) { t -= 2.25 / 2.75; return 7.5625 * t * t + 0.9375; }
+    t -= 2.625 / 2.75;
+    return 7.5625 * t * t + 0.984375;
+  }
+  var u = t - 1, strength = motionOvershoot();
+  return 1 + (strength + 1) * u * u * u + strength * u * u;
 }
 function motionOvershoot() {
   var value = Number(animationOvershoot);
   return isFinite(value) ? Math.max(0, Math.min(3, value)) : 1.70158;
 }
+
+// ===== バーの自動表示 =====
+// Super+B/Nの自動表示で、アプリ開閉・ワークスペース切替後の表示時間（ms）。
+// アニメーション速度倍率の影響を受けない。
+// ===== 自動表示のトリガー =====
+// 有効にするモード: bar: 一体のバーモード、islands: 独立する島モード、both: 両方、none: 無効
+// 自動表示中のみ有効。表示する形は現在のモードに従い、モード自体は変更しない。
+// 島モード時: trueならトリガー元の島だけ、falseなら全ての島を一時表示
+var barTriggerIslandOnly = true;
+var barTriggerModes = {
+  app_open: "both",
+  app_close: "both",
+  workspace: "islands",
+  low_battery: "both",        // batteryLowThreshold（黄色になる%）以下へ移行
+  agent_limit: "both",        // 取得済みの利用枠が100%へ到達
+  volume_change: "islands",     // 出力音量・ミュートの変更
+  notification: "islands",      // 新規通知（既存通知の更新・再読込は対象外）
+  network_disconnect: "both",
+  network_reconnect: "islands"
+};
+var barActivityShowDuration = 2000;
+var barSlideDuration = 260; // 上端から出入りする時間（ms、共通速度倍率に追従）
 
 // ===== 共通の見た目・バーの配置 =====
 var radius = 15; // 全体の角丸。島の高さ30なら15で両端が半円
@@ -53,6 +132,8 @@ var notchContentPadding = 4;     // ノッチ内側の左右余白
 // ===== ノッチ：時刻・文字 =====
 var notchFontFamily = "hackgen35 console bold"; // 数字のフォント
 var notchClockFontSize = 15;     // 中央の時刻
+var notchClockRollEnabled = true; // 変わる桁だけ縦に回して入れ替える
+var notchClockRollDuration = 420; // 桁の入れ替え時間（ms、共通プリセット・速度倍率に追従）
 var notchTooltipFontSize = 11;   // ホバー時の数値・状態
 var notchClockWidth = 65;       // 時刻の固定幅（狭いノッチでは縮小）
 var notchClockHeight = 24;       // 時刻を囲む背景の高さ

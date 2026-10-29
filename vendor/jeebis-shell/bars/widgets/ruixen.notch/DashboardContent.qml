@@ -1,3 +1,4 @@
+import "../../../motion" as Motion
 import "../../../ShellConfig.js" as ShellConfig
 import QtQuick
 import QtQuick.Layouts
@@ -440,7 +441,7 @@ Item {
     height: size
     radius: ShellConfig.radius
     color: active ? root.accent : root.dashboardSurfaceRaised
-    Behavior on color { ColorAnimation { duration: 120 } }
+    Behavior on color { Motion.JeebisColorAnimation { motionGroup: "notch"; baseDuration: 120} }
 
     Text {
       anchors.centerIn: parent
@@ -502,6 +503,7 @@ Item {
     property bool wavy: false
     readonly property real startAngle: Math.PI
     readonly property real spanAngle: Math.PI
+    property real waveMotionPhase: 0
     property real wavePhase: 0
 
     onValueChanged: requestPaint()
@@ -529,7 +531,10 @@ Item {
 
     FrameAnimation {
       running: seek.wavy && seek.visible
-      onTriggered: seek.wavePhase = (Date.now() / 300.0) % (Math.PI * 2)
+      onTriggered: {
+        seek.waveMotionPhase += frameTime * ShellConfig.motionSpeed() / 0.3
+        seek.wavePhase = 2 * Math.PI * ShellConfig.motionProgress((seek.waveMotionPhase / (2 * Math.PI)) % 1, false, "notch")
+      }
     }
 
     onPaint: {
@@ -916,12 +921,12 @@ Item {
                 // never uncovers a corner regardless of angle -- only
                 // this layer's own pixels move, the static clip edge
                 // stays smooth throughout.
-                RotationAnimation on rotation {
+                Motion.JeebisRotationAnimation on rotation {
                   running: root.isPlaying
                   loops: Animation.Infinite
                   from: 0
                   to: 360
-                  duration: 28000
+                  baseDuration: 28000
                   // Stopping the animation freezes rotation at whatever angle
                   // it was mid-spin -- it doesn't reset the property. Without
                   // this, the wallpaper fallback that replaces the album art

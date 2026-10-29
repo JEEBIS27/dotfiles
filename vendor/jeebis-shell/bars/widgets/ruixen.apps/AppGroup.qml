@@ -580,7 +580,7 @@ Ui.BarWidget {
   property real centeringWidth: desiredCenteringWidth
   Behavior on centeringWidth {
     enabled: root.recentering && !root.directHandoff && !root.switchHeld
-    JeebisNumberAnimation { bounded: true; duration: ShellConfig.centerCompanions.movingMs }
+    JeebisNumberAnimation { bounded: true; baseDuration: ShellConfig.centerCompanions.movingMs }
   }
   readonly property real mainIslandOffsetX: detachedEntry ? 0 : -Style.space(16) * (1 - islandRevealProgress)
   readonly property real arrivalExtent: {
@@ -620,11 +620,11 @@ Ui.BarWidget {
 
   Behavior on islandRevealProgress {
     enabled: !root.directHandoff && !root.switchHeld
-    JeebisNumberAnimation { bounded: true; duration: root.islandRequested ? ShellConfig.appIsland.enteringMs : ShellConfig.appIsland.leavingMs }
+    JeebisNumberAnimation { bounded: true; baseDuration: root.islandRequested ? ShellConfig.appIsland.enteringMs : ShellConfig.appIsland.leavingMs }
   }
   Behavior on contentWidth {
     enabled: !root.directHandoff && !root.switchHeld
-    JeebisNumberAnimation { bounded: true; duration: root.coordinator && root.coordinator.transferActive ? ShellConfig.appTransfer.movingMs
+    JeebisNumberAnimation { bounded: true; baseDuration: root.coordinator && root.coordinator.transferActive ? ShellConfig.appTransfer.movingMs
         : arrivals.count > 0 ? ShellConfig.appArrival.joiningMs
         : departures.count > 0 ? ShellConfig.appDeparture.separatingMs : ShellConfig.appIsland.resizingMs }
   }
@@ -803,7 +803,7 @@ Ui.BarWidget {
       opacity: root.islandRevealProgress
       move: Transition {
         enabled: root.islandRevealProgress > 0.99
-        JeebisNumberAnimation { properties: "x,y"; duration: ShellConfig.appDeparture.reorderingMs }
+        JeebisNumberAnimation { properties: "x,y"; baseDuration: ShellConfig.appDeparture.reorderingMs }
       }
       Repeater {
         id: iconRepeater
@@ -917,7 +917,7 @@ Ui.BarWidget {
         target: arrival
         property: "entryProgress"
         to: 1
-        duration: ShellConfig.appArrival.enteringMs
+        baseDuration: ShellConfig.appArrival.enteringMs
         onFinished: dwell.start()
       }
       Timer {
@@ -934,7 +934,7 @@ Ui.BarWidget {
         target: arrival
         property: "mergeProgress"
         to: 1
-        duration: ShellConfig.appArrival.joiningMs
+        baseDuration: ShellConfig.appArrival.joiningMs
         onFinished: root.finishMerge(arrival.appKey)
       }
       AppCapsule {
@@ -1027,7 +1027,7 @@ Ui.BarWidget {
         target: departure
         property: "splitProgress"
         to: 1
-        duration: ShellConfig.appDeparture.separatingMs
+        baseDuration: ShellConfig.appDeparture.separatingMs
         onFinished: fadeOut.start()
       }
       JeebisNumberAnimation {
@@ -1036,7 +1036,7 @@ Ui.BarWidget {
         target: departure
         property: "lifeOpacity"
         to: 0
-        duration: ShellConfig.appDeparture.leavingMs
+        baseDuration: ShellConfig.appDeparture.leavingMs
         onFinished: {
           var key = departure.appKey
           Qt.callLater(root.finishDeparture, key)

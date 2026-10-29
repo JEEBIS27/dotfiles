@@ -1,11 +1,12 @@
 local desktop = require("jeebis.desktop")
+-- Jeebis: persistent bar mode; the shell peeks on hover and activity.
+hl.unbind("SUPER + B")
+desktop.bind("SUPER + B", "Toggle bar auto-hide", desktop.command("shell", "jeebis.bar", "toggle"))
 -- Keep only your personal keybinding overrides here. Add new bindings or
 -- unbind defaults before replacing them.
 --
--- Keybinding convention for application launches:
---   SUPER + ALT + KEY       launches the primary app or TUI for that key.
---   SUPER + SHIFT + ALT + KEY launches its GUI or alternate app.
--- Keep ALT in application-launch bindings for consistency.
+-- App key choices and generated normal/Fullwidth bindings live in
+-- hypr/app-bindings.lua (APP_KEYS). Keep application launches there.
 
 -- See current bindings and descriptions:
 --   omarchy menu keybindings --print
@@ -521,38 +522,6 @@ local function toggle_full_width()
     end
 end
 
-local function launch_codex()
-    local workspace = hl.get_active_workspace()
-    if not workspace then return end
-
-    local existing = {}
-    for _, window in ipairs(hl.get_workspace_windows(workspace.id)) do
-        existing[window.address] = true
-    end
-
-    hl.dispatch(hl.dsp.exec_cmd(
-        "jeebis-codex-tuios"
-    ))
-
-    local attempts = 0
-    local function maximize_codex_window()
-        attempts = attempts + 1
-        for _, window in ipairs(hl.get_workspace_windows(workspace.id)) do
-            if not existing[window.address]
-                and window.class == "org.omarchy.codex" then
-                hl.dispatch(hl.dsp.focus({ window = window }))
-                toggle_full_width()
-                return
-            end
-        end
-        if attempts < 60 then
-            hl.timer(maximize_codex_window, { timeout = 50, type = "oneshot" })
-        end
-    end
-
-    hl.timer(maximize_codex_window, { timeout = 50, type = "oneshot" })
-end
-
 local half_width_restore = {}
 
 local function toggle_half_width()
@@ -679,23 +648,19 @@ hl.unbind("SUPER + D")
 desktop.bind("SUPER + D", "Toggle show desktop", toggle_show_desktop)
 
 hl.unbind("SUPER + ALT + D")
-desktop.bind("SUPER + ALT + D", "Codex (TUIOS, maximized)", launch_codex)
 
 -- The old workspace-overview plugin is no longer deployed.
 hl.unbind("SUPER + SHIFT + D")
 
 hl.unbind("SUPER + SHIFT + ALT + D")
-desktop.bind("SUPER + SHIFT + ALT + D", "ChatGPT (new window here)", { launch = "/home/jeebis/.local/bin/jeebis-chatgpt-new-window" })
 
 -- Old Z bindings are retired; Shift+F owns maximize.
 for _, key in ipairs({ "SUPER + Z", "SUPER + CTRL + Z", "SUPER + SHIFT + Z", "SUPER + CTRL + SHIFT + Z" }) do hl.unbind(key) end
 hl.unbind("SUPER + ALT + F")
 hl.unbind("SUPER + Y")
-desktop.bind("SUPER + Y", "Yazi file manager", { launch = [[rio -e jeebis-tuios zsh -i -c 'y; exec zsh -i']] })
 
 hl.unbind("SUPER + SHIFT + ALT + F")
 hl.unbind("SUPER + ALT + SHIFT + F")
-desktop.bind("SUPER + SHIFT + ALT + F", "GUI file manager", { omarchy = "nautilus" })
 
 for _, item in ipairs(directions) do
     -- SUPER + 矢印、および SUPER + H/J/K/L: フォーカス移動
@@ -747,7 +712,6 @@ end
 desktop.bind("SUPER + T", "Focus tiled / floating windows", floating_controls.toggle_plane)
 desktop.bind("SUPER + SHIFT + T", "Toggle window floating/tiling", floating_controls.toggle_window)
 desktop.bind("SUPER + CTRL + T", "Toggle workspace layout", desktop.command("legacy", "omarchy-hyprland-workspace-layout-toggle"))
-desktop.bind("SUPER + CTRL + SHIFT + T", "Activity", { tui = "btop" })
 
 
 -- Reveal the app island for every workspace command, including reselecting
@@ -801,13 +765,10 @@ desktop.bind("SUPER + SHIFT + W", "Close windows in current workspace", close_wo
 desktop.bind("SUPER + F", "Ruixen App Launcher", desktop.command("shell", "ruixen.notch", "toggleLauncher"))
 desktop.bind("SUPER + SHIFT + F", "Maximize / restore window", toggle_full_width)
 hl.unbind("SUPER + N")
-desktop.bind("SUPER + N", "New terminal", { launch = "rio" })
 hl.unbind("SUPER + ALT + RETURN")
 hl.unbind("SUPER + CTRL + RETURN")
 hl.unbind("SUPER + ALT + K")
 hl.unbind("SUPER + CTRL + K")
-desktop.bind("SUPER + ALT + RETURN", "Terminal", { launch = "rio" })
-desktop.bind("SUPER + SHIFT + ALT + RETURN", "Browser", desktop.command("browser"))
 -- Keep application and monitor switching in the desktop's Super namespace.
 for _, binding in ipairs({
     { "SUPER + SHIFT + PAGE_UP", "Previous workspace", "e-1" },
@@ -884,3 +845,16 @@ for _, key in ipairs({ "SUPER + R", "SUPER + SHIFT + R", "SUPER + ALT + SPACE", 
     hl.unbind(key)
 end
 desktop.bind("SUPER + SHIFT + ESCAPE", "Ruixen Settings", desktop.command("shell", "shell", "toggle", "ruixen.launcher", '{"extension":"settings"}'))
+
+-- Install app launches last, after default/legacy unbinds above.
+require("hypr.app-bindings").setup(desktop)
+
+-- App setup removes legacy Super+N; install the new notch action afterwards.
+hl.unbind("SUPER + N")
+desktop.bind("SUPER + N", "Toggle notch auto-hide", desktop.command("shell", "jeebis.bar", "toggleNotch"))
+
+-- Fixed presentation reserves window space; off disables automatic reveals.
+hl.unbind("SUPER + SHIFT + B")
+hl.unbind("SUPER + SHIFT + N")
+desktop.bind("SUPER + SHIFT + B", "Toggle fixed full bar", desktop.command("shell", "jeebis.bar", "toggleFixedBar"))
+desktop.bind("SUPER + SHIFT + N", "Toggle fixed notch", desktop.command("shell", "jeebis.bar", "toggleFixedNotch"))

@@ -103,7 +103,7 @@ check "NotificationService.qml reads the real history directory, derived from th
 # unexpanded $1/$2 bash-positional-parameter text grepped for inside the
 # QML source below, not something meant to expand in this test script.
 check "the sweep reads both directories in one pass" \
-  "$(grep -cF 'awk 1 \"$1\"/*.json \"$2\"/*.json' "$service_qml")" "1"
+  "$(grep -cF 'files=(\"$1\"/*.json \"$2\"/*.json)' "$service_qml")" "1"
 check "the sweep runs on a recurring timer, not gated on a broken doNotDisturb read" \
   "$(grep -c 'onTriggered: service\.sweepNotifications()' "$service_qml")" "1"
 check "the recurring sweep is gated on storeLoaded (not spawning processes before the store is ready)" \

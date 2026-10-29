@@ -5,6 +5,13 @@ local sync_pending, busy = false, false
 local close_handoff
 local BOUNDS_INTERVAL_MS = 20
 local closing = {}
+local overlap_state = {}
+local pointer_drag = false
+local saved_no_warps
+local initialize_float
+local float_config = require("jeebis.motion")
+local overlap_delay = float_config.floatOverlapDelayMs or 1000
+local overlap_threshold = (float_config.floatOverlapThresholdPercent or 95) / 100
 local home_prefix = "jeebis-float-home-"
 
 local function encode(value)
@@ -72,7 +79,7 @@ local function remember(window)
 end
 
 function M.sync()
-    if busy or close_handoff then return end
+    if busy or close_handoff or pointer_drag then return end
     busy = true
     local active = hl.get_active_window()
     if not active then busy = false; return end
@@ -80,7 +87,7 @@ function M.sync()
     if float_home then
         reveal(float_home)
         restore_fullscreen(active)
-        hl.dispatch(hl.dsp.focus({ window = active }))
+        -- Already active: refocusing here warps the pointer during mouse focus/drag.
         hl.dispatch(hl.dsp.window.alter_zorder({ window = active, mode = "top" }))
     end
     for _, window in ipairs(hl.get_windows({ mapped = true })) do
@@ -157,7 +164,9 @@ end
 function M.toggle_window()
     local active = hl.get_active_window()
     if not active then return end
-    hl.dispatch(hl.dsp.window.float({ window = active, action = active.floating and "off" or "on" }))
+    local entering = not active.floating
+    hl.dispatch(hl.dsp.window.float({ window = active, action = entering and "on" or "off" }))
+    if entering then initialize_float(active) end
     M.focus(active)
     schedule_sync()
 end
@@ -241,6 +250,85 @@ local function apply_geometry(window, x, y, width, height)
     end
 end
 
+-- Only compare visible floats on the same workspace; tiles deliberately remain underneath.
+-- Intersection is measured against the moving window's own area.
+local function overlap_ratio(window, other)
+    local width = math.max(0, math.min(window.at.x + window.size.x, other.at.x + other.size.x)
+        - math.max(window.at.x, other.at.x))
+    local height = math.max(0, math.min(window.at.y + window.size.y, other.at.y + other.size.y)
+        - math.max(window.at.y, other.at.y))
+    return width * height / math.max(1, window.size.x * window.size.y)
+end
+
+local function overlap_target(window, others)
+    local target, largest
+    for _, other in ipairs(others) do
+        local ratio = overlap_ratio(window, other)
+        if ratio >= overlap_threshold and (not largest or ratio > largest) then
+            target, largest = other, ratio
+        end
+    end
+    return target
+end
+
+local function peers(window)
+    local result = {}
+    for _, other in ipairs(hl.get_workspace_windows(window.workspace.id)) do
+        if other.address ~= window.address and other.floating and other.fullscreen == 0
+            and not other.hidden and not parked_home(other) then
+            table.insert(result, other)
+        end
+    end
+    return result
+end
+
+initialize_float = function(window)
+    local left, top, sw, sh = monitor_bounds(window)
+    if not left then return end
+    local w, h = math.floor(sw / math.sqrt(2)), math.floor(sh / math.sqrt(2))
+    local x, y = left + math.floor((sw - w) / 2), top + math.floor((sh - h) / 2)
+    local others = peers(window)
+    for _ = 1, #others + 1 do
+        local occupied = false
+        for _, other in ipairs(others) do
+            if math.abs(x - other.at.x) < 24 and math.abs(y - other.at.y) < 24 then
+                occupied = true; break
+            end
+        end
+        if not occupied then break end
+        x, y = x + 32, y + 32
+        if x + w > left + sw or y + h > top + sh then x, y = left, top end
+    end
+    apply_geometry(window, x, y, w, h)
+end
+
+-- Move along the ray from the other center through our own center.
+-- Coincident centers have no direction; use the initial cascade's down-right direction.
+local function separate(window, others)
+    local other = overlap_target(window, others)
+    if not other then return end
+    local dx = window.at.x + window.size.x / 2 - other.at.x - other.size.x / 2
+    local dy = window.at.y + window.size.y / 2 - other.at.y - other.size.y / 2
+    local length = math.sqrt(dx * dx + dy * dy)
+    if length < 0.01 then dx, dy, length = 1, 1, math.sqrt(2) end
+    dx, dy = dx / length, dy / length
+    local _, _, sw, sh = monitor_bounds(window)
+    if not sw then return end
+    local previous_x, previous_y = window.at.x, window.at.y
+    local best
+    for distance = 4, math.ceil(math.sqrt(sw * sw + sh * sh)) + 4, 4 do
+        local x, y = bounded_geometry(window, window.at.x + dx * distance,
+            window.at.y + dy * distance, window.size.x, window.size.y)
+        if x == previous_x and y == previous_y then break end
+        previous_x, previous_y = x, y
+        local proposed = {at = {x = x, y = y}, size = window.size}
+        best = {x, y}
+        if not overlap_target(proposed, others) then break end
+    end
+    -- At a screen edge, take the available outward displacement without reversing.
+    if best then apply_geometry(window, best[1], best[2], window.size.x, window.size.y) end
+end
+
 function M.move(dx, dy)
     local window = hl.get_active_window()
     if not window or not window.floating then return false end
@@ -277,14 +365,69 @@ hl.window_rule({
 })
 
 function M.enforce_bounds()
+    if pointer_drag then return end
     local active = hl.get_active_window()
     if not active or not active.floating then return end
+    local seen = {}
     for _, window in ipairs(hl.get_workspace_windows(active.workspace.id)) do
         if window.floating and window.fullscreen == 0 and not window.hidden and not parked_home(window) then
             apply_geometry(window, window.at.x, window.at.y, window.size.x, window.size.y)
+            seen[window.address] = true
+            local geometry = table.concat({window.at.x, window.at.y, window.size.x, window.size.y}, ":")
+            local previous = overlap_state[window.address]
+            local others = peers(window)
+            local nested = overlap_target(window, others) ~= nil
+            -- Track only the focused window so a pair never pushes both members.
+            if window.address == active.address and nested then
+                local elapsed = previous and previous.geometry == geometry and previous.elapsed + BOUNDS_INTERVAL_MS or 0
+                overlap_state[window.address] = {geometry = geometry, elapsed = elapsed}
+                if elapsed >= overlap_delay then
+                    separate(window, others)
+                    overlap_state[window.address] = nil
+                end
+            else overlap_state[window.address] = nil end
         end
     end
+    for address in pairs(overlap_state) do if not seen[address] then overlap_state[address] = nil end end
 end
+
+-- Wrap the native Super+left drag so warp suppression precedes its anchor capture.
+-- Geometry dispatches and focus warps must not fight the compositor's drag anchor.
+function M.begin_pointer_drag()
+    if pointer_drag then return end
+    local active = hl.get_active_window()
+    if not active or not active.floating then return end
+    pointer_drag = true
+    overlap_state = {}
+    saved_no_warps = hl.get_config("cursor.no_warps")
+    hl.config({ cursor = { no_warps = true } })
+end
+
+function M.end_pointer_drag()
+    if not pointer_drag then return end
+    hl.config({ cursor = { no_warps = saved_no_warps == true } })
+    saved_no_warps = nil
+    pointer_drag = false
+    overlap_state = {}
+    schedule_sync()
+end
+
+-- Previously the stock Move window binding ran before our separate observer.
+-- Keep its native dispatcher, but establish the guard before invoking it.
+function M.start_pointer_drag()
+    M.begin_pointer_drag()
+    hl.dispatch(hl.dsp.window.drag())
+end
+
+hl.unbind("SUPER + mouse:272")
+hl.bind("SUPER + mouse:272", M.start_pointer_drag, {
+    description = "Move window", mouse = true,
+})
+-- Release still arrives if Super was released before the mouse button.
+hl.bind("mouse:272", M.end_pointer_drag, {
+    release = true, ignore_mods = true, non_consuming = true,
+    description = "Resume float corrections after pointer drag",
+})
 
 -- This build has no window geometry event; also constrain mouse drags and app resizes.
 hl.timer(M.enforce_bounds, { timeout = BOUNDS_INTERVAL_MS, type = "repeat" })

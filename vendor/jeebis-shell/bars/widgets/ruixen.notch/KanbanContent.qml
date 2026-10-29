@@ -1,3 +1,4 @@
+import "../../../motion" as Motion
 import "../../../ShellConfig.js" as ShellConfig
 import QtQuick
 import QtQuick.Effects
@@ -695,7 +696,7 @@ Item {
                     : (cardArea.containsMouse || editButton.hovered || deleteButton.hovered) ? root.accent
                     : "transparent"
                   border.width: cardRoot.deleteArmed || cardArea.containsMouse || editButton.hovered || deleteButton.hovered ? 1.5 : 0
-                  Behavior on border.color { ColorAnimation { duration: 100 } }
+                  Behavior on border.color { Motion.JeebisColorAnimation { motionGroup: "notch"; baseDuration: 100} }
                 }
 
                 // Whole-row click, no chevrons -- direct follow-up

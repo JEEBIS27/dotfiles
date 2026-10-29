@@ -44,6 +44,12 @@ let
       wrapProgram $out/bin/hx \
         --set HELIX_RUNTIME ${runtime} \
         --run 'export HELIX_STEEL_CONFIG="''${HELIX_STEEL_CONFIG:-''${XDG_CONFIG_HOME:-$HOME/.config}/helix}"; export STEEL_HOME="''${XDG_DATA_HOME:-$HOME/.local/share}/jeebis-helix-steel"; mkdir -p "$STEEL_HOME/cached-modules"; export HELIX_YAZI_EDITOR_PID="$$"; export HELIX_YAZI_FILE="''${XDG_RUNTIME_DIR:-$STEEL_HOME}/helix-yazi-$$"'
+      # Keep a waiting parent in fish's foreground job while the Yazi helper
+      # pauses only the editor to prevent competing terminal readers.
+      mv $out/bin/hx $out/bin/.hx-configured
+      makeWrapper ${pkgs.bash}/bin/bash $out/bin/hx \
+        --add-flags ${./supervise.sh} \
+        --add-flags "$out/bin/.hx-configured"
     '';
     meta.mainProgram = "hx";
   };
@@ -51,6 +57,8 @@ let
     mkdir -p $out
     cp -r ${sources.flash} $out/flash
     cp -r ${sources.pty} $out/steel-pty
+    chmod -R u+w $out/steel-pty
+    ${pkgs.patch}/bin/patch -d $out/steel-pty -p1 < ${./pty-floating.patch}
     mkdir $out/recentf
     cp ${sources.recentf}/cogs/recentf.scm $out/recentf/
     cp -r ${sources.microscope} $out/microscope
@@ -78,7 +86,7 @@ let
     pname = "helix-steel-pty";
     version = "0.1.0-${builtins.substring 0 8 pins.pty.rev}";
     src = sources.pty;
-    patches = [ ./pty-steel-version.patch ];
+    patches = [ ./pty-steel-version.patch ./pty-truecolor.patch ];
     cargoDeps = (pkgs.rustPlatform.importCargoLock {
       lockFile = ./pty-Cargo.lock;
       allowBuiltinFetchGit = true;

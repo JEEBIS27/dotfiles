@@ -1,3 +1,4 @@
+import "../motion" as Motion
 import "../ShellConfig.js" as ShellConfig
 import QtQuick
 import QtQuick.Effects
@@ -1398,14 +1399,14 @@ Item {
       opacity: root.opened ? 1 : 0
       scale: root.opened ? 1 : 0.96
       Behavior on opacity {
-        NumberAnimation {
-          duration: 140
-          easing.type: Easing.OutCubic
+        Motion.JeebisNumberAnimation { bounded: true;
+          baseDuration: 140
+
           onRunningChanged: if (!running && !root.opened) root.finishClosing()
         }
       }
       Behavior on scale {
-        NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+        Motion.JeebisNumberAnimation { baseDuration: 140; }
       }
       // Direct report: "someone was using a laptop and the screen is
       // much smaller than my monitor, the launcher... settings and
@@ -1470,7 +1471,7 @@ Item {
       // similar-but-not-quite-matching ones.
       Behavior on width {
         enabled: !root.suppressResizeAnimation
-        NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+        Motion.JeebisNumberAnimation { baseDuration: 140; }
       }
       // A fixed viewport height, not a function of the result count --
       // still a constant, so the card never grows/shrinks per state
@@ -1503,7 +1504,7 @@ Item {
       // Matches width's own Behavior above -- same comment applies.
       Behavior on height {
         enabled: !root.suppressResizeAnimation
-        NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+        Motion.JeebisNumberAnimation { baseDuration: 140; }
       }
       radius: ShellConfig.radius
       color: root.glassBackground

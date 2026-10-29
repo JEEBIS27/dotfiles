@@ -1,3 +1,4 @@
+import "../motion" as Motion
 import "../ShellConfig.js" as ShellConfig
 import QtQuick
 import QtQuick.Effects
@@ -43,7 +44,7 @@ Item {
   property real openProgress: opened ? 1 : 0
 
   Behavior on openProgress {
-    NumberAnimation { duration: 230; easing.type: Easing.OutCubic }
+    Motion.JeebisNumberAnimation { bounded: true; baseDuration: 230; }
   }
 
   // --- surface identity ------------------------------------------------

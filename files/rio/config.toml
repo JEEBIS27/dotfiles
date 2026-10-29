@@ -5,9 +5,13 @@ hide-cursor-when-typing = true
 scrollback-history-limit = 0
 margin = [14]
 
+# Avoid Intel GPU hangs during image preview resize in the native Vulkan backend.
+[renderer]
+backend = "Webgpu"
+
 [shell]
-program = "tuios"
-args = ["new"]
+program = "jeebis-tuios"
+args = []
 
 [fonts]
 family = "HackGen35 Console NF"

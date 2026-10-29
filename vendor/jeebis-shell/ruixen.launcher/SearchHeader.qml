@@ -1,3 +1,4 @@
+import "../motion" as Motion
 import "../ShellConfig.js" as ShellConfig
 import QtQuick
 
@@ -238,7 +239,7 @@ Item {
       font.pixelSize: 9
       rotation: root.dropdownOpen ? 180 : 0
       transformOrigin: Item.Center
-      Behavior on rotation { NumberAnimation { duration: 150; easing.type: Easing.OutQuad } }
+      Behavior on rotation { Motion.JeebisNumberAnimation { baseDuration: 150; } }
     }
 
     MouseArea {

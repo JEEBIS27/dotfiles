@@ -6,7 +6,7 @@ IFS= read -r branch
 # Worktree sessions are created headless: never attach a nested TUIOS client.
 # The native sidebar/session switcher can then open the new session.
 if tuios worktree new --detach -- "$branch"; then
-  printf '\nCreated. Select the session in the sidebar (Alt+B).\n'
+  printf '\nCreated. Select the workspace with Alt+Shift+S.\n'
 else
   printf '\nWorktree creation failed; see the error above.\n' >&2
 fi

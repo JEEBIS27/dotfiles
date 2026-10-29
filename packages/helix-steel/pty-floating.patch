@@ -1,0 +1,210 @@
+--- a/term.scm
++++ b/term.scm
+@@ -99,40 +99,26 @@
+ (define fg-attr (ffi-vector #f #f #f #f))
+ 
+ ;; Save Color around rather than allocate a new one each time
+-(define (attribute->color attr bg/fg base-color fg? base-color-fg)
++(define (attribute->color attr channels scratch default-color)
+   (cond
+     [(int? attr)
+-     (set-color-indexed! base-color attr)
+-     base-color]
+-
+-    ;; Updating succeeded, use the shared memory space
++     (set-color-indexed! scratch attr)
++     scratch]
+     [attr
+-     (set-color-rgb! base-color
+-                     (ffi-vector-ref bg/fg 0)
+-                     (ffi-vector-ref bg/fg 1)
+-                     (ffi-vector-ref bg/fg 2))
+-     base-color]
+-
+-    ; base-color
+-    [else (if fg? base-color-fg base-color)]))
+-
+-(define (cell-fg-bg->style base-style base-color-fg base-color-bg fg bg theme-base-color-fg)
+-  (when base-color-bg
+-    (set-style-bg! base-style
+-                   (or (attribute->color (term/color-attribute-set! bg bg-attr)
+-                                         bg-attr
+-                                         base-color-bg
+-                                         #f
+-                                         theme-base-color-fg)
+-                       Color/Black)))
+-
++     (set-color-rgb! scratch
++                     (ffi-vector-ref channels 0)
++                     (ffi-vector-ref channels 1)
++                     (ffi-vector-ref channels 2))
++     scratch]
++    [else default-color]))
++
++(define (cell-fg-bg->style base-style fg-scratch bg-scratch fg bg default-fg default-bg)
++  (set-style-bg! base-style
++                (attribute->color (term/color-attribute-set! bg bg-attr)
++                                  bg-attr bg-scratch default-bg))
+   (set-style-fg! base-style
+-                 (or (attribute->color (term/color-attribute-set! fg fg-attr)
+-                                       fg-attr
+-                                       base-color-fg
+-                                       #t
+-                                       theme-base-color-fg)
+-                     Color/White)))
++                (attribute->color (term/color-attribute-set! fg fg-attr)
++                                  fg-attr fg-scratch default-fg)))
+ 
+ (define (for-each func lst)
+   (if (null? lst)
+@@ -290,7 +276,7 @@
+   ;; Update the box to now show this
+   (set-box! (Terminal-focused? term) #t)
+ 
+-  (set-editor-clip-right! *default-terminal-cols*)
++  (set-editor-clip-right! 0)
+ 
+   ;; Mark the terminal as active, only if it isn't active already.
+   ;; We don't want to push this component again if it already is
+@@ -320,7 +306,7 @@
+ (struct FractionAsWidth (fraction))
+ (struct FractionAsHeight (fraction))
+ 
+-(define *terminal-fraction* (/ 1 3))
++(define *terminal-fraction* (/ 5 6))
+ 
+ ;;@doc
+ ;; Resize the terminal window
+@@ -343,22 +329,18 @@
+ ;; Do as a percentage of the terminal area, rather
+ ;; than a fixed size
+ (define (alternative-calculate-area state rect)
+-  (if (and terminal-area (equal? stashed-area rect))
+-      terminal-area
+-      (begin
+-        (set! stashed-area rect)
+-
+-        ;; Just drop the width by 4, always use a quarter of the screen
+-        (set! *default-terminal-cols* (round (* *terminal-fraction* (area-width rect))))
+-
+-        (set-editor-clip-right! *default-terminal-cols*)
+-        (term-resize-impl (- (area-height rect) 3) (- *default-terminal-cols* 5)) ;; Shave one off
+-        (set! terminal-area
+-              (area (+ (area-x rect) (- (area-width rect) *default-terminal-cols*))
+-                    (area-y rect)
+-                    *default-terminal-cols*
+-                    (- (area-height rect) 1)))
+-        terminal-area)))
++  ;; Float over the full editor without reserving a sidebar. Recalculate for
++  ;; each terminal, including after a window resize or switching instances.
++  (define width (min (area-width rect) (max 3 (round (* *terminal-fraction* (area-width rect))))))
++  (define height (min (area-height rect) (max 3 (round (* 3/4 (area-height rect))))))
++  (define cols (max 1 (- width 2)))
++  (define rows (max 1 (- height 2)))
++  (unless (and (= cols (unbox (Terminal-viewport-width state)))
++               (= rows (unbox (Terminal-viewport-height state))))
++    (term-resize-from-term state rows cols))
++  (area (+ (area-x rect) (quotient (- (area-width rect) width) 2))
++        (+ (area-y rect) (quotient (- (area-height rect) height) 2))
++        width height))
+ 
+ ; (define (alternative-calculate-block-area state rect)
+ ;   ;; Perhaps... use this?
+@@ -477,9 +459,9 @@
+     ; (define color-cursor-fg (Terminal-color-cursor-fg state))
+     ; (define color-cursor-bg (Terminal-color-cursor-bg state))
+ 
+-    (define color-cursor-fg (or (style->fg (theme->fg *helix.cx*)) Color/White))
++    (define color-cursor-fg (Terminal-color-cursor-fg state))
+     ;; If the background is missing?
+-    (define color-cursor-bg (style->bg (theme->bg *helix.cx*)))
++    (define color-cursor-bg (Terminal-color-cursor-bg state))
+ 
+     (define *vte* (Terminal-*vte* state))
+     (define cursor (Terminal-cursor state))
+@@ -487,7 +469,8 @@
+ 
+     (define cell-fg (Terminal-cell-fg state))
+     (define cell-bg (Terminal-cell-bg state))
+-    (define theme-base-color-fg (style->fg (theme->fg *helix.cx*)))
++    (define theme-base-color-fg (or (style->fg (theme->fg *helix.cx*)) Color/White))
++    (define theme-base-color-bg (or (style->bg (theme->bg *helix.cx*)) Color/Reset))
+ 
+     ;; Keep a record of the state of the area for the event handler.
+     (set-box! (Terminal-area state) block-area)
+@@ -498,7 +481,7 @@
+     ; (block/render frame block-area (make-block (style) (style) "all" "plain"))
+     (block/render frame
+                   block-area
+-                  (make-block (theme->bg *helix.cx*) (theme->bg *helix.cx*) "all" "plain"))
++                  (make-block (theme->bg *helix.cx*) (theme-scope-ref "ui.window") "all" "rounded"))
+ 
+     ;; TODO: Don't render while its being dragged around. We should probably
+     ;; rendering something like "<Rendering paused while window is being dragged>"
+@@ -513,18 +496,25 @@
+                                 color-cursor-bg
+                                 cell-fg
+                                 cell-bg
+-                                theme-base-color-fg)
+-             (frame-set-string! frame
+-                                (+ x-offset (vte/iter-x *vte*))
+-                                (+ y-offset (vte/iter-y *vte*))
+-                                cell-str
+-                                style-cursor)))
++                                theme-base-color-fg
++                                theme-base-color-bg)
++             ;; The native iterator increments x before returning the cell.
++             ;; Clip stale/reflowed cells to the floating window's interior.
++             (define cell-x (- (vte/iter-x *vte*) 1))
++             (define cell-y (vte/iter-y *vte*))
++             (when (and (>= cell-x 0) (< cell-x (- (area-width block-area) 2))
++                        (>= cell-y 0) (< cell-y (- (area-height block-area) 2)))
++               (frame-set-string! frame
++                                  (+ x-offset cell-x)
++                                  (+ y-offset cell-y)
++                                  cell-str
++                                  style-cursor))))
+ 
+     ;; (log::info! (to-string "Rendering time: " (duration->string (instant/elapsed now))))
+ 
+     ;; Update the cursor accordingly
+     (set-position-row! cursor (+ y-offset (vte/cursor-y *vte*)))
+-    (set-position-col! cursor (+ x-offset (vte/cursor-x *vte*) 1))))
++    (set-position-col! cursor (+ x-offset (vte/cursor-x *vte*)))))
+ 
+ ;; Measure the diff between these two
+ (define on-click-start (mutable-vector 0 0))
+@@ -633,6 +623,13 @@
+     [(unbox (Terminal-focused? state))
+ 
+      (cond
++       ;; Toggle from inside the PTY too; do not forward Ctrl+T to fish.
++       [(and (equal? char #\t)
++             (equal? (key-event-modifier event) key-modifier-ctrl))
++        (set-box! (Terminal-focused? state) #f)
++        (set-box! (Terminal-active state) #f)
++        (set-editor-clip-right! 0)
++        event-result/close]
+ 
+        ;; TODO: Add custom key bindings for this
+        [(and char (equal? (event->key-event event) ctrl-l))
+@@ -870,7 +867,9 @@
+ 
+   ;; When the cursor exists, we defer to opening an existing one
+   (cond
+-    [cursor (show-term (list-ref (TerminalRegistry-terminals *terminal-registry*) cursor))]
++    [cursor
++     (define term (list-ref (TerminalRegistry-terminals *terminal-registry*) cursor))
++     (if (unbox (Terminal-active term)) (hide-terminal) (show-term term))]
+     [else
+      ;; 45 rows, 80 cols
+      (define new-term
+@@ -944,7 +943,7 @@
+     (pty-resize! *pty-process* rows cols))
+ 
+   (set-box! (Terminal-viewport-width terminal) cols)
+-  ; (set-box! (Terminal-viewport-height terminal) rows)
++  (set-box! (Terminal-viewport-height terminal) rows)
+   )
+ 
+ (define (term-resize-impl rows cols)

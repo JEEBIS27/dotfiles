@@ -1,3 +1,4 @@
+import "../../../motion" as Motion
 import "../../../ShellConfig.js" as ShellConfig
 import Quickshell
 import Quickshell.Hyprland
@@ -31,7 +32,60 @@ Item {
   // Mirrors the on-disk `bar-off` flag so the user can hide the bar without
   // killing the entire shell. Hidden panels stay mapped but park off-screen
   // without an exclusion zone; updated by the FileView watcher further down.
-  property bool barHidden: false
+  readonly property bool barAutoHide: barVisibility.autoHide
+  readonly property bool barHidden: !barVisibility.barShown
+  readonly property bool barShown: barVisibility.barShown
+  readonly property real barRevealProgress: barVisibility.barProgress
+  readonly property bool barReservesSpace: barVisibility.reserveSpace
+  readonly property bool islandsMode: !barVisibility.unified
+  readonly property bool leftIslandShown: barVisibility.leftShown
+  readonly property bool rightIslandShown: barVisibility.rightShown
+  readonly property real leftIslandProgress: barVisibility.leftProgress
+  readonly property real rightIslandProgress: barVisibility.rightProgress
+  property var islandHoverCounts: ({left: 0, notch: 0, right: 0})
+  property var islandGeometryByScreen: ({})
+  function setIslandHovered(section, hovered) {
+    if (["left", "notch", "right"].indexOf(section) < 0) return
+    var next = Object.assign({}, islandHoverCounts)
+    next[section] = Math.max(0, next[section] + (hovered ? 1 : -1))
+    islandHoverCounts = next
+  }
+  function islandHeld(section) {
+    return islandHoverCounts[section] > 0 || moduleSlots.some(function(slot) {
+      if (!slot) return false
+      var region = slot.region === "center" ? "notch" : slot.region
+      return region === section && slot.activeItem && (slot.activeItem.opened === true || slot.panelOpen)
+    })
+  }
+  function islandProgress(section) { return section === "left" ? leftIslandProgress : section === "right" ? rightIslandProgress : barVisibility.notchProgress }
+  function islandGeometry(screenName) { return islandGeometryByScreen[screenName] || {left: {x:0,width:0}, notch:{x:0,width:0}, right:{x:0,width:0}} }
+  function publishIslandGeometry(screenName, geometry) {
+    if (!screenName || JSON.stringify(islandGeometryByScreen[screenName]) === JSON.stringify(geometry)) return
+    var next = Object.assign({}, islandGeometryByScreen); next[screenName] = geometry; islandGeometryByScreen = next
+  }
+  function triggerSectionFor(ids, fallback) {
+    for (var i = 0, regions = ["left", "center", "right"]; i < regions.length; ++i) {
+      var region = regions[i]
+      if (layoutEntries(region).some(function(entry) { return ids.indexOf(entryId(entry)) >= 0 })) return region === "center" ? "notch" : region
+    }
+    return fallback
+  }
+  JeebisBarVisibility {
+    id: barVisibility
+    geometryByScreen: root.islandGeometryByScreen
+    hovered: root.barHovered
+    leftHeld: root.islandHeld("left")
+    rightHeld: root.islandHeld("right")
+    // Notch IPC and its own edge sensor both contribute to the hold.
+    edgeNotchHeld: root.islandHeld("notch")
+    triggerSections: ({
+      app_open: root.triggerSectionFor(["ruixen.apps", "jeebis.apps"], "left"),
+      app_close: root.triggerSectionFor(["ruixen.apps", "jeebis.apps"], "left"),
+      workspace: root.triggerSectionFor(["ruixen.workspaces", "jeebis.workspaces"], "left"),
+      agent_limit: root.triggerSectionFor(["omarchy.agents"], "right"),
+      low_battery: "notch", volume_change: "notch", notification: "notch", network_disconnect: "notch", network_reconnect: "notch"
+    })
+  }
   property string home: Quickshell.env("HOME")
   property string stateHome: home + "/.local/state"
   property string omarchyConfigDir: home + "/.config/omarchy"
@@ -224,9 +278,9 @@ Item {
   property color themeSecondary: themeColors.secondary
   property bool themeMonochrome: themeColors.monochrome
 
-  Behavior on barForeground { enabled: root.foregroundAnimationEnabled; ColorAnimation { duration: 420; easing.type: Easing.InOutCubic } }
-  Behavior on background { ColorAnimation { duration: 420; easing.type: Easing.InOutCubic } }
-  Behavior on urgent { ColorAnimation { duration: 420; easing.type: Easing.InOutCubic } }
+  Behavior on barForeground { enabled: root.foregroundAnimationEnabled; Motion.JeebisColorAnimation { baseDuration: 420; } }
+  Behavior on background { Motion.JeebisColorAnimation { baseDuration: 420; } }
+  Behavior on urgent { Motion.JeebisColorAnimation { baseDuration: 420; } }
   property var tooltipTarget: null
   property var pendingTooltipTarget: null
   property string tooltipText: ""
@@ -1643,20 +1697,22 @@ Item {
     onTriggered: if (!root.targetTooltipHovered(root.tooltipTarget)) root.hideTooltip(root.tooltipTarget)
   }
 
-  // Presence of the `bar-off` flag = bar hidden. Watching the parent toggles
-  // directory because FileView can't observe a file that doesn't exist yet,
-  // and the flag is created/removed by `omarchy-toggle-bar`.
-  Process {
-    id: barHiddenProbe
-    running: true
-    command: ["bash", "-c", "[[ -f $HOME/.local/state/omarchy/toggles/bar-off ]] && echo yes || echo no"]
-    stdout: SplitParser { onRead: function(line) { root.barHidden = String(line).trim() === "yes" } }
+  Variants {
+    model: Quickshell.screens
+    delegate: Component {
+      JeebisBarRevealEdge {
+        required property var modelData
+        screen: modelData
+        barRoot: root
+      }
+    }
   }
-  FileView {
-    path: root.home + "/.local/state/omarchy/toggles"
-    watchChanges: true
-    printErrors: false
-    onFileChanged: barHiddenProbe.running = true
+
+  Variants {
+    model: Quickshell.screens
+    delegate: Component {
+      JeebisBarReservation { required property var modelData; screen: modelData; barRoot: root }
+    }
   }
 
   // Showing/hiding the bar must preserve the personal compositor gaps.

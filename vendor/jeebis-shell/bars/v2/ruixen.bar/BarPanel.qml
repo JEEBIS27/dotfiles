@@ -1,4 +1,5 @@
 import "../../../ShellConfig.js" as ShellConfig
+import "JeebisBarVisibilityModel.js" as Visibility
 import Quickshell
 import Quickshell.Wayland
 import QtQuick
@@ -62,8 +63,34 @@ PanelWindow {
   // physical pixel FrameWindow's own edge actually lands on, it's
   // already covered by this window's own matching-color paint before
   // it could ever show through as a wallpaper sliver.
-  visible: !remapGuard.remapping
-  exclusionMode: barWindow.barRoot.barHidden ? ExclusionMode.Ignore : ExclusionMode.Normal
+  visible: !remapGuard.remapping && (barWindow.barRoot.barAutoHide || barWindow.barRoot.barShown || barWindow.barRoot.barRevealProgress > 0)
+  readonly property var islandRects: barRoot.islandGeometry(barRoot.screenNameForWindow(barWindow))
+  // Hidden islands and the space between islands must pass pointer input through.
+  mask: Region {
+    width: !barWindow.barRoot.islandsMode && barWindow.barRoot.barRevealProgress > 0 ? barWindow.width : 0
+    height: barWindow.height
+    Region { x: barWindow.islandRects.left.x; width: barWindow.barRoot.leftIslandProgress > 0 ? barWindow.islandRects.left.width : 0; height: barWindow.height }
+    Region { x: barWindow.islandRects.right.x; width: barWindow.barRoot.rightIslandProgress > 0 ? barWindow.islandRects.right.width : 0; height: barWindow.height }
+  }
+  Item {
+    anchors.fill: parent
+    z: 10000
+    property string section: ""
+    function point(next) {
+      if (section === next) return
+      barWindow.barRoot.setIslandHovered(section, false)
+      section = next
+      barWindow.barRoot.setIslandHovered(section, true)
+    }
+    HoverHandler {
+      blocking: false
+      onHoveredChanged: parent.point(hovered ? Visibility.sectionAt(barWindow.islandRects, point.position.x) : "")
+      readonly property real pointerX: point.position.x
+      onPointerXChanged: if (hovered) parent.point(Visibility.sectionAt(barWindow.islandRects, pointerX))
+      Component.onDestruction: parent.point("")
+    }
+  }
+  exclusionMode: ExclusionMode.Ignore
   // + seamOverlap, top position only -- margin.top below only gives up
   // those pixels when position === "top" (see its own comment), so
   // this only needs to pick them back up in that same case. Total
@@ -72,9 +99,7 @@ PanelWindow {
   // first pass at this overlap trick forgot this compensation and the
   // reserved gap came out seamOverlap px too shallow, same class of
   // miss as the ReservationPanel one before it.
-  exclusiveZone: barWindow.barRoot.docked
-    ? (44 - barWindow.barRoot.frameInset + (barWindow.barRoot.position === "top" ? barWindow.barRoot.seamOverlap : 0))
-    : barWindow.barRoot.notchClearance
+  exclusiveZone: 0
 
   ScreenMoveRemap {
     id: remapGuard
@@ -82,8 +107,8 @@ PanelWindow {
   }
 
   margins {
-    top: barWindow.barRoot.barHidden && barWindow.barRoot.position === "top" ? -barWindow.barRoot.barSize : (barWindow.barRoot.position === "top" ? barWindow.barRoot.contentTopInset - (barWindow.barRoot.docked ? barWindow.barRoot.seamOverlap : 0) : 0)
-    bottom: barWindow.barRoot.barHidden && barWindow.barRoot.position === "bottom" ? -barWindow.barRoot.barSize : 0
+    top: (barWindow.barRoot.position === "top" ? barWindow.barRoot.contentTopInset - (barWindow.barRoot.docked ? barWindow.barRoot.seamOverlap : 0) : 0)
+    bottom: 0
     // - (docked ? seamOverlap : 0), same reasoning/same constant as
     // margins.top just above: docked mode's leftDockedBg/leftFrameHemWing
     // (and their right-side mirrors) paint flush against this window's
@@ -99,8 +124,8 @@ PanelWindow {
     // margins.top's own -- a horizontal top bar's exclusiveZone reserves
     // vertical space only, left/right margins are pure positioning, not
     // reservation.
-    left: barWindow.barRoot.barHidden && barWindow.barRoot.position === "left" ? -barWindow.barRoot.barSize : (barWindow.barRoot.position === "top" ? (barWindow.barRoot.docked ? barWindow.barRoot.frameInset - barWindow.barRoot.seamOverlap : 0) : 0)
-    right: barWindow.barRoot.barHidden && barWindow.barRoot.position === "right" ? -barWindow.barRoot.barSize : (barWindow.barRoot.position === "top" ? (barWindow.barRoot.docked ? barWindow.barRoot.frameInset - barWindow.barRoot.seamOverlap : 0) : 0)
+    left: (barWindow.barRoot.position === "top" ? (barWindow.barRoot.docked ? barWindow.barRoot.frameInset - barWindow.barRoot.seamOverlap : 0) : 0)
+    right: (barWindow.barRoot.position === "top" ? (barWindow.barRoot.docked ? barWindow.barRoot.frameInset - barWindow.barRoot.seamOverlap : 0) : 0)
   }
 
   anchors {
@@ -348,6 +373,22 @@ PanelWindow {
         barWindow.barRoot.publishDockChromeMetrics(barWindow.barRoot.screenNameForWindow(barWindow), horizontalBarRoot.currentDockChromeMetrics())
       }
 
+      function measureIslands(items) {
+        var first = width, last = 0
+        for (var i = 0; i < items.length; ++i) {
+          var item = items[i]
+          if (!item || !item.visible || item.opacity <= 0 || item.width <= 0) continue
+          first = Math.min(first, item.x); last = Math.max(last, item.x + item.width)
+        }
+        return {x: Math.max(0, Math.floor(first - 2)), width: last > first ? Math.ceil(last - first + 4) : 0}
+      }
+      readonly property var islandGeometry: ({
+        left: measureIslands([menuPill, workspacesPill, appsPill, pinnedappsPill, leftPluginPinsPill, settingsPill]),
+        right: measureIslands([clockPill, loadPill, datePill, curatedPill, pluginPinsPill, trayPill]),
+        notch: {x: Math.round((width - ShellConfig.notchWidth - 2 * ShellConfig.radius) / 2), width: ShellConfig.notchWidth + 2 * ShellConfig.radius}
+      })
+      onIslandGeometryChanged: barWindow.barRoot.publishIslandGeometry(barWindow.barRoot.screenNameForWindow(barWindow), islandGeometry)
+
       // Safety net for a real live-reload race, root-caused with a
       // debug trace: settingsPill/rightDockedBg's own onXChanged/
       // onWidthChanged handlers (below) DO fire and DO call this
@@ -446,6 +487,7 @@ PanelWindow {
       // layering there as pure black."
       Item {
         id: leftShoulderShadowClip
+        transform: JeebisIslandTranslate { barRoot: barWindow.barRoot; section: "left" }
         visible: !barWindow.barRoot.frameOwnsDockChrome
         anchors.top: parent.top
         anchors.left: parent.left
@@ -529,6 +571,7 @@ PanelWindow {
       // large the margin actually is -- not a hardcoded "+40".
       Item {
         id: rightShoulderShadowClip
+        transform: JeebisIslandTranslate { barRoot: barWindow.barRoot; section: "right" }
         visible: !barWindow.barRoot.frameOwnsDockChrome
         anchors.top: parent.top
         anchors.right: parent.right
@@ -647,6 +690,7 @@ PanelWindow {
         id: leftDockedBg
         visible: barWindow.barRoot.docked && !barWindow.barRoot.frameOwnsDockChrome
         x: 0
+        transform: JeebisIslandTranslate { barRoot: barWindow.barRoot; section: "left" }
         y: 0
         onWidthChanged: horizontalBarRoot.publishDockChromeMetrics()
         // Normal notch skin: just the left group's own width. Fullbar skin:
@@ -690,6 +734,7 @@ PanelWindow {
       // mismatch was the earlier bug.
       RoundCorner {
         id: leftShoulderWing
+        transform: JeebisIslandTranslate { barRoot: barWindow.barRoot; section: "left" }
         visible: barWindow.barRoot.docked && !barWindow.barRoot.frameOwnsDockChrome
         corner: "topLeft"
         size: barWindow.barRoot.shoulderWingSize
@@ -725,6 +770,7 @@ PanelWindow {
       // values can diverge any more.
       RoundCorner {
         id: leftFrameHemWing
+        transform: JeebisIslandTranslate { barRoot: barWindow.barRoot; section: "left" }
         visible: barWindow.barRoot.docked && !barWindow.barRoot.frameOwnsDockChrome
         corner: "topLeft"
         size: barWindow.barRoot.shoulderWingSize
@@ -735,6 +781,7 @@ PanelWindow {
 
       Rectangle {
         id: rightDockedBg
+        transform: JeebisIslandTranslate { barRoot: barWindow.barRoot; section: "right" }
         visible: barWindow.barRoot.docked && !barWindow.barRoot.dockedSkin.dockSpansFullWidth && !barWindow.barRoot.frameOwnsDockChrome
         x: trayPill.x
         y: 0
@@ -770,6 +817,7 @@ PanelWindow {
       // shared pixel is invisible either way.
       RoundCorner {
         id: rightShoulderWing
+        transform: JeebisIslandTranslate { barRoot: barWindow.barRoot; section: "right" }
         visible: barWindow.barRoot.docked && !barWindow.barRoot.frameOwnsDockChrome
         corner: "topRight"
         size: barWindow.barRoot.shoulderWingSize
@@ -782,6 +830,7 @@ PanelWindow {
       // not dockedBarColor).
       RoundCorner {
         id: rightFrameHemWing
+        transform: JeebisIslandTranslate { barRoot: barWindow.barRoot; section: "right" }
         visible: barWindow.barRoot.docked && !barWindow.barRoot.frameOwnsDockChrome
         corner: "topRight"
         size: barWindow.barRoot.shoulderWingSize
@@ -813,6 +862,7 @@ PanelWindow {
       // not ModuleList, since ModuleList has no separator support.
       Item {
         id: clockPill
+        transform: JeebisIslandTranslate { barRoot: barWindow.barRoot; section: "right" }
         visible: barWindow.barRoot.layoutEntries("center").some(function(e) {
           var id = barWindow.barRoot.entryId(e)
           return id === "omarchy.clock" || id === "ruixen.weather"
@@ -918,6 +968,7 @@ PanelWindow {
       // to that many widgets today.
       Item {
         id: centerGenericPill
+        transform: JeebisIslandTranslate { barRoot: barWindow.barRoot; section: "notch" }
         readonly property rect reservedRect: barWindow.barRoot.reservedCenterRect(parent ? parent.width : 0)
         opacity: centerGenericContent.width > 0 ? 1 : 0
         x: reservedRect.x + reservedRect.width + 12
@@ -966,6 +1017,7 @@ PanelWindow {
       // button off the bar).
       Item {
         id: menuPill
+        transform: JeebisIslandTranslate { barRoot: barWindow.barRoot; section: "left" }
         anchors.left: parent.left
         // Extra space on top of the usual 8px so content clears
         // ruixen.frame-widget's rounded corner (cornerRadius: 24)
@@ -1014,6 +1066,7 @@ PanelWindow {
 
       Item {
         id: workspacesPill
+        transform: JeebisIslandTranslate { barRoot: barWindow.barRoot; section: "left" }
         HoverHandler {
           onHoveredChanged: if (appsContent.activeItem) appsContent.activeItem.setHoverHeld(hovered)
         }
@@ -1067,6 +1120,7 @@ PanelWindow {
       // the time.
       Item {
         id: appsPill
+        transform: JeebisIslandTranslate { barRoot: barWindow.barRoot; section: "left" }
         anchors.left: workspacesPill.right
         anchors.leftMargin: width > 0 ? ShellConfig.islandGap : 0
         anchors.verticalCenter: parent.verticalCenter
@@ -1086,6 +1140,7 @@ PanelWindow {
 
       Item {
         id: pinnedappsPill
+        transform: JeebisIslandTranslate { barRoot: barWindow.barRoot; section: "left" }
         anchors.left: appsPill.right
         anchors.leftMargin: pinnedappsContent.width > 0 ? ShellConfig.islandGap : 0
         anchors.verticalCenter: parent.verticalCenter
@@ -1124,6 +1179,7 @@ PanelWindow {
       // every user who never drags anything here.
       Item {
         id: leftPluginPinsPill
+        transform: JeebisIslandTranslate { barRoot: barWindow.barRoot; section: "left" }
         anchors.left: pinnedappsPill.right
         anchors.leftMargin: leftPluginPinsContent.width > 0 ? ShellConfig.islandGap : 0
         anchors.verticalCenter: parent.verticalCenter
@@ -1147,6 +1203,7 @@ PanelWindow {
 
       Item {
         id: loadPill
+        transform: JeebisIslandTranslate { barRoot: barWindow.barRoot; section: "right" }
         anchors.right: pluginPinsPill.left
         anchors.rightMargin: width > 0 && pluginPinsPill.width > 0 ? ShellConfig.islandGap : 0
         anchors.verticalCenter: parent.verticalCenter
@@ -1165,6 +1222,7 @@ PanelWindow {
       }
       Item {
         id: settingsPill
+        transform: JeebisIslandTranslate { barRoot: barWindow.barRoot; section: "left" }
         // Fades out instead of collapsing width/anchors when
         // ruixen.settingsbutton isn't in the "left" layout -- same
         // reasoning as trayPill below: simpler than juggling anchors
@@ -1199,6 +1257,7 @@ PanelWindow {
       // Independent date island, immediately to the right of Agents.
       Item {
         id: datePill
+        transform: JeebisIslandTranslate { barRoot: barWindow.barRoot; section: "right" }
         visible: dateContent.entries.length > 0
         anchors.right: clockPill.left
         anchors.rightMargin: clockPill.visible ? ShellConfig.islandGap : 0
@@ -1225,6 +1284,7 @@ PanelWindow {
       // old catch-all rightPill used to occupy.
       Item {
         id: curatedPill
+        transform: JeebisIslandTranslate { barRoot: barWindow.barRoot; section: "right" }
         anchors.right: datePill.left
         // Flat px, not Style.space() -- see clockPill's comment. Was
         // Style.space(16), an intentional outlier for holding 6 icons;
@@ -1279,6 +1339,7 @@ PanelWindow {
       // of a data-order coincidence.
       Item {
         id: pluginPinsPill
+        transform: JeebisIslandTranslate { barRoot: barWindow.barRoot; section: "right" }
         anchors.right: curatedPill.left
         anchors.rightMargin: curatedPill.width > 0 || datePill.width > 0 ? ShellConfig.islandGap : 0
         anchors.verticalCenter: parent.verticalCenter
@@ -1333,6 +1394,7 @@ PanelWindow {
         id: trayPill
         opacity: trayContent.width > 0 ? 1 : 0
         anchors.right: loadPill.left
+        transform: JeebisIslandTranslate { barRoot: barWindow.barRoot; section: "right" }
         // Flat px, not Style.space() -- see clockPill's comment.
         anchors.rightMargin: ShellConfig.islandGap
         anchors.verticalCenter: parent.verticalCenter
@@ -1388,6 +1450,7 @@ PanelWindow {
       CenterModules { anchors.fill: parent; barRoot: barWindow.barRoot }
 
       LeftModules {
+        transform: JeebisIslandTranslate { barRoot: barWindow.barRoot; section: "left" }
         anchors.top: parent.top
         anchors.topMargin: Style.space(8)
         anchors.horizontalCenter: parent.horizontalCenter
@@ -1395,6 +1458,7 @@ PanelWindow {
       }
 
       RightModules {
+        transform: JeebisIslandTranslate { barRoot: barWindow.barRoot; section: "right" }
         anchors.bottom: parent.bottom
         anchors.bottomMargin: Style.space(8)
         anchors.horizontalCenter: parent.horizontalCenter

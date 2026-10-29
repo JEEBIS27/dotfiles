@@ -1,3 +1,4 @@
+import "../../../motion" as Motion
 import "../../../ShellConfig.js" as ShellConfig
 import "JeebisWorkspaceOrder.js" as WorkspaceOrder
 import QtQuick
@@ -81,6 +82,7 @@ BarWidget {
   property var launchingWorkspaces: ({})
   property double previousWorkspaceSampleAt: -1
   property int spinnerFrame: 0
+  property int spinnerTick: 0
   readonly property string spinnerFrames: "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
   readonly property var activeWorkspaceIds: workspaceIds()
   function updateWorkspaceCpu(output) {
@@ -180,10 +182,13 @@ BarWidget {
   }
 
   Timer {
-    interval: ShellConfig.workspaceActivity.cyclingMs
+    interval: ShellConfig.motionDuration(ShellConfig.workspaceActivity.cyclingMs)
     running: root.visible && root.hasActiveSpinner()
     repeat: true
-    onTriggered: root.spinnerFrame = (root.spinnerFrame + 1) % root.spinnerFrames.length
+    onTriggered: {
+      root.spinnerTick = (root.spinnerTick + 1) % root.spinnerFrames.length
+      root.spinnerFrame = Math.min(root.spinnerFrames.length - 1, Math.floor(ShellConfig.motionProgress(root.spinnerTick / root.spinnerFrames.length, true) * root.spinnerFrames.length))
+    }
   }
 
   Connections {
@@ -251,7 +256,7 @@ BarWidget {
     for (var i = workspaceModel.count; i < ids.length; ++i) workspaceModel.append({ workspaceNumber: ids[i] })
   }
   implicitWidth: row.implicitWidth + sidePadding * 2
-  Behavior on implicitWidth { NumberAnimation { duration: ShellConfig.workspaceResizeDuration; easing.type: Easing.InOutCubic } }
+  Behavior on implicitWidth { Motion.JeebisNumberAnimation { baseDuration: ShellConfig.workspaceResizeDuration; } }
   implicitHeight: row.implicitHeight
 
   Row {
@@ -273,7 +278,7 @@ BarWidget {
         Component.onCompleted: entryProgress = 1
         opacity: entryProgress
         scale: entryProgress
-        Behavior on entryProgress { NumberAnimation { duration: ShellConfig.workspaceResizeDuration; easing.type: Easing.InOutCubic } }
+        Behavior on entryProgress { Motion.JeebisNumberAnimation { baseDuration: ShellConfig.workspaceResizeDuration; } }
         property bool launchPulse: false
         readonly property bool busy: launchPulse || root.busyWorkspaces[String(modelData)] === true
         function pulseLaunch() { launchPulse = true; root.setLaunchPulse(modelData, true); launchPulseTimer.restart() }
@@ -287,24 +292,25 @@ BarWidget {
         readonly property var workspace: root.workspaceById(modelData)
         readonly property bool occupied: workspace !== null && workspace.toplevels.values.length > 0
         readonly property bool focused: Hyprland.focusedWorkspace !== null && Hyprland.focusedWorkspace.id === modelData
+        readonly property color inactiveColor: Qt.rgba(root.focusedColor.r, root.focusedColor.g, root.focusedColor.b, 0.35)
+        readonly property color stateColor: focused ? root.focusedColor : inactiveColor
 
         width: focused ? root.pillWidth : root.dotSize
         height: root.dotSize
         anchors.verticalCenter: parent.verticalCenter
 
-        Behavior on width { NumberAnimation { duration: ShellConfig.workspaceResizeDuration; easing.type: Easing.InOutCubic } }
+        Behavior on width { Motion.JeebisNumberAnimation { baseDuration: ShellConfig.workspaceResizeDuration; } }
 
         Rectangle {
           visible: !indicator.busy
           anchors.fill: parent
           radius: ShellConfig.radius
           // Active: full accent. Occupied: previous empty-state tint. Empty: outline only.
-          readonly property color inactiveColor: Qt.rgba(root.focusedColor.r, root.focusedColor.g, root.focusedColor.b, 0.35)
-          color: indicator.focused ? root.focusedColor : (indicator.occupied ? inactiveColor : "transparent")
+          color: indicator.focused || indicator.occupied ? indicator.stateColor : "transparent"
           border.width: !indicator.focused && !indicator.occupied ? 1 : 0
-          border.color: inactiveColor
+          border.color: indicator.inactiveColor
           antialiasing: true
-          Behavior on color { ColorAnimation { duration: 180 } }
+          Behavior on color { Motion.JeebisColorAnimation { baseDuration: 180} }
         }
 
         Rectangle {
@@ -322,7 +328,8 @@ BarWidget {
           anchors.verticalCenterOffset: ShellConfig.workspaceSpinnerOffsetY
           visible: indicator.busy
           text: root.spinnerFrames.charAt(root.spinnerFrame)
-          color: root.focusedColor
+          color: indicator.stateColor
+          Behavior on color { Motion.JeebisColorAnimation { baseDuration: 180} }
           font.family: ShellConfig.notchFontFamily
           font.pixelSize: 15
         }

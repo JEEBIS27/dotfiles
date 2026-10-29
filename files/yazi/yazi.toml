@@ -20,8 +20,8 @@ mouse_events   = [ "click", "scroll", "drag" ]
 [preview]
 wrap            = "no"
 tab_size        = 2
-max_width       = 2000
-max_height      = 3000
+max_width       = 7680
+max_height      = 4320
 cache_dir       = ""
 image_delay     = 30
 image_filter    = "triangle"
@@ -158,9 +158,7 @@ previewers = [
 	# JSON
 	{ mime = "application/{json,ndjson}", run = "json" },
 	# Image
-	{ mime = "image/{avif,hei?,jxl}", run = "magick" },
-	{ mime = "image/svg+xml", run = "svg" },
-	{ mime = "image/*", run = "image" },
+	{ mime = "image/*", run = "fit-image" },
 	# Video
 	{ mime = "video/*", run = "video" },
 	# PDF

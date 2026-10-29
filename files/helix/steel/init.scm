@@ -9,7 +9,7 @@
 (require "moka/moka.scm")
 (require "yazi/yazi.scm")
 
-(set-default-shell! "@zsh@")
+(set-default-shell! "@fish@")
 (notify-config 'render 'minimal)
 (recentf-start!)
 

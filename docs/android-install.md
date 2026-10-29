@@ -8,7 +8,7 @@ Nix-on-DroidをAndroidアプリとして導入した環境が対象。通常のT
 ```text
 PC:      hosts/{omarchy,nixos}.nix → home.nix → modules/common.nix + PC用モジュール
 Android: hosts/nix-on-droid.nix → hosts/android.nix → modules/common.nix
-共通:    modules/common.nix → modules/cli.nix + modules/zsh-files.nix
+共通:    modules/common.nix → modules/cli.nix + modules/fish.nix
 ```
 
 Androidのimport経路には `modules/desktop.nix`、`modules/apps.nix`、
@@ -17,7 +17,7 @@ Androidのimport経路には `modules/desktop.nix`、`modules/apps.nix`、
 PC用モジュールを読み込まない。Hyprland、Quickshell、Rio、Fcitx5/Mozkey、
 rcloneのsystemd/FUSEマウント、PCのテーマ生成とパスはAndroidには配置しない。
 
-共有するものはZshのプロンプト・エイリアス・キー設定・Sheldon設定、CLIパッケージ定義。
+共有するものはfishのプロンプト・関数・キー設定、CLIパッケージ定義。
 AndroidでもHelixを既定エディターにするが、公式パッケージと組み込みのKanagawaテーマを使う。
 Steel拡張・PCのHelixキー設定とLSP一式、Neovim/Yaziの独自設定、TUIOSはPC側のみ。
 AndroidのNeovim/Yaziは各パッケージの既定設定で動く。GUI起動・クリップボード連携は
@@ -28,7 +28,7 @@ AndroidのNeovim/Yaziは各パッケージの既定設定で動く。GUI起動�
 [Nix-on-Droid公式advancedテンプレート](https://github.com/nix-community/nix-on-droid/blob/release-24.05/templates/advanced/flake.nix)
 に合わせ、Android用のNix-on-Droid / nixpkgs / Home Managerは24.05系列で独立させる。
 PCの26.05系列・アプリ用pinは変更しない。CLI・HelixはPCと同じ `nixpkgs-apps` pinのARM版を使う。
-共有Zshで使う新しいfzfオプションも、このアプリ用pinで揃える。
+共有fishで使う新しいfzfオプションも、このアプリ用pinで揃える。
 Home ManagerやNix-on-Droidの基盤ツールは24.05系列。
 `system.stateVersion` / `home.stateVersion` は初期状態の互換性設定なので、
 パッケージ更新時にも機械的に変更しない。
@@ -61,8 +61,8 @@ AndroidのUID/GIDをGitに書き込まない。リポジトリの配置先は任
    ```
 
 5. Nix-on-Droidのセッションを開き直す。`echo "$HOME"`、`echo "$EDITOR"`、
-   `just --version`、`zsh --version`、`hx --version`、`yazi --version` を確認する。
-   初回のZsh起動ではSheldonが外部プラグインを取得するためネット接続が必要。
+   `just --version`、`fish --version`、`hx --version`、`yazi --version` を確認する。
+   fishの補完・構文強調・入力候補は標準機能を使用し、Sheldonは不要。
    以後はリポジトリ内で `just switch`、更新も含める場合は `just sync` を使う。
 
 従来の `nix-on-droid switch --flake "path:$PWD#galaxy-tab-s11"` も引き続き使える。

@@ -1,3 +1,4 @@
+import "../../../motion" as Motion
 import "../../../ShellConfig.js" as ShellConfig
 import QtQuick
 
@@ -130,7 +131,7 @@ Rectangle {
           width: Math.max(0, parent.valueX - parent.gapPx)
           radius: 3
           color: root.channelMuted ? root.muted : root.accent
-          Behavior on width { NumberAnimation { duration: 120 } }
+          Behavior on width { Motion.JeebisNumberAnimation { baseDuration: 120} }
         }
 
         Rectangle {
@@ -149,7 +150,7 @@ Rectangle {
           height: parent.height + 8
           radius: 2
           color: "#ffffff"
-          Behavior on x { NumberAnimation { duration: 120 } }
+          Behavior on x { Motion.JeebisNumberAnimation { baseDuration: 120} }
         }
 
         MouseArea {

@@ -1,3 +1,4 @@
+import "../motion" as Motion
 import QtQuick
 import QtQuick.Effects
 import Quickshell
@@ -121,10 +122,10 @@ Item {
   // watching it.
   Timer { interval:15000; repeat:true; running:true; onTriggered:root.refresh() }
   Timer { id:loadDeadline; interval:10000; onTriggered:root.cancelIncoming("Unable to load wallpaper") }
-  NumberAnimation {
+  Motion.JeebisNumberAnimation { bounded: true;
     id:animation
     target:root; property:"progress"; from:0; to:1
-    duration:root.durationMs; easing.type:Easing.InOutCubic
+    baseDuration: root.durationMs;
     onFinished: { root.finishing=true; root.displayedPath=root.finalPath }
   }
   Component.onCompleted:refresh()

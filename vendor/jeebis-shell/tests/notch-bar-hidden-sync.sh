@@ -1,64 +1,29 @@
 #!/usr/bin/env bash
-# Covers a direct report from another user: Super+Shift+Space (stock
-# Omarchy's bind_toggle "bar", which runs omarchy-toggle-bar) hides
-# ruixen.bar's own left/right pill groups fine, but "the notch is
-# different" -- it stayed on screen. Root cause: ruixen.notch is a
-# completely separate PanelWindow/surface from ruixen.bar, so
-# ruixen.bar's own barHiddenProbe (watching the on-disk
-# ~/.local/state/omarchy/toggles/bar-off flag omarchy-toggle-bar
-# flips) never told this window anything at all.
-#
-# Fix: ported the exact same flag-watching Process + FileView pair
-# into ruixen.notch/Overlay.qml, reading the exact same on-disk file
-# ruixen.bar already does -- not a second, competing toggle mechanism.
-# Both surfaces just read the one real piece of state Omarchy's own
-# toggle script writes.
-#
-# Can't drive a real Quickshell instance here (no compositor in CI), so
-# this is a static invariant check against the actual QML source, same
-# style as tests/bar-popup-clearance.sh's own pattern-based guards.
+# Jeebis: presentation is owned by the bar and published atomically to the notch.
 set -Eeuo pipefail
-
-script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-repo_dir="$(cd -- "$script_dir/.." && pwd)"
-bar_qml="$repo_dir/bars/v2/ruixen.bar/Bar.qml"
-overlay_qml="$repo_dir/bars/widgets/ruixen.notch/Overlay.qml"
-# The PanelWindow's own visible: line is window content now --
-# see NotchWindow.qml's own header.
-notch_window_qml="$repo_dir/bars/widgets/ruixen.notch/NotchWindow.qml"
-
-pass=0
-fail_count=0
-check() {
-  local desc="$1" got="$2" want="$3"
-  if [[ "$got" == "$want" ]]; then
-    printf 'ok   - %s\n' "$desc"
-    pass=$((pass + 1))
-  else
-    printf 'FAIL - %s\n       got:  %s\n       want: %s\n' "$desc" "$got" "$want"
-    fail_count=$((fail_count + 1))
-  fi
-}
-
-# shellcheck disable=SC2016 # deliberately literal: this is the exact,
-# unexpanded $HOME-prefixed string grepped for inside the QML source
-# below, not a path meant to expand in this test script itself.
-bar_flag_path='$HOME/.local/state/omarchy/toggles/bar-off'
-
-check "ruixen.bar itself still watches the real bar-off flag (the source of truth this test pins against)" \
-  "$(grep -c -- "-f $bar_flag_path" "$bar_qml" || true)" "1"
-
-check "ruixen.notch declares its own barHidden property" \
-  "$(grep -c 'property bool barHidden: false' "$overlay_qml" || true)" "1"
-
-check "ruixen.notch watches the EXACT SAME on-disk flag path as ruixen.bar, not a second one" \
-  "$(grep -c -- "-f $bar_flag_path" "$overlay_qml" || true)" "1"
-
-check "ruixen.notch watches the parent toggles directory (FileView can't observe a file that does not exist yet)" \
-  "$(grep -c 'path: Quickshell.env("HOME") + "/.local/state/omarchy/toggles"' "$overlay_qml" || true)" "1"
-
-check "the notch's own PanelWindow visibility now also depends on barHidden, not fullscreen alone" \
-  "$(grep -c 'visible: !notchRoot.fullscreenActive && !notchRoot.barHidden' "$notch_window_qml" || true)" "1"
-
-printf '\n%d passed, %d failed\n' "$pass" "$fail_count"
-[[ "$fail_count" -eq 0 ]]
+repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+python3 - "$repo_dir" <<'CHECK'
+from pathlib import Path
+import sys
+r=Path(sys.argv[1]);b=r/'bars/v2/ruixen.bar';n=r/'bars/widgets/ruixen.notch'
+control=(b/'JeebisBarVisibility.qml').read_text();overlay=(n/'Overlay.qml').read_text();window=(n/'NotchWindow.qml').read_text();panel=(b/'BarPanel.qml').read_text()
+assert '/bar-visibility.json' in control and '/bar-visibility.json' in overlay
+assert 'atomicWrites: true' in control
+assert 'mode.target === "bar"' in control
+assert 'leftShown' in control and 'rightShown' in control
+assert 'root.barShown = state.notchShown === true' in overlay
+assert 'barRevealProgress > 0' in window and 'barRevealProgress > 0' in panel
+assert 'Translate {' in window and 'transform: JeebisIslandTranslate' in panel
+assert 'JeebisNotchRevealScale {' in window
+assert 'root.barIslandsMode = state.target' in overlay
+assert 'blocking: false' in window and 'z: 10000' in window
+assert 'ExclusionMode.Ignore' in panel
+assert 'barRoot.barReservesSpace' in (b/'JeebisBarReservation.qml').read_text()
+edge=(b/'JeebisBarRevealEdge.qml').read_text()
+assert 'barRoot.barAutoHide' in edge
+assert 'implicitHeight: 1' in edge
+assert 'notchClearance' not in edge
+assert 'height: edge.height' in edge
+assert 'width: !barWindow.barRoot.islandsMode && barWindow.barRoot.barRevealProgress > 0 ? barWindow.width : 0' in panel
+print('Visibility sync: one authority, shared state, slide-out lifetime and independent reservation passed.')
+CHECK

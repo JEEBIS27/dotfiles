@@ -1,3 +1,4 @@
+import "../../../motion" as Motion
 import "../../../ShellConfig.js" as ShellConfig
 import QtQuick
 
@@ -99,7 +100,7 @@ Item {
     height: 16
     radius: ShellConfig.radius
     color: root.checked ? root.accent : Qt.rgba(1, 1, 1, 0.15)
-    Behavior on color { ColorAnimation { duration: 120 } }
+    Behavior on color { Motion.JeebisColorAnimation { baseDuration: 120} }
 
     Rectangle {
       width: 12
@@ -108,7 +109,7 @@ Item {
       color: "#ffffff"
       anchors.verticalCenter: parent.verticalCenter
       x: root.checked ? parent.width - width - 2 : 2
-      Behavior on x { NumberAnimation { duration: 120 } }
+      Behavior on x { Motion.JeebisNumberAnimation { baseDuration: 120} }
     }
 
     MouseArea {

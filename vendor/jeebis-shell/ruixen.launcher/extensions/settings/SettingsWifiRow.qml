@@ -1,3 +1,4 @@
+import "../../../motion" as Motion
 import "../../../ShellConfig.js" as ShellConfig
 import QtQuick
 
@@ -51,7 +52,7 @@ Item {
 
   width: parent.width
   height: content.implicitHeight + 16
-  Behavior on height { NumberAnimation { duration: 120 } }
+  Behavior on height { Motion.JeebisNumberAnimation { baseDuration: 120} }
   clip: true
 
   Rectangle {

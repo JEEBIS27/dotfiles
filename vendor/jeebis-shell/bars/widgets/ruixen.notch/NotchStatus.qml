@@ -19,6 +19,10 @@ Item {
   property bool dnd: false
   signal dndToggleRequested()
   property string activeMenu: ""
+  readonly property bool menuOpen: activeMenu !== ""
+  signal menuHoldChanged(bool held)
+  onMenuOpenChanged: menuHoldChanged(menuOpen)
+  Component.onDestruction: if (menuOpen) menuHoldChanged(false)
   onVisibleChanged: if (!visible) { activeMenu = ""; hoverTarget = "" }
   readonly property int unreadCount: notificationHistory ? notificationHistory.entries.filter(function(n) { return n.unread }).length : 0
   property string hoverTarget: ""
@@ -185,16 +189,14 @@ Item {
     height: Math.min(ShellConfig.notchClockHeight, root.height)
     radius: Math.min(ShellConfig.radius, height / 2)
     color: "#202127"
-    Text {
+    JeebisRollingClock {
       anchors.fill: parent
       text: Qt.formatDateTime(clock.date, "HH:mm")
       font.family: ShellConfig.notchFontFamily
       font.pixelSize: ShellConfig.notchClockFontSize; font.weight: Font.DemiBold
-      fontSizeMode: Text.Fit; minimumPixelSize: Math.min(9, ShellConfig.notchClockFontSize)
       color: root.foreground
-      horizontalAlignment: Text.AlignHCenter
-      verticalAlignment: Text.AlignVCenter
-      elide: Text.ElideRight
+      baseDuration: ShellConfig.notchClockRollDuration
+      animateChanges: ShellConfig.notchClockRollEnabled && root.hostWindow !== null && root.hostWindow.visible
     }
     MouseArea {
       anchors.fill: parent

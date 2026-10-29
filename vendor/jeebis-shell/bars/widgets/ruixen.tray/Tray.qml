@@ -1,3 +1,4 @@
+import "../../../motion" as Motion
 import "../../../ShellConfig.js" as ShellConfig
 import Quickshell
 import QtQuick
@@ -228,7 +229,7 @@ BarWidget {
   implicitHeight: root.vertical ? trayContent.implicitHeight : root.barSize
 
   Behavior on revealProgress {
-    NumberAnimation { duration: root.animationDuration; easing.type: Easing.InOutCubic }
+    Motion.JeebisNumberAnimation { baseDuration: root.animationDuration; }
   }
 
   Loader {

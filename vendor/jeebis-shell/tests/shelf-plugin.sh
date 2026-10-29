@@ -94,7 +94,7 @@ check "Window: input region is ONLY the visible shape (halo padding stays click-
 check "Window: stays mapped during close so the shelf can animate out" \
   "$(grep -c 'visible: root.opened || root.openProgress > 0.001' "$shelf")$(grep -c 'property real openProgress: opened ? 1 : 0' "$shelf")" "11"
 check "Window: animates from the notch collapsed footprint into the shelf" \
-  "$(grep -c 'readonly property int collapsedShapeWidth: 284' "$shelf")$(grep -c 'readonly property int collapsedShapeHeight: 44' "$shelf")$(grep -c 'Behavior on openProgress' "$shelf")$(grep -c 'easing.type: Easing.OutCubic' "$shelf")$(grep -c 'transform: Scale' "$shelf")" "11111"
+  "$(grep -c 'readonly property int collapsedShapeWidth: 284' "$shelf")$(grep -c 'readonly property int collapsedShapeHeight: 44' "$shelf")$(grep -c 'Behavior on openProgress' "$shelf")$(grep -c 'Motion.JeebisNumberAnimation' "$shelf")$(grep -c 'transform: Scale' "$shelf")" "11111"
 check "Window: no click-away catcher (no MouseArea at window level)" \
   "$(sed -n '/PanelWindow {/,/id: shape/p' "$shelf" | grep -c 'MouseArea' || true)" "0"
 

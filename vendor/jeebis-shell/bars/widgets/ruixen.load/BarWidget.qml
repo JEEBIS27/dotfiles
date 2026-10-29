@@ -1,3 +1,4 @@
+import "../../../motion" as Motion
 import "../../../ShellConfig.js" as ShellConfig
 import QtQuick
 import Quickshell
@@ -49,10 +50,10 @@ BarWidget {
   implicitHeight: visible ? barSize : 0
 
   Behavior on islandRevealProgress {
-    NumberAnimation { duration: root.islandRequested ? ShellConfig.loadIsland.enteringMs : ShellConfig.loadIsland.leavingMs; easing.type: Easing.InOutCubic }
+    Motion.JeebisNumberAnimation { bounded: true; baseDuration: root.islandRequested ? ShellConfig.loadIsland.enteringMs : ShellConfig.loadIsland.leavingMs; }
   }
   Behavior on contentWidth {
-    NumberAnimation { duration: ShellConfig.loadIsland.resizingMs; easing.type: Easing.OutCubic }
+    Motion.JeebisNumberAnimation { baseDuration: ShellConfig.loadIsland.resizingMs; }
   }
 
   function updateStats(output) {

@@ -1,8 +1,12 @@
 { appPkgs, pkgs, lib, ... }:
-let mozkey = import ../packages/mozkey-fcitx5.nix { pkgs = appPkgs; }; in
+let
+  mozkey = import ../packages/mozkey-fcitx5.nix { pkgs = appPkgs; };
+  fish = import ../packages/fish.nix { pkgs = appPkgs; };
+in
 {
-  programs.zsh.enable = true;
-  users.users.jeebis.shell = appPkgs.zsh;
+  programs.fish.enable = true;
+  users.users.jeebis.shell = fish;
+  environment.shells = [ fish ];
   programs.hyprland = {
     enable = true;
     withUWSM = true;

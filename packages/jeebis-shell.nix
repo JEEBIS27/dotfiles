@@ -4,10 +4,23 @@ let
 in pkgs.runCommand "jeebis-shell" { nativeBuildInputs = [ pkgs.bash pkgs.python3 ]; } ''
   mkdir -p "$out/plugins" "$out/hyprland"
   cp -R ${source}/ruixen.* ${source}/bars/v2/ruixen.bar ${source}/bars/widgets/ruixen.* "$out/plugins/"
-  cp -R ${source}/hyprland/. "$out/hyprland/"
+  # Only generated personal curvature/motion belong in the active package.
+  # Upstream looknfeel presets are not used by the Home Manager configuration.
   cp ${source}/LICENSE "$out/LICENSE"
+  cp -R ${source}/motion "$out/plugins/motion"
   cp ${source}/ShellConfig.js "$out/plugins/ShellConfig.js"
+  # Keep the customized Agent widget alongside the managed shell plugins.
+  cp -R ${../vendor/desktop-runtime}/shell/plugins/agents "$out/plugins/jeebis.agents"
   chmod -R u+w "$out"
+  ${pkgs.python3}/bin/python3 - "$out/plugins/jeebis.agents/manifest.json" <<'PYTHON'
+  import json, sys
+  from pathlib import Path
+  path = Path(sys.argv[1])
+  manifest = json.loads(path.read_text())
+  manifest["id"] = "jeebis.agents"
+  manifest["omarchy"] = {"clonedFrom": "omarchy.agents"}
+  path.write_text(json.dumps(manifest, indent=2) + "\n")
+  PYTHON
   # Reproduce upstream's shared-file injection without running its installer.
   for target in wallpapers wallpaper-shuffle; do
     cp ${source}/ruixen.wallpaper/WallpaperRotationState.qml "$out/plugins/ruixen.launcher/extensions/$target/"

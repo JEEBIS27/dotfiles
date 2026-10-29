@@ -40,7 +40,7 @@ data = json.loads(result.stdout)
 assert data['system'] == 'aarch64-linux', data
 assert data['home'] == '/data/data/com.termux.nix/files/home', data
 assert data['username'] == 'nix-on-droid', data
-assert data['shell'].endswith('/bin/zsh'), data
+assert data['shell'].endswith('/bin/fish'), data
 assert data['editor'] == 'hx' and data['visual'] == 'hx', data
 assert data['activation'].endswith('.drv'), data
 assert data['terminal'] is None, data
@@ -49,7 +49,7 @@ assert data['themeDirectory'] == '', data
 assert not data['services'], data
 assert not data['assertions'], data
 packages = set(data['packages'])
-assert {'zsh', 'sheldon', 'git', 'just', 'fzf', 'yazi', 'helix', 'neovim'} <= packages, data
+assert {'fish', 'git', 'just', 'fzf', 'yazi', 'helix', 'neovim'} <= packages, data
 for forbidden in ('hyprland', 'quickshell', 'rio', 'fcitx', 'mozkey', 'rclone',
                   'tuios', 'jeebis-desktop', 'jeebis-shell', 'steel'):
     assert not any(forbidden in p.lower() for p in packages), (forbidden, packages)
@@ -58,6 +58,7 @@ for name in data['files']:
         'hypr/', 'omarchy/', 'jeebis-desktop/', 'quickshell/', 'rio/',
         'fcitx5/', 'mozkey-ibg/', 'systemd/user/', 'helix/init.scm',
     )), name
-assert '.zshrc' in data['files'] and '.zshenv' in data['files'], data
+assert any(p.endswith('/.config/fish/config.fish') or p == '.config/fish/config.fish' for p in data['files']), data
+assert '.zshrc' not in data['files'] and '.zshenv' not in data['files'], data
 print('Android configuration passed: aarch64, Nix-on-Droid identity, shared CLI, no PC modules/files/services.')
 print(f"Evaluated {len(packages)} packages and {len(data['files'])} managed files; no ARM build or device activation performed.")

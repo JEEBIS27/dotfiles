@@ -1,45 +1,45 @@
-diff --git i/internal/app/os.go w/internal/app/os.go
-index c03b111..eab9642 100644
---- i/internal/app/os.go
-+++ w/internal/app/os.go
-@@ -1366,6 +1366,9 @@ type OS struct {
- 	LayoutSaveBuffer     string // Buffer for layout name when saving
+--- a/internal/app/os.go
++++ b/internal/app/os.go
+@@ -1905,6 +1905,7 @@
+ 	// forceTerminalMode is OSOptions.StartInTerminalMode: applyStartupPreferences
+ 	// enters terminal mode once a pane is focused, for any session.
+ 	forceTerminalMode bool
++	startWorkspace    int
+ 	// layoutInstant places the next layout without animation. See
+ 	// applyStartupTiling and layoutAnimationDuration.
+ 	layoutInstant bool
+@@ -2014,7 +2015,7 @@
+ type nestedSwitchError struct{ inside, target string }
  
- 	// Settings overlay state.
-+	GearPressActive    bool
-+	gearCanvas         frameCanvas
-+	GearDisplay        bool
- 	ShowSettings       bool
- 	SettingsCategory   int    // active settings category (tab) index
- 	SettingsSelected   int    // selected row within the active category
-diff --git i/internal/app/render.go w/internal/app/render.go
-index 4b806ee..edd4ea9 100644
---- i/internal/app/render.go
-+++ w/internal/app/render.go
-@@ -451,6 +451,9 @@ func (m *OS) GetCanvas(render bool) *frameCanvas {
- 	}
- 
- 	m.composeLayersIn(canvas, layers, paneLayers)
-+	if render && !m.screensaver.active && !m.effectPreview.capturing {
-+		m.drawGear(canvas)
-+	}
- 
- 	return canvas
+ func (e *nestedSwitchError) Error() string {
+-	return fmt.Sprintf("You are inside session %q. Switching this pane to %q would show tuios inside itself.", e.inside, e.target)
++	return fmt.Sprintf("You are inside workspace %q. Switching this pane to %q would show tuios inside itself.", e.inside, e.target)
  }
-@@ -800,7 +803,7 @@ func (m *OS) composeFrameOnce() string {
- 		// characters. The compositor replaces them, so it draws this frame.
- 		if !strings.Contains(frame, vt.SixelMarkerLead) {
- 			m.SixelPassthrough.SetFrame(nil, 0, 0, 0, 0)
--			return frame
-+			return m.gearFrame(frame)
- 		}
+ 
+ // SwitchToSession detaches from the current daemon session and attaches to another.
+@@ -2030,7 +2031,7 @@
+ 		return fmt.Errorf("not in daemon mode")
  	}
- 	canvas := m.GetCanvas(true)
-diff --git i/internal/app/render_border_grid.go w/internal/app/render_border_grid.go
-index c68ac13..d3f03fe 100644
---- i/internal/app/render_border_grid.go
-+++ w/internal/app/render_border_grid.go
-@@ -24,6 +24,9 @@ import (
+ 	if targetSession == "" {
+-		return fmt.Errorf("session name cannot be empty")
++		return fmt.Errorf("workspace name cannot be empty")
+ 	}
+ 	// A switch the person made ends a rail click that waits for another
+ 	// machine. See host_open.go.
+@@ -2079,8 +2080,8 @@
+ 	m.QueueClientEvent(ClientEvent{Type: "agent-mail-load"})
+ 
+ 	m.MarkAllDirty()
+-	m.LogInfo("Session switch complete: now on %s with %d windows", m.SessionName, len(m.Windows))
+-	m.ShowNotification("Session: "+m.SessionName, "success", m.Settings.NotificationDuration)
++	m.LogInfo("Workspace switch complete: now on %s with %d windows", m.SessionName, len(m.Windows))
++	m.ShowNotification("Workspace: "+m.SessionName, "success", m.Settings.NotificationDuration)
+ 	// Switching sessions is an attach: this client is now driving a different
+ 	// session, and a hook that tracks which session is live has to hear about it
+ 	// here as well as at startup.
+--- a/internal/app/render_border_grid.go
++++ b/internal/app/render_border_grid.go
+@@ -24,6 +24,9 @@
  // is driving would paint a line down the pane beside it, because the tree
  // survives the mode switch holding the geometry it last laid out.
  func (m *OS) separatorSplits() []layout.SplitLine {
@@ -49,7 +49,7 @@ index c68ac13..d3f03fe 100644
  	// A divider stands in for the borders two panes gave up. Panes still drawing
  	// their own have nothing to share, so nothing is drawn between them whatever
  	// gap the user asked for: appearance.gap is empty ground, not a rule down
-@@ -362,6 +365,9 @@ func (c *cell) isHoriz() bool { return c != nil && c.horiz }
+@@ -362,6 +365,9 @@
  // renderSeparatorOverlay renders thin separator lines between tiled panes.
  // Each separator line is its own lipgloss Layer to avoid occluding content.
  func (m *OS) renderSeparatorOverlay() []*lipgloss.Layer {
@@ -59,7 +59,7 @@ index c68ac13..d3f03fe 100644
  	// Don't render shared borders when a zoomed pane covers the region. Any
  	// zoomed pane on the workspace, not this client's focused one: zoom is
  	// shared, so the pane covering the box can be one this client did not zoom
-@@ -389,7 +395,12 @@ func (m *OS) renderSeparatorOverlay() []*lipgloss.Layer {
+@@ -389,7 +395,12 @@
  	// junction logic below draws that meeting. One that runs to the region's edge
  	// has the chrome's rule to meet instead, one cell further out.
  	rules := m.chromeRules(bounds)
@@ -73,32 +73,18 @@ index c68ac13..d3f03fe 100644
  	// The perimeter of the focused window, clipped to the tiled bounds. Cells on
  	// it are drawn in the focus color, so the focused pane reads as an outlined
  	// rectangle even though every segment is shared with a neighbour.
-diff --git i/internal/app/settings.go w/internal/app/settings.go
-index 716cc8d..63fdadf 100644
---- i/internal/app/settings.go
-+++ w/internal/app/settings.go
-@@ -386,6 +386,20 @@ func boolItem(label, desc string, get func() bool, set func(m *OS, v bool)) sett
- // cannot describe, and it names the path it stands in for so the coverage test
- // can see it.
- func (m *OS) settingsCategories() []settingsCategory {
-+	if m.GearDisplay {
-+		return []settingsCategory{{Name: "Display", Items: m.resolveRows([]settingsRow{
-+			opt("appearance.border_style"),
-+			opt("appearance.hide_separators"),
-+			custom("appearance.shared_borders", m.sharedBordersItem()),
-+			opt("appearance.window_title_position"),
-+			opt("appearance.hide_window_buttons"),
-+			opt("appearance.hide_scrollbar"),
-+			opt("appearance.dockbar_position"),
-+			opt("appearance.sidebar.enabled"),
-+			opt("appearance.motion"),
-+			opt("appearance.dim_unfocused"),
-+		})}}
-+	}
- 	appearance := settingsCategory{
- 		Name: "Appearance",
- 		Items: m.resolveRows([]settingsRow{
-@@ -397,6 +411,7 @@ func (m *OS) settingsCategories() []settingsCategory {
+--- a/internal/app/settings.go
++++ b/internal/app/settings.go
+@@ -250,7 +250,7 @@
+ 		// change would read as something going wrong.
+ 		if !m.configReadOnlyTold && !m.LearnMode {
+ 			m.configReadOnlyTold = true
+-			m.ShowNotification("Settings apply to this session only. The config file is not changed.", "warning", 0)
++			m.ShowNotification("Settings apply to this workspace only. The config file is not changed.", "warning", 0)
+ 		}
+ 		return cmd
+ 	}
+@@ -397,6 +397,7 @@
  			opt("appearance.theme_light"),
  			custom("appearance.glyphs", m.glyphItem()),
  			opt("appearance.border_style"),
@@ -106,19 +92,67 @@ index 716cc8d..63fdadf 100644
  			opt("appearance.window_title_position"),
  			opt("appearance.window_title_style"),
  			opt("appearance.window_title_align"),
-@@ -1152,6 +1167,7 @@ func (m *OS) SettingsSetCategory(i int) {
+--- a/internal/app/settings_registry.go
++++ b/internal/app/settings_registry.go
+@@ -40,7 +40,7 @@
+ var settingLabels = map[string]string{
+ 	"agents.enabled":                      "Agent features",
+ 	"appearance.sidebar.editor":           "File editor",
+-	"appearance.dock_workspace_label_max": "Workspace label cap",
++	"appearance.dock_workspace_label_max": "Tab label cap",
+ 	"appearance.dock_mode_icon_window":    "Window mode icon",
+ 	"appearance.dock_mode_icon_terminal":  "Terminal mode icon",
+ 	"appearance.dock_mode_icon_tiling":    "Tiling mode icon",
+@@ -80,9 +80,9 @@
+ 	"appearance.motion":                   "Motion",
+ 	"appearance.modal_dim":                "Dim behind panels",
+ 	"appearance.confirm_quit":             "Confirm quit",
+-	"appearance.session_colors":           "Session colors",
+-	"appearance.session_border":           "Session border",
+-	"appearance.global_session":           "Global session",
++	"appearance.session_colors":           "Workspace colors",
++	"appearance.session_border":           "Workspace border",
++	"appearance.global_session":           "Global workspace",
+ 	"appearance.git_dirty":                "Git dirty counts",
+ 	"appearance.links":                    "Links",
+ 	"appearance.link_click":               "Link click",
+@@ -95,12 +95,12 @@
+ 	"appearance.dock_pill_caps":           "Pill caps",
+ 	"appearance.dock_prefix_indicator":    "Prefix indicator",
+ 	"appearance.dock_compact":             "Compact dock",
+-	"appearance.dock_workspace_tabs":      "Workspace tabs",
+-	"appearance.dock_workspace_tooltip":   "Workspace name on hover",
++	"appearance.dock_workspace_tabs":      "Tab tabs",
++	"appearance.dock_workspace_tooltip":   "Tab name on hover",
+ 	"dock.clock.format":                   "Dock clock format",
+ 	"debug.show_key_events":               "Show keys",
+ 	"daemon.log_level":                    "Log level",
+-	"daemon.window_size":                  "Session size",
++	"daemon.window_size":                  "Workspace size",
+ 	"tape.auto_review":                    "Auto-open review",
+ 	"tape.show_status":                    "Show tape status",
+ 	"hints.builtins":                      "Hint patterns",
+@@ -116,8 +116,8 @@
+ 	"pip.corner":                          "Picture-in-picture corner",
+ 	"scratch.height":                      "Scratch height",
+ 	"launcher.gui_command":                "Launcher GUI command",
+-	"workspaces.return_when_empty":        "Go back from an empty workspace",
+-	"workspaces.new_window_when_empty":    "Open a pane on an empty workspace",
++	"workspaces.return_when_empty":        "Go back from an empty tab",
++	"workspaces.new_window_when_empty":    "Open a pane on an empty tab",
+ 	"paste_buffers.limit":                 "Paste buffers to keep",
+ 	"paste_buffers.max_kb":                "Paste buffer size limit",
  
- // CloseSettings hides the settings overlay.
- func (m *OS) CloseSettings() {
-+	m.GearDisplay = false
- 	m.ShowSettings = false
- 	m.SettingsEditing = false
- 	m.SettingsEditBuffer = ""
-diff --git i/internal/app/settings_registry.go w/internal/app/settings_registry.go
-index 41708d7..2c997a5 100644
---- i/internal/app/settings_registry.go
-+++ w/internal/app/settings_registry.go
-@@ -218,7 +218,7 @@ var settingUnset = map[string]string{
+@@ -133,7 +133,7 @@
+ 	"appearance.sidebar.subagent_fields":        "Subagent fields",
+ 	"appearance.sidebar.subagent_max_rows":      "Subagent row limit",
+ 	"appearance.sidebar.subagent_hide_finished": "Hide finished subagents after",
+-	"appearance.dock_workspace_tab_format":      "Workspace tab format",
++	"appearance.dock_workspace_tab_format":      "Tab tab format",
+ 	"appearance.zoom_size":                      "Zoom size",
+ 	"appearance.zoom_animation":                 "Zoom animates",
+ 	"appearance.animation_speed":                "Animation speed",
+@@ -218,7 +218,7 @@
  var settingSteps = map[string]int{
  	"appearance.scrollback_lines":          1000,
  	"appearance.zoom_max_width":            10,
@@ -127,11 +161,9 @@ index 41708d7..2c997a5 100644
  	"appearance.modal_dim":                 5,
  	"appearance.animation_speed":           25,
  	"appearance.theme_transition_duration": 50,
-diff --git i/internal/config/options.go w/internal/config/options.go
-index 5d70d11..ac86861 100644
---- i/internal/config/options.go
-+++ w/internal/config/options.go
-@@ -156,6 +156,7 @@ const (
+--- a/internal/config/options.go
++++ b/internal/config/options.go
+@@ -156,6 +156,7 @@
  // [keybindings] and [hooks] are absent: both are maps of name to value rather
  // than fixed scalar paths, so a set-by-path verb is the wrong shape for them.
  var optionSpecs = []Option{
@@ -139,11 +171,206 @@ index 5d70d11..ac86861 100644
  	// [appearance]
  	{
  		Path: "appearance.border_style", Type: OptionString, Section: "appearance",
-diff --git i/internal/config/settings.go w/internal/config/settings.go
-index 9f38b45..fe6af19 100644
---- i/internal/config/settings.go
-+++ w/internal/config/settings.go
-@@ -24,6 +24,10 @@ import (
+@@ -409,17 +410,17 @@
+ 	},
+ 	{
+ 		Path: "appearance.session_colors", Type: OptionBool, Section: "appearance",
+-		Description: "Give each session its own colour on the rail and in the switcher",
++		Description: "Give each workspace its own colour on the rail and in the switcher",
+ 		Default:     "true",
+ 	},
+ 	{
+ 		Path: "appearance.session_border", Type: OptionBool, Section: "appearance",
+-		Description: "Carry the session's colour on every pane border, not only on the rail",
++		Description: "Carry the workspace's colour on every pane border, not only on the rail",
+ 		Default:     "false",
+ 	},
+ 	{
+ 		Path: "appearance.global_session", Type: OptionBool, Section: "appearance",
+-		Description: "Offer a session in the rail that holds panes from several machines, once a second one is reachable",
++		Description: "Offer a workspace in the rail that holds panes from several machines, once a second one is reachable",
+ 		Default:     "true",
+ 	},
+ 	{
+@@ -449,7 +450,7 @@
+ 	},
+ 	{
+ 		Path: "appearance.tiling_scheme", Type: OptionString, Section: "appearance",
+-		Description: "BSP scheme a workspace inserts new windows with the first time it is tiled. A workspace already tiled keeps its own scheme.",
++		Description: "BSP scheme a tab inserts new windows with the first time it is tiled. A tab already tiled keeps its own scheme.",
+ 		Accepted:    TilingSchemes, Default: TilingSchemeSpiral,
+ 	},
+ 	{
+@@ -578,7 +579,7 @@
+ 	},
+ 	{
+ 		Path: "appearance.desktop_background", Type: OptionString, Section: "appearance",
+-		Description: "Background behind and between panes, including gaps and an empty workspace: off, theme, or a colour (#rrggbb, 0-255, a slot name or a role name); empty follows appearance.background",
++		Description: "Background behind and between panes, including gaps and an empty tab: off, theme, or a colour (#rrggbb, 0-255, a slot name or a role name); empty follows appearance.background",
+ 		Accepted:    Backgrounds, Default: "", Color: true,
+ 	},
+ 	{
+@@ -602,13 +603,13 @@
+ 	// caller inspecting an old file rather than for setting anything new.
+ 	{
+ 		Path: "appearance.sidebar_enabled", Type: OptionBool, Section: "appearance",
+-		Description: "Show the session rail",
++		Description: "Show the workspace rail",
+ 		Default:     "false",
+ 		Deprecated:  "folded into [appearance.sidebar] on load; set appearance.sidebar.enabled",
+ 	},
+ 	{
+ 		Path: "appearance.sidebar_position", Type: OptionString, Section: "appearance",
+-		Description: "Edge the session rail sits on",
++		Description: "Edge the workspace rail sits on",
+ 		Accepted:    SidebarPositions, Default: "",
+ 		Deprecated: "folded into [appearance.sidebar] on load; set appearance.sidebar.position",
+ 	},
+@@ -632,7 +633,7 @@
+ 	},
+ 	{
+ 		Path: "appearance.sidebar_show_counts", Type: OptionBool, Section: "appearance",
+-		Description: "Show the window count on each session row",
++		Description: "Show the window count on each workspace row",
+ 		Default:     "true",
+ 		Deprecated:  "folded into [appearance.sidebar] on load; set appearance.sidebar.show_counts",
+ 	},
+@@ -645,27 +646,27 @@
+ 	},
+ 	{
+ 		Path: "appearance.dock_workspace_tabs", Type: OptionBool, Section: "dock",
+-		Description: "Show the clickable workspace strip in the dock",
++		Description: "Show the clickable tab strip in the dock",
+ 		Default:     "true",
+ 	},
+ 	{
+ 		Path: "appearance.dock_workspace_tab_format", Type: OptionString, Section: "dock",
+-		Description: "Workspace tab template accepting {index}, {name}, {icon} and {zoom} (empty: {name})",
++		Description: "Tab tab template accepting {index}, {name}, {icon} and {zoom} (empty: {name})",
+ 		Default:     "",
+ 	},
+ 	{
+ 		Path: "appearance.dock_workspace_tooltip", Type: OptionBool, Section: "dock",
+-		Description: "Pop a truncated workspace name in full on hover",
++		Description: "Pop a truncated tab name in full on hover",
+ 		Default:     "true",
+ 	},
+ 	{
+ 		Path: "appearance.dock_workspace_label_max", Type: OptionInt, Section: "dock",
+-		Description: "Cells a workspace pill's label may span before the pill cuts it (0 draws the whole name and scrolls the strip instead)",
++		Description: "Cells a tab pill's label may span before the pill cuts it (0 draws the whole name and scrolls the strip instead)",
+ 		Default:     "12", Min: 0, Max: 200,
+ 	},
+ 	{
+ 		Path: "appearance.dock_pill_caps", Type: OptionBool, Section: "dock",
+-		Description: "Draw rounded caps on every dock pill: the mode chip, the workspace tabs and the minimized windows. Off draws flat pills",
++		Description: "Draw rounded caps on every dock pill: the mode chip, the tab tabs and the minimized windows. Off draws flat pills",
+ 		Default:     "true",
+ 	},
+ 	{
+@@ -833,7 +834,7 @@
+ 	// [appearance.sidebar]
+ 	{
+ 		Path: "appearance.sidebar.enabled", Type: OptionBool, Section: "sidebar",
+-		Description: "Show the session rail",
++		Description: "Show the workspace rail",
+ 		Default:     "true",
+ 	},
+ 	{
+@@ -859,12 +860,12 @@
+ 	},
+ 	{
+ 		Path: "appearance.sidebar.show_counts", Type: OptionBool, Section: "sidebar",
+-		Description: "Show the window count on each session row",
++		Description: "Show the window count on each workspace row",
+ 		Default:     "true",
+ 	},
+ 	{
+ 		Path: "appearance.sidebar.show_numbers", Type: OptionBool, Section: "sidebar",
+-		Description: "Show the switch number ahead of each session name",
++		Description: "Show the switch number ahead of each workspace name",
+ 		Default:     "false",
+ 	},
+ 	{
+@@ -975,20 +976,20 @@
+ 	},
+ 	{
+ 		Path: "appearance.sidebar.workspaces", Type: OptionString, Section: "sidebar",
+-		Description: "Workspace chip band the rail used to draw",
++		Description: "Tab chip band the rail used to draw",
+ 		Default:     "",
+-		Deprecated:  "no longer used: panes name their own workspace, and switching lives on the dock and alt+1..9",
++		Deprecated:  "no longer used: panes name their own tab, and switching lives on the dock and alt+1..9",
+ 	},
+ 
+ 	// [startup]
+ 	{
+ 		Path: "startup.open_default_window", Type: OptionBool, Section: "startup",
+-		Description: "Open one terminal automatically when a session starts empty",
++		Description: "Open one terminal automatically when a workspace starts empty",
+ 		Default:     "false",
+ 	},
+ 	{
+ 		Path: "startup.tiled", Type: OptionBool, Section: "startup",
+-		Description: "Start a new session tiled instead of floating. False when the config file has no [startup] table.",
++		Description: "Start a new workspace tiled instead of floating. False when the config file has no [startup] table.",
+ 		Default:     "true",
+ 	},
+ 	{
+@@ -998,12 +999,12 @@
+ 	},
+ 	{
+ 		Path: "startup.layout", Type: OptionString, Section: "startup",
+-		Description: "Tiling scheme a new session starts in. An existing session keeps its own.",
++		Description: "Tiling scheme a new workspace starts in. An existing workspace keeps its own.",
+ 		Accepted:    LayoutModes, Default: LayoutModeBSP,
+ 	},
+ 	{
+ 		Path: "startup.daemon", Type: OptionBool, Section: "startup",
+-		Description: "Make a bare \"tuios\" attach to a daemon-backed session instead of running standalone. TUIOS_NO_DAEMON=1 or --standalone overrides it. False when the config file has no [startup] table.",
++		Description: "Make a bare \"tuios\" attach to a daemon-backed workspace instead of running standalone. TUIOS_NO_DAEMON=1 or --standalone overrides it. False when the config file has no [startup] table.",
+ 		Default:     "true",
+ 	},
+ 
+@@ -1026,7 +1027,7 @@
+ 	},
+ 	{
+ 		Path: "daemon.window_size", Type: OptionString, Section: "daemon",
+-		Description: "The size of a session with more than one client: the client that last had input, the smallest client, or the largest client",
++		Description: "The size of a workspace with more than one client: the client that last had input, the smallest client, or the largest client",
+ 		Accepted:    WindowSizeModes, Default: WindowSizeLatest,
+ 	},
+ 	{
+@@ -1416,7 +1417,7 @@
+ 	},
+ 	{
+ 		Path: "hints.all_panes", Type: OptionBool, Section: "hints",
+-		Description: "The hints key labels every pane on the workspace, not only the focused pane",
++		Description: "The hints key labels every pane on the tab, not only the focused pane",
+ 		Default:     "false",
+ 	},
+ 
+@@ -1455,7 +1456,7 @@
+ 	// changes.
+ 	{
+ 		Path: "workspaces.return_when_empty", Type: OptionBool, Section: "workspaces",
+-		Description: "When the last pane on the workspace on screen closes, show the workspace you came from. Off shows the splash screen",
++		Description: "When the last pane on the tab on screen closes, show the tab you came from. Off shows the splash screen",
+ 		Default:     "true",
+ 	},
+ 	// [paste_buffers]. The daemon reads it when it starts and when the file
+@@ -1473,7 +1474,7 @@
+ 	// Read by the client on each switch, so a change applies at once.
+ 	{
+ 		Path: "workspaces.new_window_when_empty", Type: OptionBool, Section: "workspaces",
+-		Description: "When you switch to a workspace with no panes, open a new pane there. It starts in the folder of the pane you came from",
++		Description: "When you switch to a tab with no panes, open a new pane there. It starts in the folder of the pane you came from",
+ 		Default:     "false",
+ 	},
+ }
+--- a/internal/config/settings.go
++++ b/internal/config/settings.go
+@@ -24,6 +24,10 @@
  // style caches keyed off it, and it is still process-wide under a server; see
  // the note the settings page carries on that row.
  type Settings struct {
@@ -154,11 +381,9 @@ index 9f38b45..fe6af19 100644
  	// NotificationDuration is how long an info or success message stays up. It
  	// is also the floor for any duration a caller asks for; a caller wanting
  	// longer still gets longer.
-diff --git i/internal/config/userconfig.go w/internal/config/userconfig.go
-index 17dc473..35c7ff8 100644
---- i/internal/config/userconfig.go
-+++ w/internal/config/userconfig.go
-@@ -323,6 +323,7 @@ var WindowSizeModes = []string{WindowSizeSmallest, WindowSizeLargest, WindowSize
+--- a/internal/config/userconfig.go
++++ b/internal/config/userconfig.go
+@@ -323,6 +323,7 @@
  
  // AppearanceConfig holds appearance-related settings
  type AppearanceConfig struct {
@@ -166,7 +391,7 @@ index 17dc473..35c7ff8 100644
  	BorderStyle              string                  `toml:"border_style"`                 // Border style: rounded, normal, thick, double, hidden, block, ascii, outer-half-block, inner-half-block, glyphs
  	ZenMode                  string                  `toml:"zen_mode"`                     // Zen mode: disabled, always, mouse (default: disabled)
  	Links                    string                  `toml:"links"`                        // Links tuios acts on: off, marked, all (default: all)
-@@ -2688,6 +2689,8 @@ func ApplyAppearanceConfig(cfg *UserConfig, s *Settings) {
+@@ -2688,6 +2689,8 @@
  	s.ThemeTransitionMs = clampPercent(cfg.Appearance.ThemeTransitionMs, ThemeTransitionMsMin, ThemeTransitionMsMax, ThemeTransitionMsDefault)
  	s.ScrollColumnMax = clampPercent(cfg.Appearance.ScrollColumnMax, ScrollColumnWidthMin, ScrollColumnWidthCeiling, ScrollColumnWidthMax)
  	s.ScrollColumnWidth = clampPercent(cfg.Appearance.ScrollColumnWidth, ScrollColumnWidthMin, s.ScrollColumnMax, ScrollColumnWidthDefault)
@@ -175,300 +400,2710 @@ index 17dc473..35c7ff8 100644
  	s.DimUnfocused = min(max(cfg.Appearance.DimUnfocused, 0), DimUnfocusedMax)
  	// DimForeground defaults to true, so it is a pointer: an unset key has to
  	// read as on, and only an explicit false turns it off.
-diff --git i/internal/input/contextmenu.go w/internal/input/contextmenu.go
-index 273f476..2f823f0 100644
---- i/internal/input/contextmenu.go
-+++ w/internal/input/contextmenu.go
-@@ -25,6 +25,10 @@ func runContextMenuAction(action string, o *app.OS) (*app.OS, tea.Cmd) {
- 	if action == "" {
+--- a/internal/app/update.go
++++ b/internal/app/update.go
+@@ -1451,7 +1451,7 @@
+ 			m.ShowNotification("Kill failed: "+msg.Err.Error(), "error", m.Settings.NotificationDuration*2)
+ 			return m, cmd
+ 		}
+-		m.ShowNotification("Killed session: "+msg.Label, "success", m.Settings.NotificationDuration)
++		m.ShowNotification("Killed workspace: "+msg.Label, "success", m.Settings.NotificationDuration)
+ 		// The switcher lists a snapshot, so the row of a session that no longer
+ 		// exists would sit there until the overlay was reopened.
+ 		if m.ShowSessionSwitcher {
+@@ -1951,7 +1951,7 @@
+ 					m.TileAllWindows()
+ 				} else if m.AutoTiling {
+ 					// Non-daemon mode: tile immediately
+-					m.LogInfo("[RESIZE] Retiling restored session to fit new terminal size (%dx%d -> %dx%d)",
++					m.LogInfo("[RESIZE] Retiling restored workspace to fit new terminal size (%dx%d -> %dx%d)",
+ 						oldWidth, oldHeight, msg.Width, msg.Height)
+ 					m.TileAllWindows()
+ 				} else {
+@@ -1966,7 +1966,7 @@
+ 					}
+ 				}
+ 			} else {
+-				m.LogInfo("[RESIZE] Restored session, same size (%dx%d), preserving layout", msg.Width, msg.Height)
++				m.LogInfo("[RESIZE] Restored workspace, same size (%dx%d), preserving layout", msg.Width, msg.Height)
+ 			}
+ 
+ 			// Flush PTY buffers for restored session resize
+@@ -2125,7 +2125,7 @@
+ 				// Workspace change notification. A scratch group shown or
+ 				// hidden is not a workspace the user switched to.
+ 				if oldWorkspace != newWorkspace && !session.IsScratchWorkspace(oldWorkspace) && !session.IsScratchWorkspace(newWorkspace) {
+-					m.ShowNotification(fmt.Sprintf("Switched to workspace %d", newWorkspace), "info", 2*time.Second)
++					m.ShowNotification(fmt.Sprintf("Switched to tab %d", newWorkspace), "info", 2*time.Second)
+ 				}
+ 				// After the count note, so the dock draws this one.
+ 				m.flushPiPNote()
+@@ -2400,7 +2400,7 @@
+ 			// (e.g., when window was already at target position but PTY had stale dimensions)
+ 			m.SyncDaemonPTYDimensions()
+ 			if sizeChanged {
+-				m.ShowNotification(fmt.Sprintf("Session size: %dx%d (%d clients)", msg.Width, msg.Height, msg.ClientCount), "info", 2*time.Second)
++				m.ShowNotification(fmt.Sprintf("Workspace size: %dx%d (%d clients)", msg.Width, msg.Height, msg.ClientCount), "info", 2*time.Second)
+ 			}
+ 		}
+ 		// The layout just worked out from this answer is pushed, whoever
+@@ -2854,7 +2854,7 @@
+ 			// another machine the host, "create" or "", and the directory
+ 			// of a session create makes there.
+ 			if len(msg.TapeArgs) < 1 || msg.TapeArgs[0] == "" {
+-				err = fmt.Errorf("switch_session needs a session name")
++				err = fmt.Errorf("switch_session needs a workspace name")
+ 				break
+ 			}
+ 			name := msg.TapeArgs[0]
+--- a/internal/app/factory.go
++++ b/internal/app/factory.go
+@@ -70,6 +70,8 @@
+ 	// StartInTerminalMode starts the client in terminal mode on the focused
+ 	// pane, whatever [startup] says and whether the session is new or not.
+ 	StartInTerminalMode bool
++	// StartWorkspace selects a role workspace on local attach. Zero restores the session.
++	StartWorkspace int
+ 
+ 	// NumWorkspaces sets the number of workspaces (default: 9).
+ 	NumWorkspaces int
+@@ -226,6 +228,7 @@
+ 		LearnMode:         opts.LearnMode,
+ 		ShowKeys:          opts.ShowKeys,
+ 		forceTerminalMode: opts.StartInTerminalMode,
++		startWorkspace:    opts.StartWorkspace,
+ 		RecentKeys:        []KeyEvent{},
+ 		KeyHistoryMaxSize: 5,
+ 
+--- a/internal/app/os_window.go
++++ b/internal/app/os_window.go
+@@ -685,7 +685,7 @@
+ 	newID := createID()
+ 	title := fmt.Sprintf("Terminal %s", newID[:8])
+ 
+-	m.LogInfo("Creating new window: %s (workspace %d)", title, m.CurrentWorkspace)
++	m.LogInfo("Creating new window: %s (tab %d)", title, m.CurrentWorkspace)
+ 
+ 	x, y, width, height := m.NewWindowPlacement()
+ 
+@@ -806,6 +806,10 @@
+ // two apart is whether any client ever placed those windows: see
+ // sessionUnarranged.
+ func (m *OS) applyStartupPreferences() {
++	if m.startWorkspace > 0 {
++		m.SwitchToWorkspace(m.startWorkspace)
++		m.startWorkspace = 0
++	}
+ 	// Asked for on the command line, so it holds for a session that is
+ 	// already arranged too, and without a config.
+ 	if m.forceTerminalMode {
+@@ -1016,10 +1020,10 @@
+ 				// A stack that lost its open pane opens its next member,
+ 				// which the retile below gives a tile.
+ 				m.openOrphanStacks()
+-				m.LogInfo("BSP: Removed window from the workspace %d tree, which now has %d windows",
++				m.LogInfo("BSP: Removed window from the tab %d tree, which now has %d windows",
+ 					deletedWorkspace, owner.WindowCount())
+ 				if owner.IsEmpty() {
+-					m.LogInfo("BSP: Tree is now empty, clearing workspace tree")
++					m.LogInfo("BSP: Tree is now empty, clearing tab tree")
+ 					m.WorkspaceTrees[deletedWorkspace] = nil
+ 				}
+ 			}
+--- a/cmd/tuios/main.go
++++ b/cmd/tuios/main.go
+@@ -451,6 +451,7 @@
+ 	attachCmd.Flags().BoolVar(&attachHold, "hold", false, "After a failure, wait for enter before the command exits")
+ 	attachCmd.Flags().BoolVar(&attachForce, "force", false, "Attach even from a pane of the same session")
+ 	attachCmd.Flags().BoolVarP(&attachDetachOthers, "detach-others", "d", false, "Detach every other client of the session, as tmux attach -d does")
++	attachCmd.Flags().IntVar(&attachWorkspace, "workspace", 0, "Select workspace 1-9 on attach (0 restores the session)")
+ 	attachCmd.Flags().BoolVar(&attachTerminalMode, "terminal-mode", false, "Start in terminal mode, whatever startup.start_in_terminal_mode says")
+ 	registerHostNameCompletion(attachCmd, "host")
+ 
+--- a/cmd/tuios/session_commands.go
++++ b/cmd/tuios/session_commands.go
+@@ -28,6 +28,7 @@
+ // terminal mode on the focused pane, whatever [startup] says and whether the
+ // session is new or not. A popup that runs tuios attach can use it.
+ var attachTerminalMode bool
++var attachWorkspace int
+ 
+ func runAttach(sessionName string, createIfMissing bool) error {
+ 	// First of all, because the refusal is the whole answer: a client in a pane
+@@ -513,6 +514,7 @@
+ 		SessionName:     client.SessionName(),
+ 		// Only a local attach asks for it, and only with --terminal-mode.
+ 		StartInTerminalMode: host == "" && attachTerminalMode,
++		StartWorkspace:      attachWorkspace,
+ 		AttachedHost:        host,
+ 		// One writer for the terminal: frames, kitty and sixel sequences all
+ 		// serialize on it. Left nil, the passthroughs open their own /dev/tty
+--- a/internal/input/session_switcher_input.go
++++ b/internal/input/session_switcher_input.go
+@@ -46,7 +46,7 @@
+ 	case "enter":
+ 		if selected, ok := o.SessionSwitcherTarget(o.SessionSwitcherSelected); ok {
+ 			if selected.IsCurrent {
+-				o.ShowNotification("Already on this session", "info", o.Settings.NotificationDuration)
++				o.ShowNotification("Already on this workspace", "info", o.Settings.NotificationDuration)
+ 			} else {
+ 				// The switch is made by the node, which knows the machine
+ 				// and the name: Title is a label and may be a display name
+@@ -89,21 +89,21 @@
+ 			if selected.Host != "" {
+ 				// Renames go to the daemon this client is connected to,
+ 				// which does not hold another machine's session.
+-				o.ShowNotification("Switch to "+selected.Host+" to rename this session", "info", o.Settings.NotificationDuration)
++				o.ShowNotification("Switch to "+selected.Host+" to rename this workspace", "info", o.Settings.NotificationDuration)
+ 				return o, nil
+ 			}
+ 			o.BeginRenameSession(selected.ID)
+ 		}
+ 		return o, nil
+ 
+-	case "ctrl+d":
++	case "ctrl+d", "delete":
+ 		// Request delete confirmation for the selected session
+ 		if selected, ok := o.SessionSwitcherTarget(o.SessionSwitcherSelected); ok {
+ 			if selected.Host != "" {
+ 				// The kill goes to this client's daemon too, for the same reason.
+-				o.ShowNotification("Switch to "+selected.Host+" to delete this session", "info", o.Settings.NotificationDuration)
++				o.ShowNotification("Switch to "+selected.Host+" to delete this workspace", "info", o.Settings.NotificationDuration)
+ 			} else if selected.IsCurrent {
+-				o.ShowNotification("Cannot delete the current session", "warning", o.Settings.NotificationDuration)
++				o.ShowNotification("Cannot delete the current workspace", "warning", o.Settings.NotificationDuration)
+ 			} else {
+ 				o.SessionSwitcherConfirmDelete = selected.ID
+ 			}
+--- a/internal/app/workspace_switcher.go
++++ b/internal/app/workspace_switcher.go
+@@ -9,10 +9,12 @@
+ // identity and the label it shows when it has no name, so a row for an unnamed
+ // workspace reads exactly as the dock's chip for it always has.
+ type WorkspaceItem struct {
+-	Number    int
+-	Name      string
+-	Panes     int
+-	IsCurrent bool
++	Number      int
++	Name        string
++	Summary     string
++	Directories string
++	Panes       int
++	IsCurrent   bool
+ }
+ 
+ // Label is what the row shows: the workspace's name when it has one, otherwise
+@@ -40,11 +42,30 @@
+ 	}
+ 	items := make([]WorkspaceItem, 0, len(worth))
+ 	for _, n := range m.workspaceDisplayOrder(worth) {
++		var titles, dirs []string
++		seenTitles, seenDirs := map[string]bool{}, map[string]bool{}
++		for _, pane := range m.Windows {
++			if pane.Workspace != n {
++				continue
++			}
++			title := printableTitle(pane.Title())
++			if title != "" && !seenTitles[title] {
++				titles = append(titles, title)
++				seenTitles[title] = true
++			}
++			dir := printableTitle(paneDir(pane))
++			if dir != "" && !seenDirs[dir] {
++				dirs = append(dirs, dir)
++				seenDirs[dir] = true
++			}
++		}
+ 		items = append(items, WorkspaceItem{
+-			Number:    n,
+-			Name:      m.WorkspaceNames[n],
+-			Panes:     m.GetWorkspaceWindowCount(n),
+-			IsCurrent: n == m.dockWorkspace(),
++			Number:      n,
++			Name:        m.WorkspaceNames[n],
++			Summary:     strings.Join(titles, " · "),
++			Directories: strings.Join(dirs, " · "),
++			Panes:       m.GetWorkspaceWindowCount(n),
++			IsCurrent:   n == m.dockWorkspace(),
+ 		})
+ 	}
+ 	return items
+@@ -87,7 +108,7 @@
+ 	q := strings.ToLower(query)
+ 	var filtered []WorkspaceItem
+ 	for _, w := range items {
+-		if strings.Contains(strings.ToLower(w.Name), q) || strings.Contains(strconv.Itoa(w.Number), q) {
++		if strings.Contains(strings.ToLower(w.Name+" "+w.Summary+" "+w.Directories), q) || strings.Contains(strconv.Itoa(w.Number), q) {
+ 			filtered = append(filtered, w)
+ 		}
+ 	}
+@@ -122,7 +143,7 @@
+ 		// Nothing to switch to, so the switcher stays up: the query that
+ 		// narrowed it to nothing is what the user is typing, and dismissing it
+ 		// answers the key with silence.
+-		m.ShowNotification("Nothing to switch to: no workspace matches "+m.WorkspaceSwitcherQuery, "info", m.Settings.NotificationDuration)
++		m.ShowNotification("Nothing to switch to: no tab matches "+m.WorkspaceSwitcherQuery, "info", m.Settings.NotificationDuration)
+ 		return
+ 	}
+ 	if !target.IsCurrent {
+--- a/internal/app/render_workspace_switcher.go
++++ b/internal/app/render_workspace_switcher.go
+@@ -8,7 +8,7 @@
+ )
+ 
+ const (
+-	workspaceSwitcherWidth = 44
++	workspaceSwitcherWidth = 68
+ 	// workspaceSwitcherRows is the requested row count, shared with the wheel so
+ 	// it scrolls by the same page the renderer draws.
+ 	workspaceSwitcherRows = 9
+@@ -23,7 +23,7 @@
+ 	}
+ 
+ 	return m.renderListOverlay(listOverlay{
+-		Title:      "Workspaces",
++		Title:      "Tabs",
+ 		Width:      workspaceSwitcherWidth,
+ 		MaxVisible: workspaceSwitcherRows,
+ 		Search:     true,
+@@ -31,11 +31,25 @@
+ 		Count:      len(filtered),
+ 		Selected:   m.WorkspaceSwitcherSelected,
+ 		Scroll:     &m.WorkspaceSwitcherScroll,
+-		EmptyMsg:   "No workspace matches",
++		EmptyMsg:   "No tab matches",
+ 		Hints: []overlay.Hint{
+ 			{Key: overlay.EnterGlyph, Label: "go"},
+ 			{Key: "ctrl+r", Label: "rename"},
+ 			{Key: "esc", Label: "close"},
++		},
++		DetailFor: func(width int) []string {
++			if len(filtered) == 0 {
++				return nil
++			}
++			w := filtered[m.WorkspaceSwitcherSelected]
++			details := []string{}
++			if w.Summary != "" {
++				details = append(details, overlay.Truncate("Panes: "+w.Summary, width))
++			}
++			if w.Directories != "" {
++				details = append(details, overlay.Truncate("Directory: "+w.Directories, width))
++			}
++			return details
+ 		},
+ 		RenderRow: func(i int, selected bool, rowBg color.Color, pal overlay.Palette, width int) string {
+ 			return workspaceSwitcherRow(filtered[i], selected, rowBg, pal, width)
+@@ -66,5 +80,8 @@
+ 		left += overlay.Style(rowBg).Foreground(labelColor).Bold(selected).
+ 			Render("  " + overlay.Truncate(printableTitle(w.Name), max(width-12, 1)))
+ 	}
++	if w.Summary != "" {
++		left += overlay.Style(rowBg).Foreground(pal.FgMute).Render("  " + printableTitle(w.Summary))
++	}
+ 	return listRowSpans(width, listRowMarker(selected), left, right, rowBg, pal)
+ }
+--- a/internal/app/agent_mail.go
++++ b/internal/app/agent_mail.go
+@@ -1026,7 +1026,7 @@
+ 		return nil
+ 	}
+ 	if !m.IsDaemonSession || m.DaemonClient == nil {
+-		st.Error = "Mail needs the daemon. Start a session with: tuios new"
++		st.Error = "Mail needs the daemon. Start a workspace with: tuios new"
+ 		return nil
+ 	}
+ 	name := m.DaemonClient.SessionName()
+--- a/internal/app/browser_client.go
++++ b/internal/app/browser_client.go
+@@ -107,6 +107,6 @@
+ 		return nil
+ 	}
+ 	return []string{"[dock.custom] " + host + ": a component's command runs on the machine " +
+-		"hosting this session, not on the machine you are viewing it from, and every " +
++		"hosting this workspace, not on the machine you are viewing it from, and every " +
+ 		"attached client runs its own copy"}
+ }
+--- a/internal/app/close_workspace.go
++++ b/internal/app/close_workspace.go
+@@ -43,7 +43,7 @@
+ // workspaceLabel names a workspace in the dialog: "workspace 2", or its name
+ // after it when it has one.
+ func (m *OS) workspaceLabel(ws int) string {
+-	label := fmt.Sprintf("workspace %d", ws)
++	label := fmt.Sprintf("tab %d", ws)
+ 	if name := m.WorkspaceNames[ws]; name != "" {
+ 		label += " (" + printableTitle(name) + ")"
+ 	}
+@@ -57,9 +57,9 @@
+ 		return "close pane"
+ 	}
+ 	if m.SessionCloseWorkspace != 0 {
+-		return "close workspace"
++		return "close tab"
+ 	}
+-	return "close session"
++	return "close workspace"
+ }
+ 
+ func (m *OS) sessionCloseLabel() string {
+@@ -67,9 +67,9 @@
+ 		return "Close pane"
+ 	}
+ 	if m.SessionCloseWorkspace != 0 {
+-		return "Close workspace"
++		return "Close tab"
+ 	}
+-	return "Close session"
++	return "Close workspace"
+ }
+ 
+ // OpenWorkspaceClose raises the confirmation for the workspace the user meant:
+@@ -83,7 +83,7 @@
+ 		ws = m.CurrentWorkspace
+ 	}
+ 	if len(m.workspacePanes(ws)) == 0 {
+-		m.ShowNotification(fmt.Sprintf("Workspace %d has no panes to close.", ws), "info", m.Settings.NotificationDuration)
++		m.ShowNotification(fmt.Sprintf("Tab %d has no panes to close.", ws), "info", m.Settings.NotificationDuration)
+ 		return
+ 	}
+ 	m.OpenSessionClose()
+@@ -102,7 +102,7 @@
+ 		m.FireHook(hooks.AfterCloseWindow, w.ID, w.Title())
+ 		m.DeleteWindow(idx)
+ 	}
+-	m.ShowNotification(fmt.Sprintf("Closed %s on workspace %d.", countOf(len(panes), "pane"), ws), "info", m.Settings.NotificationDuration)
++	m.ShowNotification(fmt.Sprintf("Closed %s on tab %d.", countOf(len(panes), "pane"), ws), "info", m.Settings.NotificationDuration)
+ }
+ 
+ // windowIndex is the index of w in m.Windows, or -1.
+--- a/internal/app/command_palette.go
++++ b/internal/app/command_palette.go
+@@ -620,7 +620,7 @@
+ 			},
+ 		},
+ 		{
+-			Name:     "Workspace 1",
++			Name:     "Tab 1",
+ 			Shortcut: "prefix+w 1",
+ 			Bind:     "workspace_prefix_switch_1",
+ 			Category: "Navigation",
+@@ -630,7 +630,7 @@
+ 			},
+ 		},
+ 		{
+-			Name:     "Workspace 2",
++			Name:     "Tab 2",
+ 			Shortcut: "prefix+w 2",
+ 			Bind:     "workspace_prefix_switch_2",
+ 			Category: "Navigation",
+@@ -640,7 +640,7 @@
+ 			},
+ 		},
+ 		{
+-			Name:     "Workspace 3",
++			Name:     "Tab 3",
+ 			Shortcut: "prefix+w 3",
+ 			Bind:     "workspace_prefix_switch_3",
+ 			Category: "Navigation",
+@@ -650,7 +650,7 @@
+ 			},
+ 		},
+ 		{
+-			Name:     "Workspace 4",
++			Name:     "Tab 4",
+ 			Shortcut: "prefix+w 4",
+ 			Bind:     "workspace_prefix_switch_4",
+ 			Category: "Navigation",
+@@ -660,7 +660,7 @@
+ 			},
+ 		},
+ 		{
+-			Name:     "Workspace 5",
++			Name:     "Tab 5",
+ 			Shortcut: "prefix+w 5",
+ 			Bind:     "workspace_prefix_switch_5",
+ 			Category: "Navigation",
+@@ -670,7 +670,7 @@
+ 			},
+ 		},
+ 		{
+-			Name:     "Workspace 6",
++			Name:     "Tab 6",
+ 			Shortcut: "prefix+w 6",
+ 			Bind:     "workspace_prefix_switch_6",
+ 			Category: "Navigation",
+@@ -680,7 +680,7 @@
+ 			},
+ 		},
+ 		{
+-			Name:     "Workspace 7",
++			Name:     "Tab 7",
+ 			Shortcut: "prefix+w 7",
+ 			Bind:     "workspace_prefix_switch_7",
+ 			Category: "Navigation",
+@@ -690,7 +690,7 @@
+ 			},
+ 		},
+ 		{
+-			Name:     "Workspace 8",
++			Name:     "Tab 8",
+ 			Shortcut: "prefix+w 8",
+ 			Bind:     "workspace_prefix_switch_8",
+ 			Category: "Navigation",
+@@ -700,7 +700,7 @@
+ 			},
+ 		},
+ 		{
+-			Name:     "Workspace 9",
++			Name:     "Tab 9",
+ 			Shortcut: "prefix+w 9",
+ 			Bind:     "workspace_prefix_switch_9",
+ 			Category: "Navigation",
+@@ -710,7 +710,7 @@
+ 			},
+ 		},
+ 		{
+-			Name:     "Next workspace",
++			Name:     "Next tab",
+ 			Category: "Navigation",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				m.NextWorkspace()
+@@ -718,7 +718,7 @@
+ 			},
+ 		},
+ 		{
+-			Name:     "Previous workspace",
++			Name:     "Previous tab",
+ 			Category: "Navigation",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				m.PrevWorkspace()
+@@ -760,7 +760,7 @@
+ 			},
+ 		},
+ 		{
+-			Name:     "Close workspace",
++			Name:     "Close tab",
+ 			Category: "Window",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				m.OpenWorkspaceClose()
+@@ -885,8 +885,8 @@
+ 			// The palette's own way in to making a session, which had none.
+ 			// It was a one-cell "+" on a rail heading, and the rail is not
+ 			// always open.
+-			Name:     "New session",
+-			Category: "Session",
++			Name:     "New workspace",
++			Category: "Workspace",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				m.OpenNewSessionPicker()
+ 				return m, nil
+@@ -896,7 +896,7 @@
+ 			Name:     "Settings",
+ 			Shortcut: "prefix+,",
+ 			Bind:     "prefix_settings",
+-			Category: "Session",
++			Category: "Workspace",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				m.OpenSettings()
+ 				return m, nil
+@@ -908,7 +908,7 @@
+ 			Name:     paletteAgentsSettingsName,
+ 			Shortcut: "prefix+A",
+ 			Bind:     "prefix_agents_settings",
+-			Category: "Session",
++			Category: "Workspace",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				m.OpenAgentsSettings()
+ 				return m, nil
+@@ -917,7 +917,7 @@
+ 		{
+ 			Name:     "Keybind preset",
+ 			Bind:     "open_keybind_presets",
+-			Category: "Session",
++			Category: "Workspace",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				m.OpenKeybindPresets()
+ 				return m, nil
+@@ -925,7 +925,7 @@
+ 		},
+ 		{
+ 			Name:     "Theme picker",
+-			Category: "Session",
++			Category: "Workspace",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				m.OpenThemePicker()
+ 				return m, nil
+@@ -933,7 +933,7 @@
+ 		},
+ 		{
+ 			Name:     "Edit theme",
+-			Category: "Session",
++			Category: "Workspace",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				m.OpenThemeEditor(theme.CurrentThemeID(), false, "")
+ 				return m, nil
+@@ -974,7 +974,7 @@
+ 		},
+ 		{
+ 			Name:     "Reload config",
+-			Category: "Session",
++			Category: "Workspace",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				return m, m.ReloadConfigFromDisk()
+ 			},
+@@ -983,7 +983,7 @@
+ 			Name:     "Toggle sidebar",
+ 			Shortcut: "prefix+b",
+ 			Bind:     "prefix_toggle_sidebar",
+-			Category: "Session",
++			Category: "Workspace",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				m.ToggleSidebar()
+ 				state := "off"
+@@ -996,7 +996,7 @@
+ 		},
+ 		{
+ 			Name:     "Toggle focus follows mouse",
+-			Category: "Session",
++			Category: "Workspace",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				save := m.ToggleFocusFollowsMouse()
+ 				state := "off"
+@@ -1008,10 +1008,10 @@
+ 			},
+ 		},
+ 		{
+-			Name:     "Switch session",
++			Name:     "Switch workspace",
+ 			Shortcut: "prefix+S",
+ 			Bind:     "prefix_session_switcher",
+-			Category: "Session",
++			Category: "Workspace",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				m.OpenSessionSwitcher()
+ 				return m, nil
+@@ -1090,7 +1090,7 @@
+ 			Name:     "Show help",
+ 			Shortcut: "prefix+?",
+ 			Bind:     "prefix_help",
+-			Category: "Session",
++			Category: "Workspace",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				m.ShowHelp = !m.ShowHelp
+ 				if m.ShowHelp {
+@@ -1103,7 +1103,7 @@
+ 			Name:     "Show logs",
+ 			Shortcut: "prefix+D l",
+ 			Bind:     "debug_prefix_logs",
+-			Category: "Session",
++			Category: "Workspace",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				m.ToggleLogViewer()
+ 				return m, nil
+@@ -1113,17 +1113,17 @@
+ 			Name:     "Toggle scrollback browser",
+ 			Shortcut: "prefix+s",
+ 			Bind:     "prefix_scrollback",
+-			Category: "Session",
++			Category: "Workspace",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				m.ShowScrollbackBrowser = !m.ShowScrollbackBrowser
+ 				return m, nil
+ 			},
+ 		},
+ 		{
+-			Name:     "Panes: find a pane in every session",
++			Name:     "Panes: find a pane in every workspace",
+ 			Shortcut: "prefix+/",
+ 			Bind:     "choose_tree",
+-			Category: "Session",
++			Category: "Workspace",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				return m, m.OpenNavigator()
+ 			},
+@@ -1132,7 +1132,7 @@
+ 			Name:     "Hints: label text on the pane to copy it",
+ 			Shortcut: "prefix+F",
+ 			Bind:     "hints",
+-			Category: "Session",
++			Category: "Workspace",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				m.OpenHints()
+ 				return m, nil
+@@ -1142,7 +1142,7 @@
+ 			Name:     "Scratch: show or hide the scratch terminal",
+ 			Shortcut: "prefix+g",
+ 			Bind:     "toggle_scratch",
+-			Category: "Session",
++			Category: "Workspace",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				return m, m.ToggleScratch()
+ 			},
+@@ -1151,7 +1151,7 @@
+ 			Name:     "Panes: label the panes and focus one",
+ 			Shortcut: "prefix+Q",
+ 			Bind:     "display_panes",
+-			Category: "Session",
++			Category: "Workspace",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				m.OpenPaneLabels()
+ 				return m, nil
+@@ -1159,7 +1159,7 @@
+ 		},
+ 		{
+ 			Name:     "Hints: label text on all panes to copy it",
+-			Category: "Session",
++			Category: "Workspace",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				m.OpenHintsAllPanes()
+ 				return m, nil
+@@ -1169,7 +1169,7 @@
+ 			Name:     "Toggle show keys",
+ 			Shortcut: "prefix+D k",
+ 			Bind:     "debug_prefix_showkeys",
+-			Category: "Session",
++			Category: "Workspace",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				save := m.ToggleShowKeys()
+ 				state := "off"
+@@ -1184,7 +1184,7 @@
+ 			Name:     "Picture in picture: pin or unpin the focused pane",
+ 			Shortcut: "p",
+ 			Bind:     "toggle_pip",
+-			Category: "Session",
++			Category: "Workspace",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				m.TogglePiP()
+ 				return m, nil
+@@ -1194,7 +1194,7 @@
+ 			Name:     "Toggle spotlight",
+ 			Shortcut: "B",
+ 			Bind:     "toggle_spotlight",
+-			Category: "Session",
++			Category: "Workspace",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				save := m.ToggleSpotlight()
+ 				m.AnnounceSpotlight()
+@@ -1205,7 +1205,7 @@
+ 			Name:     "Toggle animations",
+ 			Shortcut: "prefix+D a",
+ 			Bind:     "debug_prefix_animations",
+-			Category: "Session",
++			Category: "Workspace",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				_ = m.ToggleAnimations()
+ 				return m, nil
+@@ -1215,7 +1215,7 @@
+ 			Name:     "Window management mode",
+ 			Shortcut: "prefix+esc",
+ 			Bind:     "prefix_exit_mode",
+-			Category: "Session",
++			Category: "Workspace",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				m.Mode = WindowManagementMode
+ 				m.ShowNotification("Window management mode", "info", s.NotificationDuration)
+@@ -1229,7 +1229,7 @@
+ 			Name:     "Tape: review the project tape",
+ 			Shortcut: "prefix+T t",
+ 			Bind:     "tape_prefix_review",
+-			Category: "Session",
++			Category: "Workspace",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				m.OpenTapeReview()
+ 				return m, nil
+@@ -1239,7 +1239,7 @@
+ 			Name:     "Open the tape manager",
+ 			Shortcut: "prefix+T m",
+ 			Bind:     "tape_prefix_manager",
+-			Category: "Session",
++			Category: "Workspace",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				m.ToggleTapeManager()
+ 				return m, nil
+@@ -1249,7 +1249,7 @@
+ 			Name:     "Enter copy mode",
+ 			Shortcut: "prefix+[",
+ 			Bind:     "prefix_selection",
+-			Category: "Session",
++			Category: "Workspace",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				m.EnterCopyModeFocused()
+ 				return m, nil
+@@ -1258,7 +1258,7 @@
+ 		{
+ 			// No Shortcut: copy_mode_search_forward has no default binding.
+ 			Name:     "Copy mode: search forward",
+-			Category: "Session",
++			Category: "Workspace",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				m.EnterCopyModeSearch(false)
+ 				return m, nil
+@@ -1267,7 +1267,7 @@
+ 		{
+ 			// No Shortcut: copy_mode_search_backward has no default binding.
+ 			Name:     "Copy mode: search backward",
+-			Category: "Session",
++			Category: "Workspace",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				m.EnterCopyModeSearch(true)
+ 				return m, nil
+@@ -1277,7 +1277,7 @@
+ 			Name:     paletteMultiCopyName,
+ 			Shortcut: "prefix+[",
+ 			Bind:     "prefix_selection",
+-			Category: "Session",
++			Category: "Workspace",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				m.EnterMultiCopyMode()
+ 				return m, nil
+--- a/internal/app/contextmenu_build.go
++++ b/internal/app/contextmenu_build.go
+@@ -375,10 +375,10 @@
+ 	attached := sessionID == m.SessionName
+ 	hasOthers := len(m.otherSessionNames()) > 0
+ 
+-	kill := []ContextMenuItem{m.item(glyphClose, "Kill session", "kill_session", false)}
++	kill := []ContextMenuItem{m.item(glyphClose, "Kill workspace", "kill_session", false)}
+ 	if attached {
+-		killNext := m.item(glyphClose, "Kill session, go to next", "kill_session_next", !hasOthers)
+-		killQuit := m.item(glyphClose, "Kill session and quit", "kill_session_quit", false)
++		killNext := m.item(glyphClose, "Kill workspace, go to next", "kill_session_next", !hasOthers)
++		killQuit := m.item(glyphClose, "Kill workspace and quit", "kill_session_quit", false)
+ 		kill = []ContextMenuItem{killNext, killQuit}
+ 	}
+ 	for i := range kill {
+@@ -389,14 +389,14 @@
+ 	// once it has one.
+ 	title := m.SessionLabel(sessionID)
+ 	if title == "" {
+-		title = "Session"
++		title = "Workspace"
+ 	}
+ 	return title, append([]ContextMenuItem{
+ 		// Renaming and colouring both belong to the row's own session, so both
+ 		// are offered on every row and both read the menu's target rather than
+ 		// the attached session.
+ 		m.item(glyphRename, "Rename", "rename_session", false),
+-		m.item(glyphPalette, "Session color", "set_session_accent", false),
++		m.item(glyphPalette, "Workspace color", "set_session_accent", false),
+ 		m.item(glyphDetach, "Detach", "prefix_detach", !attached),
+ 		m.item(glyphSwitch, "Switch session...", "prefix_session_switcher", false),
+ 		// Dimmed off the attached session for the same reason detach is: the
+--- a/internal/app/crash.go
++++ b/internal/app/crash.go
+@@ -367,7 +367,7 @@
+ 	defer func() {
+ 		if r := recover(); r != nil {
+ 			facts = append(facts, CrashFact{
+-				Label: "Session",
++				Label: "Workspace",
+ 				Value: "not readable, the model was too broken to describe",
+ 			})
+ 			facts = append(facts, crashMachineFacts()...)
+@@ -426,7 +426,7 @@
+ 	if v := m.GetVisibleWindows(); v != nil {
+ 		visible = len(v)
+ 	}
+-	return fmt.Sprintf("%d visible, %d in session", visible, total)
++	return fmt.Sprintf("%d visible, %d in workspace", visible, total)
+ }
+ 
+ // crashRecentActions lists the keybind actions this client last ran.
+--- a/internal/app/daemon_exit.go
++++ b/internal/app/daemon_exit.go
+@@ -89,11 +89,11 @@
+ 	case ExitSessionKilled:
+ 		name := m.SessionName
+ 		if name == "" {
+-			name = "this session"
++			name = "this workspace"
+ 		} else {
+ 			name = fmt.Sprintf("%q", name)
+ 		}
+-		return "The session " + name + " stopped.\n" +
++		return "The workspace " + name + " stopped.\n" +
+ 			"A different client or a command removed it.\n" +
+ 			"Connect again to use one of the other sessions."
+ 
+@@ -106,7 +106,7 @@
+ 	case ExitDetached:
+ 		if m.DaemonClient != nil {
+ 			return m.DaemonClient.DetachedReason() + "\n" +
+-				"The session continues to run.\n" +
++				"The workspace continues to run.\n" +
+ 				"Connect again to attach to it."
+ 		}
+ 		return ""
+--- a/internal/app/daemon_wiring.go
++++ b/internal/app/daemon_wiring.go
+@@ -63,7 +63,7 @@
+ 		queueSidebarSessionState(states, stateMu, sidebarSessionEvent{edge: edge, generation: generation, kind: "state", state: state})
+ 	})
+ 	client.OnSessionEnded(func(_, reason string) {
+-		queueTerminal(sidebarSessionEvent{edge: edge, generation: generation, kind: "ended", err: fmt.Errorf("session ended: %s", reason)})
++		queueTerminal(sidebarSessionEvent{edge: edge, generation: generation, kind: "ended", err: fmt.Errorf("workspace ended: %s", reason)})
+ 	})
+ 	client.OnDisconnect(func(err error) {
+ 		queueTerminal(sidebarSessionEvent{edge: edge, generation: generation, kind: "ended", err: err})
+@@ -152,7 +152,7 @@
+ 	// The session's size is the minimum over its clients. The geometry
+ 	// mutation (TileAllWindows, emulator resizes) happens in Update.
+ 	client.OnSessionResize(func(width, height, clientCount int, reserve session.LayoutReserve) {
+-		clientLog("Session resize: %dx%d chrome %+v (clients: %d)", width, height, reserve, clientCount)
++		clientLog("Workspace resize: %dx%d chrome %+v (clients: %d)", width, height, reserve, clientCount)
+ 		// Read here, on the client's read loop, where it is this resize's
+ 		// own: the loop took it just before calling this handler.
+ 		gen := client.SessionLayoutGeneration()
+@@ -162,9 +162,9 @@
+ 	// away. Both leave nothing to render and nothing to reconnect to, so the
+ 	// client says why and quits. The queue is separate from ClientEventChan.
+ 	client.OnSessionEnded(func(name, reason string) {
+-		clientLog("Session ended: %s (%s)", name, reason)
++		clientLog("Workspace ended: %s (%s)", name, reason)
+ 		if m.QueueSessionEnded(name, reason) {
+-			clientLog("DaemonExitChan full, dropped the session end")
++			clientLog("DaemonExitChan full, dropped the workspace end")
+ 		}
+ 	})
+ 	client.OnDisconnect(func(err error) {
+@@ -239,9 +239,9 @@
+ 		m.sessionClients = m.DaemonClient.AttachClientCount()
+ 	}
+ 	if state != nil && len(state.Windows) > 0 {
+-		m.LogInfo("Restoring %d windows from session state", len(state.Windows))
++		m.LogInfo("Restoring %d windows from workspace state", len(state.Windows))
+ 		if err := m.RestoreFromState(state); err != nil {
+-			m.LogWarn("Failed to restore session state: %v", err)
++			m.LogWarn("Failed to restore workspace state: %v", err)
+ 		}
+ 		m.rehydrateWindows()
+ 		m.LogInfo("Restore complete, %d windows", len(m.Windows))
+--- a/internal/app/dock_session_buttons.go
++++ b/internal/app/dock_session_buttons.go
+@@ -78,8 +78,8 @@
+ // menu and the which-key sheet name both actions.
+ const (
+ 	dockSessionLeaveLabel = "Leave running"
+-	dockSessionCloseLabel = "Close session"
+-	dockSessionNewLabel   = "New session"
++	dockSessionCloseLabel = "Close workspace"
++	dockSessionNewLabel   = "New workspace"
+ )
+ 
+ // dockSessionIcon is a control's glyph, following the configured glyph set.
+--- a/internal/app/gui_layout.go
++++ b/internal/app/gui_layout.go
+@@ -20,7 +20,7 @@
+ 
+ // errNotTiledTree is the answer to a tree edit while the screen shows no BSP
+ // tree to edit.
+-var errNotTiledTree = errors.New("the workspace is not tiled with splits")
++var errNotTiledTree = errors.New("the tab is not tiled with splits")
+ 
+ // treeEditTarget returns the tree of the workspace on screen for an edit, and
+ // lands every pane still sliding, so the edit starts from the rectangles the
+@@ -45,7 +45,7 @@
+ 		return nil, 0, fmt.Errorf("no pane %s", id)
+ 	}
+ 	if w.Workspace != m.CurrentWorkspace {
+-		return nil, 0, fmt.Errorf("pane %s is on workspace %d, not on the workspace on screen", id, w.Workspace)
++		return nil, 0, fmt.Errorf("pane %s is on tab %d, not on the tab on screen", id, w.Workspace)
+ 	}
+ 	n := m.GetWindowIntID(id)
+ 	if !tree.HasWindow(n) {
+@@ -117,7 +117,7 @@
+ 	}
+ 	got, ok := tree.SetSplitRatio(split, ratio, m.GetBSPBounds(), m.separatorGap())
+ 	if !ok {
+-		return 0, fmt.Errorf("no split %d on the workspace on screen", split)
++		return 0, fmt.Errorf("no split %d on the tab on screen", split)
+ 	}
+ 	m.finishTreeEdit()
+ 	return got, nil
+@@ -157,7 +157,7 @@
+ 		return fmt.Errorf("pane %s is a popup or a scratch pane, and always floats", id)
+ 	}
+ 	if w.Workspace != m.CurrentWorkspace {
+-		return fmt.Errorf("pane %s is on workspace %d, not on the workspace on screen", id, w.Workspace)
++		return fmt.Errorf("pane %s is on tab %d, not on the tab on screen", id, w.Workspace)
+ 	}
+ 	m.requireRealLayout()
+ 	_ = m.FocusWindowByID(id)
+--- a/internal/app/help.go
++++ b/internal/app/help.go
+@@ -44,7 +44,7 @@
+ 			}),
+ 		},
+ 		{
+-			Name:     "Workspaces",
++			Name:     "Tabs",
+ 			Bindings: generateWorkspaceBindings(registry, s),
+ 		},
+ 		{
+@@ -215,7 +215,7 @@
+ 		}
+ 		return out
+ 	}
+-	add(railKey("agents_filter"), "Rail agents: all sessions, or this one")
++	add(railKey("agents_filter"), "Rail agents: all workspaces, or this one")
+ 	add(railKey("agents_sort"), "Rail agents: needs you, priority, or recency")
+ 	add(railKey("mail"), "Rail: the mailbox of the pane under the cursor")
+ 	agentRowKey := func(action string) []string {
+@@ -339,8 +339,8 @@
+ 			bindings = append(bindings, HelpBinding{
+ 				Action:      action,
+ 				Keys:        keys,
+-				Description: fmt.Sprintf("Switch to workspace %d", i),
+-				Category:    "Workspaces",
++				Description: fmt.Sprintf("Switch to tab %d", i),
++				Category:    "Tabs",
+ 			})
+ 		}
+ 	}
+@@ -353,8 +353,8 @@
+ 			bindings = append(bindings, HelpBinding{
+ 				Action:      action,
+ 				Keys:        keys,
+-				Description: fmt.Sprintf("Move to workspace %d and follow", i),
+-				Category:    "Workspaces",
++				Description: fmt.Sprintf("Move to tab %d and follow", i),
++				Category:    "Tabs",
+ 			})
+ 		}
+ 	}
+@@ -365,8 +365,8 @@
+ 		bindings = append(bindings, HelpBinding{
+ 			Action:      "workspace_prefix_rename",
+ 			Keys:        []string{chord},
+-			Description: "Rename workspace",
+-			Category:    "Workspaces",
++			Description: "Rename tab",
++			Category:    "Tabs",
+ 		})
+ 	}
+ 
+@@ -403,7 +403,7 @@
+ 		{Keys: []string{"right-click desktop"}, Description: "Desktop menu", Category: cat},
+ 		{Keys: []string{"click dock entry"}, Description: "Restore that minimized window", Category: cat},
+ 		{Keys: []string{"right-click dock"}, Description: "Dock menu, or the entry's own menu", Category: cat},
+-		{Keys: []string{"right-click workspace tab"}, Description: "Switch to, rename or close that workspace", Category: cat},
++		{Keys: []string{"right-click tab tab"}, Description: "Switch to, rename or close that tab", Category: cat},
+ 		{Keys: []string{"drag a panel"}, Description: "Move the panel. Click outside to close", Category: cat},
+ 	}
+ }
+@@ -454,7 +454,7 @@
+ 	if first, last := registry.GetSidebarKeys("jump_1"), registry.GetSidebarKeys("jump_9"); len(first) > 0 && len(last) > 0 {
+ 		bindings = append(bindings, HelpBinding{
+ 			Keys:        []string{first[0] + "-" + last[0]},
+-			Description: "Jump to a session by its position in the rail",
++			Description: "Jump to a workspace by its position in the rail",
+ 			Category:    cat,
+ 		})
+ 	}
+@@ -539,11 +539,11 @@
+ func sidebarGestures() []HelpBinding {
+ 	const cat = "Sidebar"
+ 	return []HelpBinding{
+-		{Keys: []string{"click a row"}, Description: "Attach to that session, or focus that pane", Category: cat},
+-		{Keys: []string{"hover a session"}, Description: "Preview its panes in the terminals section", Category: cat},
+-		{Keys: []string{"drag a session"}, Description: "Reorder the sessions", Category: cat},
++		{Keys: []string{"click a row"}, Description: "Attach to that workspace, or focus that pane", Category: cat},
++		{Keys: []string{"hover a workspace"}, Description: "Preview its panes in the terminals section", Category: cat},
++		{Keys: []string{"drag a workspace"}, Description: "Reorder the workspaces", Category: cat},
+ 		{Keys: []string{"right-click a row"}, Description: "Open that row's menu", Category: cat},
+-		{Keys: []string{"click a header's +"}, Description: "New session, or new terminal in the one shown", Category: cat},
++		{Keys: []string{"click a header's +"}, Description: "New workspace, or new terminal in the one shown", Category: cat},
+ 		{Keys: []string{"click blank rail"}, Description: "Give the rail the keyboard", Category: cat},
+ 		{Keys: []string{"drag the rail edge"}, Description: "Resize the rail", Category: cat},
+ 		{Keys: []string{"hover a clipped row"}, Description: "Scroll its text past the edge to read the rest", Category: cat},
+@@ -888,7 +888,7 @@
+ // is what the sidebar is called everywhere else.
+ var helpTabNames = map[string]string{
+ 	"Window Management": "Windows",
+-	"Workspaces":        "Spaces",
++	"Tabs":              "Tabs",
+ 	"Layout":            "Snap",
+ 	"Tiling":            "Tiling",
+ 	"BSP":               "BSP",
+--- a/internal/app/hints.go
++++ b/internal/app/hints.go
+@@ -668,7 +668,7 @@
+ 	case window.Host != "":
+ 		return "The pane runs on another machine."
+ 	case m.AttachedHost != "":
+-		return "This session runs on another machine."
++		return "This workspace runs on another machine."
+ 	case m.IsRemoteClient():
+ 		return "A remote client can not open files."
+ 	case slices.Contains(hintRemoteShells, hintForeground(window)):
+--- a/internal/app/host_attach.go
++++ b/internal/app/host_attach.go
+@@ -291,9 +291,9 @@
+ 	m.QueueClientEvent(ClientEvent{Type: "agent-mail-load"})
+ 	m.MarkAllDirty()
+ 	if m.AttachedHost != "" {
+-		m.ShowNotification("Session: "+m.SessionName+" @ "+m.AttachedHost, "success", m.Settings.NotificationDuration)
++		m.ShowNotification("Workspace: "+m.SessionName+" @ "+m.AttachedHost, "success", m.Settings.NotificationDuration)
+ 	} else {
+-		m.ShowNotification("Session: "+m.SessionName, "success", m.Settings.NotificationDuration)
++		m.ShowNotification("Workspace: "+m.SessionName, "success", m.Settings.NotificationDuration)
+ 	}
+ 	m.FireAttached()
+ }
+@@ -451,7 +451,7 @@
+ // one, as tmux's switch-client -l does.
+ func (m *OS) LastSession() {
+ 	if m.lastSession.name == "" {
+-		m.ShowNotification("No last session", "info", m.Settings.NotificationDuration)
++		m.ShowNotification("No last workspace", "info", m.Settings.NotificationDuration)
+ 		return
+ 	}
+ 	m.openSession(m.lastSession.host, m.lastSession.name)
+--- a/internal/app/host_open.go
++++ b/internal/app/host_open.go
+@@ -165,7 +165,7 @@
+ 		// sign-in control on the rail does, and keeps waiting for the link.
+ 		if p.signIn {
+ 			if now.After(p.until) {
+-				return m.endHostOpen(p, printableTitle(p.host)+" still waits for a Tailscale sign-in. Sign in, then select the session again.")
++				return m.endHostOpen(p, printableTitle(p.host)+" still waits for a Tailscale sign-in. Sign in, then select the workspace again.")
+ 			}
+ 			return nil
+ 		}
+@@ -214,7 +214,7 @@
+ 	if reason != "" {
+ 		what += " " + reason
+ 	}
+-	return what + " Run 'tuios hosts' to see the host, then select the session again."
++	return what + " Run 'tuios hosts' to see the host, then select the workspace again."
+ }
+ 
+ // hostReason is the sentence the last snapshot carries for a machine.
+--- a/internal/app/host_picker.go
++++ b/internal/app/host_picker.go
+@@ -102,11 +102,11 @@
+ func pluralSessions(n int) string {
+ 	switch n {
+ 	case 0:
+-		return "no sessions"
++		return "no workspaces"
+ 	case 1:
+-		return "1 session"
++		return "1 workspace"
+ 	default:
+-		return strconv.Itoa(n) + " sessions"
++		return strconv.Itoa(n) + " workspaces"
+ 	}
+ }
+ 
+@@ -173,7 +173,7 @@
+ 		return
+ 	}
+ 	if !m.CanCreateSession() {
+-		m.ShowNotification("Sessions need the daemon", "info", m.Settings.NotificationDuration)
++		m.ShowNotification("Workspaces need the daemon", "info", m.Settings.NotificationDuration)
+ 		return
+ 	}
+ 	if !m.newSessionShouldPickHost() {
+--- a/internal/app/host_picker_attached.go
++++ b/internal/app/host_picker_attached.go
+@@ -164,7 +164,7 @@
+ 	items := []HostPickerItem{{
+ 		Name:   "",
+ 		Label:  m.AttachedHost,
+-		Detail: "this session",
++		Detail: "this workspace",
+ 		Up:     true,
+ 	}}
+ 	view, ok := m.attachedView()
+--- a/internal/app/host_reconnect.go
++++ b/internal/app/host_reconnect.go
+@@ -402,7 +402,7 @@
+ func hostReconnectReason(host string, err error) string {
+ 	what := fmt.Sprintf("The link to %s did not come back.", host)
+ 	if session.AttachRefused(err) {
+-		return fmt.Sprintf("The session is gone on %s. Open another one there.", host)
++		return fmt.Sprintf("The workspace is gone on %s. Open another one there.", host)
+ 	}
+ 	if shake, ok := errors.AsType[*session.HostHandshakeError](err); ok {
+ 		if _, ok := errors.AsType[*session.ProtocolMismatchError](shake.Err); ok {
+@@ -417,7 +417,7 @@
+ 			return "The daemon on this machine is too old. Restart it with 'tuios kill-server'."
+ 		}
+ 	}
+-	return what + fmt.Sprintf(" The session keeps running there. Run 'tuios hosts' to see %s.", host)
++	return what + fmt.Sprintf(" The workspace keeps running there. Run 'tuios hosts' to see %s.", host)
+ }
+ 
+ // hostLinkNote is the dock's one line about a link that is not there. It is
+--- a/internal/app/layout_templates.go
++++ b/internal/app/layout_templates.go
+@@ -429,4 +429,4 @@
+ }
+ 
+ // errLayoutInScratch refuses a layout save or load inside a scratch group.
+-var errLayoutInScratch = errors.New("hide the scratch terminal first. A layout belongs to a workspace")
++var errLayoutInScratch = errors.New("hide the scratch terminal first. A layout belongs to a tab")
+--- a/internal/app/layout_tree_sync.go
++++ b/internal/app/layout_tree_sync.go
+@@ -194,7 +194,7 @@
+ 			base = m.treeAnswerBase
+ 		}
+ 		if err := m.DaemonClient.SendLayoutTree(ws, tree, leaves, base); err != nil {
+-			m.LogError("Failed to send the layout of workspace %d to the daemon: %v", ws, err)
++			m.LogError("Failed to send the layout of tab %d to the daemon: %v", ws, err)
+ 			return false
+ 		}
+ 		if key == "" {
+--- a/internal/app/learn_mode.go
++++ b/internal/app/learn_mode.go
+@@ -22,7 +22,7 @@
+ // Notes shown in Learn mode. Short, friendly, and never an error.
+ const (
+ 	learnNoteQuit     = "No need to quit here. Just close the tab when you're done."
+-	learnNoteSessions = "Sessions are not in the browser demo. Install tuios for them."
++	learnNoteSessions = "Workspaces are not in the browser demo. Install tuios for them."
+ 	learnNoteFiles    = "Your files are not in the browser demo, so this is off."
+ 	learnNoteShot     = "Screenshots are not in the browser demo."
+ 	learnNoteTapes    = "The tape manager is not in the demo. Try: tuios tape play demo.tape"
+--- a/internal/app/navigator.go
++++ b/internal/app/navigator.go
+@@ -529,7 +529,7 @@
+ 					}
+ 					if !ok {
+ 						mu.Lock()
+-						done[job.key()] = navSession{Host: job.Host, Name: job.Name, Note: "Could not read this session"}
++						done[job.key()] = navSession{Host: job.Host, Name: job.Name, Note: "Could not read this workspace"}
+ 						mu.Unlock()
+ 						continue
+ 					}
+--- a/internal/app/notification_jump.go
++++ b/internal/app/notification_jump.go
+@@ -98,7 +98,7 @@
+ 	}
+ 	foreign := t.SessionID != "" && t.SessionID != m.sidebarCurrentSessionID()
+ 	if foreign && !m.sessionCached(t.SessionID) {
+-		m.ShowNotification("Source session closed", "info", m.Settings.NotificationDuration)
++		m.ShowNotification("Source workspace closed", "info", m.Settings.NotificationDuration)
+ 		return
+ 	}
+ 
+--- a/internal/app/os_tape_executor.go
++++ b/internal/app/os_tape_executor.go
+@@ -497,7 +497,7 @@
+ // nine-workspace session says so instead of appearing to work.
+ func (m *OS) SwitchWorkspace(workspace int) error {
+ 	if workspace < 1 || workspace > m.NumWorkspaces {
+-		return fmt.Errorf("workspace %d is out of range (1-%d)", workspace, m.NumWorkspaces)
++		return fmt.Errorf("tab %d is out of range (1-%d)", workspace, m.NumWorkspaces)
+ 	}
+ 	recorder := m.TapeRecorder
+ 	m.TapeRecorder = nil
+@@ -706,7 +706,7 @@
+ // MoveWindowToWorkspaceByID moves a window to a workspace.
+ func (m *OS) MoveWindowToWorkspaceByID(windowID string, workspace int) error {
+ 	if workspace < 1 || workspace > m.NumWorkspaces {
+-		return fmt.Errorf("workspace %d out of range (1-%d)", workspace, m.NumWorkspaces)
++		return fmt.Errorf("tab %d out of range (1-%d)", workspace, m.NumWorkspaces)
+ 	}
+ 
+ 	for i, w := range m.Windows {
+@@ -722,7 +722,7 @@
+ // MoveAndFollowWorkspaceByID moves a window to a workspace and switches to it.
+ func (m *OS) MoveAndFollowWorkspaceByID(windowID string, workspace int) error {
+ 	if workspace < 1 || workspace > m.NumWorkspaces {
+-		return fmt.Errorf("workspace %d out of range (1-%d)", workspace, m.NumWorkspaces)
++		return fmt.Errorf("tab %d out of range (1-%d)", workspace, m.NumWorkspaces)
+ 	}
+ 
+ 	for i, w := range m.Windows {
+--- a/internal/app/overlay_mouse.go
++++ b/internal/app/overlay_mouse.go
+@@ -539,7 +539,7 @@
+ 		return
+ 	}
+ 	if selected.IsCurrent {
+-		m.ShowNotification("Already on this session", "info", m.Settings.NotificationDuration)
++		m.ShowNotification("Already on this workspace", "info", m.Settings.NotificationDuration)
+ 	} else {
+ 		// By node, never by ID: a row under another machine carries a rail
+ 		// identity for an ID, and OpenSessionNode picks the connection. See #196.
+--- a/internal/app/pane_labels.go
++++ b/internal/app/pane_labels.go
+@@ -121,7 +121,7 @@
+ 		})
+ 	}
+ 	if len(state.panes) == 0 {
+-		m.ShowNotification("This workspace has no panes to label.", "info", m.Settings.NotificationDuration)
++		m.ShowNotification("This tab has no panes to label.", "info", m.Settings.NotificationDuration)
+ 		return
+ 	}
+ 	state.listOn = m.paneLabelListOn(state)
+--- a/internal/app/pane_leftover.go
++++ b/internal/app/pane_leftover.go
+@@ -77,19 +77,19 @@
+ // as under smallest when one client sets the width and another the height,
+ // it says "another client".
+ func (m *OS) leftoverHint() string {
+-	who := "Another client sets the session size."
++	who := "Another client sets the workspace size."
+ 	policy := ""
+ 	if c := m.DaemonClient; c != nil {
+ 		name := c.SessionSizedBy()
+ 		switch {
+ 		case c.SessionSizedByKind() == session.ClientKindSSH:
+-			who = "An SSH client sets the session size."
++			who = "An SSH client sets the workspace size."
+ 		case c.SessionSizedByKind() == session.ClientKindWeb:
+-			who = "A web client sets the session size."
++			who = "A web client sets the workspace size."
+ 		case name != "" && name == c.Machine() && c.Kind == "":
+-			who = "Another client on this machine sets the session size."
++			who = "Another client on this machine sets the workspace size."
+ 		case name != "":
+-			who = "The client on " + name + " sets the session size."
++			who = "The client on " + name + " sets the workspace size."
+ 		}
+ 		policy = c.SessionWindowSize()
+ 	}
+--- a/internal/app/pane_view.go
++++ b/internal/app/pane_view.go
+@@ -567,7 +567,7 @@
+ 			arrows.WriteString(g)
+ 		}
+ 	}
+-	text := fmt.Sprintf("Part of session %dx%d", key.w, key.h)
++	text := fmt.Sprintf("Part of workspace %dx%d", key.w, key.h)
+ 	if arrows.Len() > 0 {
+ 		text = arrows.String() + " " + text
+ 	}
+--- a/internal/app/prefix_tree.go
++++ b/internal/app/prefix_tree.go
+@@ -138,7 +138,7 @@
+ 	m.CurrentWorkspace = to
+ 	m.reconcilePaneStreams()
+ 	m.SyncStateToDaemon()
+-	m.ShowNotification(fmt.Sprintf("Workspace %d moved to %d", from, to), "info", m.Settings.NotificationDuration)
++	m.ShowNotification(fmt.Sprintf("Tab %d moved to %d", from, to), "info", m.Settings.NotificationDuration)
+ }
+ 
+ // swapPerWorkspaceState swaps everything the client keeps per workspace
+--- a/internal/app/quit_menu.go
++++ b/internal/app/quit_menu.go
+@@ -121,8 +121,8 @@
+ 	if len(others) > 0 {
+ 		items = append(items,
+ 			QuitMenuItem{Label: "Switch session...", Key: "s", Kind: QuitSwitchSession},
+-			QuitMenuItem{Label: "Kill session, go to next", Key: "x", Kind: QuitKillGoNext, Warn: busy},
+-			QuitMenuItem{Label: "Kill session and quit", Kind: QuitKillAndQuit, Warn: busy},
++			QuitMenuItem{Label: "Kill workspace, go to next", Key: "x", Kind: QuitKillGoNext, Warn: busy},
++			QuitMenuItem{Label: "Kill workspace and quit", Kind: QuitKillAndQuit, Warn: busy},
+ 		)
+ 	} else {
+ 		items = append(items, QuitMenuItem{Label: "Kill and quit", Key: "x", Kind: QuitKillAndQuit, Warn: busy})
+@@ -212,6 +212,6 @@
+ 			return nil
+ 		}
+ 	}
+-	m.ShowNotification("Killed session: "+oldLabel, "success", m.Settings.NotificationDuration)
++	m.ShowNotification("Killed workspace: "+oldLabel, "success", m.Settings.NotificationDuration)
+ 	return nil
+ }
+--- a/internal/app/render_accent_picker.go
++++ b/internal/app/render_accent_picker.go
+@@ -192,7 +192,7 @@
+ 	case AccentTargetSession:
+ 		// A session's colour is shared by every client attached to it, so the
+ 		// dialog says which of the two the user is about to change.
+-		title = "session accent"
++		title = "workspace accent"
+ 	case AccentTargetSetting:
+ 		// The setting's own label, so the dialog names the thing on the row the
+ 		// user pressed enter on rather than calling every colour an accent.
+@@ -538,7 +538,7 @@
+ 		// Naming the source rather than printing a hex is the whole difference
+ 		// between those states and a pinned colour, and the word fits where the
+ 		// hex would have gone.
+-		word := " session"
++		word := " workspace"
+ 		switch {
+ 		case s.Src == accentSourceAuto:
+ 			word = " auto"
+--- a/internal/app/render_agent_mail.go
++++ b/internal/app/render_agent_mail.go
+@@ -71,7 +71,7 @@
+ func (m *OS) renderAgentMail() (string, overlay.Geometry, []overlayRowHit) {
+ 	if !m.IsDaemonSession || m.DaemonClient == nil {
+ 		return m.simpleOverlayPanel("Mail",
+-			[]string{"Mail needs the daemon.", "", "Start a daemon session with: tuios new"},
++			[]string{"Mail needs the daemon.", "", "Start a daemon workspace with: tuios new"},
+ 			[]overlay.Hint{{Key: "esc", Label: "close"}})
+ 	}
+ 	st := &m.AgentMail
+--- a/internal/app/render_crash.go
++++ b/internal/app/render_crash.go
+@@ -45,7 +45,7 @@
+ // the user and the answer.
+ var crashLead = []string{
+ 	"tuios reached a state it does not expect.",
+-	"Your panes and your session are still running. Press esc to go back to them.",
++	"Your panes and your workspace are still running. Press esc to go back to them.",
+ 	"Send the report and this gets fixed.",
+ }
+ 
+--- a/internal/app/render_dock_editor.go
++++ b/internal/app/render_dock_editor.go
+@@ -71,7 +71,7 @@
+ 	// editor can be opened on its own and the lists it writes go nowhere.
+ 	title := "Dock layout"
+ 	if m.ConfigReadOnly {
+-		title = "Dock layout (this session only)"
++		title = "Dock layout (this workspace only)"
+ 	}
+ 
+ 	panel := overlay.Panel{
+--- a/internal/app/render_host_picker.go
++++ b/internal/app/render_host_picker.go
+@@ -55,7 +55,7 @@
+ // same for both.
+ func hostPickerTitle(p HostPickerPurpose) string {
+ 	if p == HostPickerNewSession {
+-		return "New session on"
++		return "New workspace on"
+ 	}
+ 	return "New window on"
+ }
+--- a/internal/app/render_inbox.go
++++ b/internal/app/render_inbox.go
+@@ -115,7 +115,7 @@
+ 		case st.Filter != "":
+ 			lines = []string{"Nothing under " + inboxGroupTitle(st.Filter) + ".", "f shows the next kind, and then all of them."}
+ 		case !m.IsDaemonSession:
+-			lines = []string{"The Inbox needs the daemon.", "", "Start a daemon session with: tuios new"}
++			lines = []string{"The Inbox needs the daemon.", "", "Start a daemon workspace with: tuios new"}
+ 		}
+ 		if len(st.life.Snoozed) > 0 && !st.life.ShowSnoozed && st.Select == "" {
+ 			lines = append(slices.Clone(lines), "", m.inboxSnoozedNote())
+@@ -334,7 +334,7 @@
+ 			if st.selectErr != "" {
+ 				return []string{overlay.Truncate("Not a selector: "+st.selectErr, width)}
+ 			}
+-			return []string{overlay.Truncate("Terms: harness state needs:you session group host name, as key:value. Example: harness:codex needs:you", width)}
++			return []string{overlay.Truncate("Terms: harness state needs:you workspace group host name, as key:value. Example: harness:codex needs:you", width)}
+ 		},
+ 		RenderRow: func(i int, selected bool, rowBg color.Color, pal overlay.Palette, width int) string {
+ 			r := rows[i]
+--- a/internal/app/render_navigator.go
++++ b/internal/app/render_navigator.go
+@@ -130,7 +130,7 @@
+ 	if len(rows) == 0 {
+ 		msg := "No pane matches"
+ 		if !m.navSearch() {
+-			msg = "No sessions"
++			msg = "No workspaces"
+ 		}
+ 		empty := overlay.Empty{Message: msg, Hint: overlay.Hint{Key: "esc", Label: "close"}}
+ 		list = append(list, empty.Lines(listW, lines, bg, pal)...)
+@@ -141,7 +141,7 @@
+ 	list = list[:lines]
+ 	footer := ""
+ 	if nav.loading {
+-		footer = "Reading the other sessions…"
++		footer = "Reading the other workspaces…"
+ 	}
+ 	listBox := overlay.Box{
+ 		Title: "Panes", Note: m.navigatorListNote(), Footer: footer,
+@@ -539,7 +539,7 @@
+ 
+ // navWorkspaceLabel is "workspace 2" and the workspace's name, if it has one.
+ func (m *OS) navWorkspaceLabel(s *navSession, ws int, k navInks) string {
+-	out := k.ink(k.mute).Render("workspace ") + k.ink(k.dim).Bold(true).Render(strconv.Itoa(ws))
++	out := k.ink(k.mute).Render("tab ") + k.ink(k.dim).Bold(true).Render(strconv.Itoa(ws))
+ 	if name := printableTitle(s.WorkspaceNames[ws]); name != "" {
+ 		out += k.ink(k.mute).Render(" · ") + k.ink(k.dim).Render(name)
+ 	}
+--- a/internal/app/render_overlays.go
++++ b/internal/app/render_overlays.go
+@@ -157,7 +157,7 @@
+ 			// the way to make one belongs on it. It was on neither the splash
+ 			// nor any key: a person who had just arrived could make a pane and
+ 			// had no way to find out that sessions existed.
+-			{Key: "N", Label: "new session"},
++			{Key: "N", Label: "new workspace"},
+ 			{Key: "?", Label: "help"},
+ 			{Key: ",", Label: "settings"},
+ 			m.welcomePresetChip(),
+--- a/internal/app/render_quit_menu.go
++++ b/internal/app/render_quit_menu.go
+@@ -17,7 +17,7 @@
+ 	items := m.QuitMenuItems
+ 	title := "Quit TUIOS"
+ 	if m.IsDaemonSession && m.SessionName != "" {
+-		title = "Session: " + printableTitle(m.SessionName)
++		title = "Workspace: " + printableTitle(m.SessionName)
+ 	}
+ 	return m.renderListOverlay(listOverlay{
+ 		Title:      title,
+--- a/internal/app/render_session_switcher.go
++++ b/internal/app/render_session_switcher.go
+@@ -16,8 +16,8 @@
+ func (m *OS) renderSessionSwitcher() (string, overlay.Geometry, []overlayRowHit) {
+ 	// Daemon-only feature.
+ 	if !m.IsDaemonSession || m.DaemonClient == nil {
+-		return m.simpleOverlayPanel("Sessions",
+-			[]string{"Sessions need the daemon.", "", "Start a daemon session with: tuios new"},
++		return m.simpleOverlayPanel("Workspaces",
++			[]string{"Workspaces need the daemon.", "", "Start a daemon workspace with: tuios new"},
+ 			[]overlay.Hint{{Key: "esc", Label: "close"}})
+ 	}
+ 
+@@ -25,7 +25,7 @@
+ 	if m.SessionSwitcherConfirmDelete != "" {
+ 		// What it would take down, counted off the same state the close dialog
+ 		// counts: a destructive answer given without the toll is a guess.
+-		return m.simpleOverlayPanel("Delete session?",
++		return m.simpleOverlayPanel("Delete workspace?",
+ 			[]string{
+ 				"'" + m.SessionLabel(m.SessionSwitcherConfirmDelete) + "'",
+ 				m.SessionTollFor(m.SessionSwitcherConfirmDelete).Line(),
+@@ -46,14 +46,14 @@
+ 
+ 	// With a query typed, the next thing to do is make the session it names,
+ 	// so that is the key the empty state offers.
+-	empty, emptyHint := "No sessions found", overlay.Hint{}
++	empty, emptyHint := "No workspaces found", overlay.Hint{}
+ 	if m.SessionSwitcherQuery != "" {
+ 		empty = "No match for '" + m.SessionSwitcherQuery + "'"
+ 		emptyHint = overlay.Hint{Key: overlay.EnterGlyph, Label: "create it"}
+ 	}
+ 
+ 	return m.renderListOverlay(listOverlay{
+-		Title:      "Sessions",
++		Title:      "Workspaces",
+ 		Width:      sessionSwitcherWidth,
+ 		MaxVisible: 10,
+ 		Search:     true,
+--- a/internal/app/render_settings.go
++++ b/internal/app/render_settings.go
+@@ -194,7 +194,7 @@
+ 	// is changed.
+ 	title := "Settings"
+ 	if m.ConfigReadOnly {
+-		title = "Settings (this session only)"
++		title = "Settings (this workspace only)"
+ 	}
+ 
+ 	panel := overlay.Panel{
+--- a/internal/app/render_sidebar_editor.go
++++ b/internal/app/render_sidebar_editor.go
+@@ -68,7 +68,7 @@
+ 	// editor can be opened on its own and the layout it writes goes nowhere.
+ 	title := "Rail sections"
+ 	if m.ConfigReadOnly {
+-		title = "Rail sections (this session only)"
++		title = "Rail sections (this workspace only)"
+ 	}
+ 
+ 	panel := overlay.Panel{
+--- a/internal/app/render_whichkey.go
++++ b/internal/app/render_whichkey.go
+@@ -446,7 +446,7 @@
+ 	}
+ 	switch {
+ 	case m.WorkspacePrefixActive:
+-		return "Workspace", menu("workspace")
++		return "Tab", menu("workspace")
+ 	case m.MinimizePrefixActive:
+ 		minimizedCount := 0
+ 		for _, win := range m.Windows {
+--- a/internal/app/render_worktree_prompt.go
++++ b/internal/app/render_worktree_prompt.go
+@@ -41,7 +41,7 @@
+ 	body = append(body, dialogBodyLine(m.worktreePromptContext(width), width, pal.FgDim, bg))
+ 	body = append(body,
+ 		m.worktreePromptField(worktreeFieldBranch, "Branch", width, pal, bg),
+-		m.worktreePromptField(worktreeFieldName, "Session", width, pal, bg))
++		m.worktreePromptField(worktreeFieldName, "Workspace", width, pal, bg))
+ 
+ 	// Under the fields: the hint for the field the keyboard is in, or the
+ 	// refusal when there is one, standing where the hint stood — a second try
+@@ -136,7 +136,7 @@
+ // the keyboard is in.
+ func (m *OS) worktreePromptNote() string {
+ 	if m.worktreePrompt.Field == worktreeFieldName {
+-		return "Type a session name. Leave it empty to use the name shown."
++		return "Type a workspace name. Leave it empty to use the name shown."
+ 	}
+ 	return "The branch the worktree checks out."
+ }
+--- a/internal/app/review_compare.go
++++ b/internal/app/review_compare.go
+@@ -646,7 +646,7 @@
+ 	if c.confirmKeep != "" {
+ 		others := c.reviewKeepOthers(c.confirmKeep)
+ 		question = reviewPaint([]reviewSeg{{pal.Warning, " Keep " + reviewText(c.confirmKeep) + " and remove " + reviewText(strings.Join(others, ", ")) +
+-			"? Their worktrees and sessions go; branches stay.", true}}, inner, pal.Surface)
++			"? Their worktrees and workspaces go; branches stay.", true}}, inner, pal.Surface)
+ 	} else if len(c.marks) > 0 {
+ 		question = reviewPaint([]reviewSeg{{pal.FgDim, " Marked: " + reviewText(strings.Join(c.marks, ", ")), false}}, inner, pal.Surface)
+ 	}
+--- a/internal/app/review_overlay.go
++++ b/internal/app/review_overlay.go
+@@ -423,11 +423,11 @@
+ // openReview starts reading a pane's diff. The overlay opens when it arrives.
+ func (m *OS) openReview(sessionName, windowID, who string) tea.Cmd {
+ 	if !m.IsDaemonSession {
+-		m.reviewNotify("Review needs the daemon. Start a daemon session with: tuios new", "info", m.Settings.NotificationDuration)
++		m.reviewNotify("Review needs the daemon. Start a daemon workspace with: tuios new", "info", m.Settings.NotificationDuration)
+ 		return nil
+ 	}
+ 	if m.AttachedHost != "" {
+-		m.reviewNotify("This session runs on "+printableTitle(m.AttachedHost)+", and its repository is there. Review it on that machine", "info", m.Settings.NotificationDuration)
++		m.reviewNotify("This workspace runs on "+printableTitle(m.AttachedHost)+", and its repository is there. Review it on that machine", "info", m.Settings.NotificationDuration)
+ 		return nil
+ 	}
+ 	r := &m.review
+--- a/internal/app/scratch.go
++++ b/internal/app/scratch.go
+@@ -754,7 +754,7 @@
+ 			continue
+ 		}
+ 		if mv, ok := state.LastWindowMove(id); ok && mv.Away {
+-			return fmt.Sprintf("Moved %s to the session %s.", label, mv.Other), true
++			return fmt.Sprintf("Moved %s to the workspace %s.", label, mv.Other), true
+ 		}
+ 	}
+ 	for id, label := range after {
+@@ -762,7 +762,7 @@
+ 			continue
+ 		}
+ 		if mv, ok := state.LastWindowMove(id); ok && !mv.Away {
+-			return fmt.Sprintf("Moved %s here from the session %s.", label, mv.Other), true
++			return fmt.Sprintf("Moved %s here from the workspace %s.", label, mv.Other), true
+ 		}
+ 	}
+ 	return "", false
+--- a/internal/app/screenshot.go
++++ b/internal/app/screenshot.go
+@@ -853,7 +853,7 @@
+ 			// the text formats copy honestly even over ssh.
+ 			return shotCopyAsText, "Files save on the server. Text still copies to you."
+ 		}
+-		return "", "Files save on the server. This session cannot copy an image."
++		return "", "Files save on the server. This workspace cannot copy an image."
+ 	}
+ 	if textFormat {
+ 		return shotCopyAsText, ""
+--- a/internal/app/session.go
++++ b/internal/app/session.go
+@@ -429,7 +429,7 @@
+ 				m.WorkspaceTrees[ws] = tree
+ 				if tree != nil {
+ 					ids := tree.GetAllWindowIDs()
+-					m.LogInfo("[RESTORE] BSP tree for workspace %d restored with %d windows: %v", ws, len(ids), ids)
++					m.LogInfo("[RESTORE] BSP tree for tab %d restored with %d windows: %v", ws, len(ids), ids)
+ 				}
+ 			}
+ 		}
+@@ -477,7 +477,7 @@
+ 	m.applyPopupRects(false)
+ 
+ 	m.MarkAllDirty()
+-	m.LogInfo("[RESTORE] Restored session state: %d windows, FocusedWindow=%d, AutoTiling=%v, Workspace=%d", len(m.Windows), m.FocusedWindow, m.AutoTiling, m.CurrentWorkspace)
++	m.LogInfo("[RESTORE] Restored workspace state: %d windows, FocusedWindow=%d, AutoTiling=%v, Tab=%d", len(m.Windows), m.FocusedWindow, m.AutoTiling, m.CurrentWorkspace)
+ 
+ 	// Mark that we restored from state. This prevents the first resize from retiling
+ 	// and allows the layout to be preserved as the user left it.
+@@ -1944,7 +1944,7 @@
+ 	m.LogInfo("[SETUP] SetupPTYOutputHandlers: setting up handlers for %d windows", len(m.Windows))
+ 
+ 	for i, w := range m.Windows {
+-		m.LogInfo("[SETUP] Window %d: DaemonMode=%v, PTYID=%s, Workspace=%d", i, w.DaemonMode, w.PTYID, w.Workspace)
++		m.LogInfo("[SETUP] Window %d: DaemonMode=%v, PTYID=%s, Tab=%d", i, w.DaemonMode, w.PTYID, w.Workspace)
+ 		if w.DaemonMode && w.PTYID != "" {
+ 			m.wireDaemonPTY(w, func() { m.subscribeToPTY(w, m.RestoredStreamSeq[w.PTYID]) })
+ 		}
+@@ -2153,7 +2153,7 @@
+ 		return
+ 	}
+ 
+-	m.LogInfo("[WORKSPACE] Subscribing to windows in workspace %d", workspace)
++	m.LogInfo("[WORKSPACE] Subscribing to windows in tab %d", workspace)
+ 
+ 	for _, w := range m.Windows {
+ 		if w.DaemonMode && w.PTYID != "" && w.Workspace == workspace {
+@@ -2200,7 +2200,7 @@
+ 		return
+ 	}
+ 
+-	m.LogInfo("[WORKSPACE] Unsubscribing from windows in workspace %d", workspace)
++	m.LogInfo("[WORKSPACE] Unsubscribing from windows in tab %d", workspace)
+ 
+ 	for _, w := range m.Windows {
+ 		if w.DaemonMode && w.PTYID != "" && w.Workspace == workspace {
+--- a/internal/app/session_close.go
++++ b/internal/app/session_close.go
+@@ -135,7 +135,7 @@
+ 	}
+ 	name := m.sessionCloseTarget()
+ 	if name == "" {
+-		return "Close this session?"
++		return "Close this workspace?"
+ 	}
+ 	return "Close " + printableTitle(m.sessionTitle(name)) + "?"
+ }
+--- a/internal/app/session_switcher.go
++++ b/internal/app/session_switcher.go
+@@ -24,7 +24,7 @@
+ 
+ 	if err != nil {
+ 		// Fall back to cached names on error
+-		m.LogWarn("Failed to refresh session list from daemon: %v", err)
++		m.LogWarn("Failed to refresh workspace list from daemon: %v", err)
+ 		names := m.DaemonClient.AvailableSessionNames()
+ 		items := make([]sessiontree.Node, 0, len(names))
+ 		for _, name := range names {
+--- a/internal/app/session_tree.go
++++ b/internal/app/session_tree.go
+@@ -262,7 +262,7 @@
+ func (m *OS) CycleSession(delta int) {
+ 	target := m.railNeighbourSession(delta)
+ 	if target == "" {
+-		m.ShowNotification("No other sessions", "info", m.Settings.NotificationDuration)
++		m.ShowNotification("No other workspaces", "info", m.Settings.NotificationDuration)
+ 		return
+ 	}
+ 	// railNeighbourSession cycles the attached machine's sessions only.
+@@ -276,7 +276,7 @@
+ func (m *OS) SwitchToSessionByIndex(n int) {
+ 	sessions := localSessionNodes(m.BuildSessionTree().Sessions)
+ 	if n < 0 || n >= len(sessions) {
+-		m.ShowNotification(fmt.Sprintf("No session %d", n+1), "info", m.Settings.NotificationDuration)
++		m.ShowNotification(fmt.Sprintf("No workspace %d", n+1), "info", m.Settings.NotificationDuration)
+ 		return
+ 	}
+ 	if sessions[n].IsCurrent {
+@@ -325,7 +325,7 @@
+ 		items = append(items, CommandPaletteItem{
+ 			Name:     "Mail #" + strconv.FormatUint(th.ID, 10) + " " + th.From + " → " + th.To + ": " + th.Subject,
+ 			Shortcut: "unread",
+-			Category: "Sessions",
++			Category: "Workspaces",
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				return m, m.OpenAgentMailThread(thread)
+ 			},
+@@ -347,9 +347,9 @@
+ 		if isRemoteNode(s) {
+ 			host, name := s.Host, remoteSessionName(s)
+ 			items = append(items, CommandPaletteItem{
+-				Name:           sessionPaletteLabel("Session: ", name+" @ "+host, s.AgentState, s.DoneSeen, s.Subagents),
++				Name:           sessionPaletteLabel("Workspace: ", name+" @ "+host, s.AgentState, s.DoneSeen, s.Subagents),
+ 				Shortcut:       "another machine",
+-				Category:       "Sessions",
++				Category:       "Workspaces",
+ 				AgentState:     s.AgentState,
+ 				AgentSeen:      s.DoneSeen,
+ 				AgentSubagents: s.Subagents,
+@@ -367,14 +367,14 @@
+ 		items = append(items, CommandPaletteItem{
+ 			// The rail's title for the session, so a session reads by one name
+ 			// here and there; the action still switches by its identity.
+-			Name:           sessionPaletteLabel("Session: ", s.Title, s.AgentState, s.DoneSeen, s.Subagents),
+-			Category:       "Sessions",
++			Name:           sessionPaletteLabel("Workspace: ", s.Title, s.AgentState, s.DoneSeen, s.Subagents),
++			Category:       "Workspaces",
+ 			AgentState:     s.AgentState,
+ 			AgentSeen:      s.DoneSeen,
+ 			AgentSubagents: s.Subagents,
+ 			Action: func(m *OS) (*OS, tea.Cmd) {
+ 				if isCurrent {
+-					m.ShowNotification("Already on this session", "info", m.Settings.NotificationDuration)
++					m.ShowNotification("Already on this workspace", "info", m.Settings.NotificationDuration)
+ 					return m, nil
+ 				}
+ 				m.sidebarLeaveForJump()
+@@ -388,12 +388,12 @@
+ 			if !isCurrent {
+ 				// Qualified by session, the way the rail's own agent rows qualify a
+ 				// pane that lives elsewhere, and marked with what selecting it costs.
+-				label, warn = s.Title+"/"+w.Title, "switches session"
++				label, warn = s.Title+"/"+w.Title, "switches workspace"
+ 			}
+ 			items = append(items, CommandPaletteItem{
+ 				Name:           sessionPaletteLabel("Window: ", label, w.AgentState, w.DoneSeen, w.Subagents),
+ 				Shortcut:       warn,
+-				Category:       "Sessions",
++				Category:       "Workspaces",
+ 				AgentState:     w.AgentState,
+ 				AgentSeen:      w.DoneSeen,
+ 				AgentSubagents: w.Subagents,
+--- a/internal/app/settings_agents.go
++++ b/internal/app/settings_agents.go
+@@ -519,7 +519,7 @@
+ 		}
+ 	}
+ 	if st.Reports == integration.ReportsSession {
+-		parts = append(parts, "It reports the session id. The state comes from screen rules.")
++		parts = append(parts, "It reports the workspace id. The state comes from screen rules.")
+ 	}
+ 	for _, n := range st.Notes {
+ 		parts = append(parts, "Note: "+n)
+--- a/internal/app/settings_color.go
++++ b/internal/app/settings_color.go
+@@ -95,7 +95,7 @@
+ 		func(s *config.Settings, v string) { s.PaneBackground = v },
+ 		(*config.Settings).PaneBackgroundResolved),
+ 	backgroundSetting("appearance.desktop_background", "Desktop background",
+-		"Behind and between panes: the gaps, the space around floating panes, an empty workspace",
++		"Behind and between panes: the gaps, the space around floating panes, an empty tab",
+ 		backgroundFollowsAll,
+ 		func(s *config.Settings, v string) { s.DesktopBackground = v },
+ 		(*config.Settings).DesktopBackgroundResolved),
+--- a/internal/app/settings_hosts.go
++++ b/internal/app/settings_hosts.go
+@@ -379,7 +379,7 @@
+ 		return nil
+ 	}
+ 	if m.ConfigReadOnly {
+-		m.ShowNotification("This session cannot test the links. It does not own the config file.", "warning", m.Settings.NotificationWarningDuration)
++		m.ShowNotification("This workspace cannot test the links. It does not own the config file.", "warning", m.Settings.NotificationWarningDuration)
+ 		return nil
+ 	}
+ 	hosts := m.federationHostsFromConfig()
+--- a/internal/app/settings_sidebar_sessions.go
++++ b/internal/app/settings_sidebar_sessions.go
+@@ -92,8 +92,8 @@
+ 				setNum: func(m *OS, width int) { m.sidebarSetEdgeWidth(edge, width) },
+ 			},
+ 			settingItem{
+-				Label: name + " session", Desc: "Show the panes of a daemon session. Leave it empty to show the usual rail sections.",
+-				Control: controlString, Unset: "ordinary rail", Placeholder: "session name",
++				Label: name + " workspace", Desc: "Show the panes of a daemon session. Leave it empty to show the usual rail sections.",
++				Control: controlString, Unset: "ordinary rail", Placeholder: "workspace name",
+ 				value: func(m *OS) string {
+ 					if cfg := m.sidebarSessionConfig(edge); cfg != nil {
+ 						return cfg.Session
+@@ -109,7 +109,7 @@
+ 				},
+ 			},
+ 			settingItem{
+-				Label: name + " workspaces", Desc: "Show the assigned session on every center workspace, or only on the numbered workspace.",
++				Label: name + " tabs", Desc: "Show the assigned workspace on every center tab, or only on the numbered workspace.",
+ 				Control: controlEnum, Options: []string{"all", "1", "2", "3", "4", "5", "6", "7", "8", "9"},
+ 				value: func(m *OS) string {
+ 					if cfg := m.sidebarSessionConfig(edge); cfg != nil && cfg.SessionWorkspace > 0 {
+--- a/internal/app/sidebar_keyboard.go
++++ b/internal/app/sidebar_keyboard.go
+@@ -604,7 +604,7 @@
+ // rail did before the picker existed.
+ func (m *OS) SidebarNewSession() {
+ 	if !m.SidebarCanCreateSession() {
+-		m.ShowNotification("Sessions need the daemon", "info", m.Settings.NotificationDuration)
++		m.ShowNotification("Workspaces need the daemon", "info", m.Settings.NotificationDuration)
+ 		return
+ 	}
+ 	m.clearSidebarReturn() // the new session is where the user asked to end up
+@@ -636,7 +636,7 @@
+ // landed; see SessionCreatedMsg.
+ func (m *OS) SidebarNewGlobalSession() {
+ 	if !m.SidebarCanCreateSession() {
+-		m.ShowNotification("Sessions need the daemon", "info", m.Settings.NotificationDuration)
++		m.ShowNotification("Workspaces need the daemon", "info", m.Settings.NotificationDuration)
+ 		return
+ 	}
+ 	m.clearSidebarReturn()
+@@ -667,7 +667,7 @@
+ // silently acts on the wrong session is worse than one that says it cannot.
+ func (m *OS) SidebarNewWindow(sessionID string) {
+ 	if sessionID != "" && sessionID != m.sidebarCurrentSessionID() {
+-		m.ShowNotification("Attach to that session first", "info", m.Settings.NotificationDuration)
++		m.ShowNotification("Attach to that workspace first", "info", m.Settings.NotificationDuration)
+ 		return
+ 	}
+ 	m.clearSidebarReturn() // the new pane is where the user asked to end up
+@@ -714,7 +714,7 @@
+ 		m.OpenSessionAccentPicker(row.SessionID)
+ 		return
+ 	}
+-	m.ShowNotification("Accents work on a pane or a session row", "info", m.Settings.NotificationDuration)
++	m.ShowNotification("Accents work on a pane or a workspace row", "info", m.Settings.NotificationDuration)
+ }
+ 
+ // SidebarOpenMail opens the mailbox from the rail: narrowed to the pane under
+--- a/internal/app/sidebar_session.go
++++ b/internal/app/sidebar_session.go
+@@ -404,7 +404,7 @@
+ 		if event.err != nil {
+ 			v.problem = event.err.Error()
+ 		} else {
+-			v.problem = "session disconnected"
++			v.problem = "workspace disconnected"
+ 		}
+ 		m.MarkAllDirty()
+ 		return m.retrySidebarSession(event.edge)
+@@ -424,7 +424,7 @@
+ 	// The rail has no extra header: its panes use the same title bars as
+ 	// ordinary windows. Only an empty rail needs a loading placeholder.
+ 	if len(v.panes) == 0 {
+-		lines[0] = sidebarFit(" Connecting to session…", width, m.railGround())
++		lines[0] = sidebarFit(" Connecting to workspace…", width, m.railGround())
+ 	}
+ 	for _, pane := range v.panes {
+ 		w := v.windows[pane.PTYID]
+@@ -655,7 +655,7 @@
+ 		return false
+ 	}
+ 	if err := v.client.SendIntent(command, args...); err != nil {
+-		m.LogError("Sidebar session %s: %s: %v", v.name, command, err)
++		m.LogError("Sidebar workspace %s: %s: %v", v.name, command, err)
+ 		return false
+ 	}
+ 	return true
+@@ -674,7 +674,7 @@
+ 	// SendNewWindowFrom is only for an *empty* workspace and deliberately
+ 	// skips when there is already a pane. A normal split needs NewWindow.
+ 	if err := v.client.SendNewWindowIntent("", v.workspace, "", "NewWindow"); err != nil {
+-		m.LogError("Sidebar session %s: new pane: %v", v.name, err)
++		m.LogError("Sidebar workspace %s: new pane: %v", v.name, err)
+ 		return false
+ 	}
+ 	return true
+--- a/internal/app/stack.go
++++ b/internal/app/stack.go
+@@ -67,7 +67,7 @@
+ 		return nil, fmt.Errorf("%w %s", errNoStackPane, id)
+ 	}
+ 	if w.Workspace != m.CurrentWorkspace {
+-		return nil, fmt.Errorf("pane %s is on workspace %d, not on the workspace on screen", id, w.Workspace)
++		return nil, fmt.Errorf("pane %s is on tab %d, not on the tab on screen", id, w.Workspace)
+ 	}
+ 	if w.IsFloating || w.IsPopup || w.IsScratch {
+ 		return nil, fmt.Errorf("pane %s floats; only tiled panes stack", id)
+--- a/internal/app/tape_review.go
++++ b/internal/app/tape_review.go
+@@ -384,7 +384,7 @@
+ // will do. It executes nothing.
+ func tapeRunSummary(h tape.ProjectHeader, dir string) string {
+ 	if h.Scope == tape.ScopeCurrent {
+-		return "in the current session (Scope current)"
++		return "in the current workspace (Scope current)"
+ 	}
+ 	name := h.Session
+ 	if name == "" {
+@@ -393,7 +393,7 @@
+ 	if name == "" {
+ 		name = "project"
+ 	}
+-	return "session \"" + name + "\""
++	return "workspace \"" + name + "\""
+ }
+ 
+ // shortTapePath abbreviates a home-rooted path with ~ for the dialog header.
+--- a/internal/app/tape_run.go
++++ b/internal/app/tape_run.go
+@@ -133,7 +133,7 @@
+ 	// there is nowhere to create one, so fall back to the current session, which
+ 	// is honest best-effort and documented.
+ 	if m.DaemonClient == nil {
+-		m.ShowNotification("Tape: no session backend, running in current session", "warning", m.Settings.NotificationDuration*2)
++		m.ShowNotification("Tape: no workspace backend, running in current workspace", "warning", m.Settings.NotificationDuration*2)
+ 		m.startTapePlayback(compileProjectBody(body), header.Workspace)
+ 		return
+ 	}
+@@ -148,7 +148,7 @@
+ 	}
+ 
+ 	if err := m.SwitchToSession(name); err != nil {
+-		m.ShowNotification("Tape: create session "+name+" failed: "+err.Error(), "error", m.Settings.NotificationDuration*2)
++		m.ShowNotification("Tape: create workspace "+name+" failed: "+err.Error(), "error", m.Settings.NotificationDuration*2)
+ 		return
+ 	}
+ 
+@@ -162,7 +162,7 @@
+ 	cmds = append(cmds, tape.Command{Type: tape.CommandTypeEnableTiling})
+ 	cmds = append(cmds, compileProjectBody(body)...)
+ 	m.startTapePlayback(cmds, header.Workspace)
+-	m.ShowNotification("Building project session "+name, "info", m.Settings.NotificationDuration)
++	m.ShowNotification("Building project workspace "+name, "info", m.Settings.NotificationDuration)
+ }
+ 
+ // startTapePlayback starts the interactive tape player over an already-compiled
+--- a/internal/app/tape_script.go
++++ b/internal/app/tape_script.go
+@@ -126,7 +126,7 @@
+ 		return fmt.Errorf("the focused pane is %s", m.paneLabel(w))
+ 	case "panes":
+ 		if n := m.GetWorkspaceWindowCount(m.CurrentWorkspace); n != c.Count {
+-			return fmt.Errorf("workspace %d has %s", m.CurrentWorkspace, plural.Count(n, "pane"))
++			return fmt.Errorf("tab %d has %s", m.CurrentWorkspace, plural.Count(n, "pane"))
+ 		}
+ 		return nil
+ 	case "agent":
+@@ -144,7 +144,7 @@
+ 		return fmt.Errorf("the agent state of pane %s is %s", m.paneLabel(w), state)
+ 	case "workspace":
+ 		if m.CurrentWorkspace != c.Count {
+-			return fmt.Errorf("workspace %d is on screen", m.CurrentWorkspace)
++			return fmt.Errorf("tab %d is on screen", m.CurrentWorkspace)
+ 		}
+ 		return nil
+ 	case "mode":
+--- a/internal/app/tiling_bsp.go
++++ b/internal/app/tiling_bsp.go
+@@ -38,7 +38,7 @@
+ 		}
+ 		tree.AutoScheme = layout.ParseAutoScheme(scheme)
+ 		m.WorkspaceTrees[m.CurrentWorkspace] = tree
+-		m.LogInfo("BSP: Created new tree for workspace %d with scheme %s", m.CurrentWorkspace, tree.AutoScheme.String())
++		m.LogInfo("BSP: Created new tree for tab %d with scheme %s", m.CurrentWorkspace, tree.AutoScheme.String())
+ 	}
+ 
+ 	return tree
+@@ -731,7 +731,7 @@
+ 
+ 	tree := m.WorkspaceTrees[m.CurrentWorkspace]
+ 	if tree == nil {
+-		m.LogInfo("BSP: RotateSplit ignored, no tree for workspace %d", m.CurrentWorkspace)
++		m.LogInfo("BSP: RotateSplit ignored, no tree for tab %d", m.CurrentWorkspace)
+ 		return
+ 	}
+ 
+--- a/internal/app/tooltip_rail.go
++++ b/internal/app/tooltip_rail.go
+@@ -52,7 +52,7 @@
+ 	if k == sidebarRowNewWindow {
+ 		return "new terminal"
+ 	}
+-	return "new session"
++	return "new workspace"
+ }
+ 
+ // renderRailAddTooltip composes the label for the add control under the
+--- a/internal/app/window_rename.go
++++ b/internal/app/window_rename.go
+@@ -156,11 +156,11 @@
+ 	switch m.RenameKind {
+ 	case RenameSession:
+ 		if label := m.SessionLabel(m.RenameTargetID); label != "" {
+-			return "rename session " + label
+-		}
+-		return "rename session"
++			return "rename workspace " + label
++		}
++		return "rename workspace"
+ 	case RenameWorkspace:
+-		return "rename workspace " + m.RenameTargetID
++		return "rename tab " + m.RenameTargetID
+ 	default:
+ 		return "rename"
+ 	}
+--- a/internal/app/workspace.go
++++ b/internal/app/workspace.go
+@@ -47,7 +47,7 @@
+ // current one, as tmux's last-window does. Two presses go back and forth.
+ func (m *OS) LastWorkspace() {
+ 	if m.lastWorkspace < 1 || m.lastWorkspace == m.CurrentWorkspace {
+-		m.ShowNotification("No last workspace", "info", m.Settings.NotificationDuration)
++		m.ShowNotification("No last tab", "info", m.Settings.NotificationDuration)
+ 		return
+ 	}
+ 	m.SwitchToWorkspace(m.lastWorkspace)
+@@ -61,7 +61,7 @@
+ 	case m.FocusedWindow < 0 || m.FocusedWindow >= len(m.Windows):
+ 		return
+ 	case ws == 0:
+-		m.ShowNotification("Every workspace has a pane", "info", m.Settings.NotificationDuration)
++		m.ShowNotification("Every tab has a pane", "info", m.Settings.NotificationDuration)
+ 		return
+ 	}
+ 	m.MoveWindowToWorkspaceAndFollow(m.FocusedWindow, ws)
+@@ -126,7 +126,7 @@
+ 		// intent does: a push that leaves the pane out is reconciled by the
+ 		// daemon, and holding one back would lose the next switch.
+ 		if err := m.DaemonClient.SendNewWindowFrom(workspace, cwdFrom, sshFrom); err != nil {
+-			m.LogError("Failed to ask the daemon for a pane on workspace %d: %v", workspace, err)
++			m.LogError("Failed to ask the daemon for a pane on tab %d: %v", workspace, err)
+ 			return
+ 		}
+ 		if m.paneRequests == nil {
+@@ -194,7 +194,7 @@
+ // switchToWorkspaceHeld is switchToWorkspace with the announcements already held.
+ func (m *OS) switchToWorkspaceHeld(workspace, focusTarget int) {
+ 	if (workspace < 1 || workspace > m.NumWorkspaces) && !session.IsScratchWorkspace(workspace) {
+-		m.LogWarn("Cannot switch to workspace %d: out of range (1-%d)", workspace, m.NumWorkspaces)
++		m.LogWarn("Cannot switch to tab %d: out of range (1-%d)", workspace, m.NumWorkspaces)
+ 		return
+ 	}
+ 
+@@ -215,7 +215,7 @@
+ 		m.lastWorkspace = oldWorkspace
+ 	}
+ 	windowsInNew := m.GetWorkspaceWindowCount(workspace)
+-	m.LogInfo("Switching workspace: %d → %d (%d windows)", oldWorkspace, workspace, windowsInNew)
++	m.LogInfo("Switching tab: %d → %d (%d windows)", oldWorkspace, workspace, windowsInNew)
+ 
+ 	// Clear all animations BEFORE switching to prevent windows from getting stuck
+ 	// mid-animation. A pane left at an interpolated rectangle keeps it until
+@@ -229,7 +229,7 @@
+ 		// Anything else in flight belongs to a workspace that is leaving the
+ 		// screen, so there is nothing left for it to animate.
+ 		m.Animations = m.Animations[:0]
+-		m.LogInfo("Landed and cancelled animations during workspace switch")
++		m.LogInfo("Landed and cancelled animations during tab switch")
+ 	}
+ 
+ 	// Save current workspace focus and layout
+@@ -300,7 +300,7 @@
+ 	// If no window to focus in new workspace, set focus to -1
+ 	if !focusedSet {
+ 		m.FocusedWindow = -1
+-		m.LogInfo("No visible windows in workspace %d", workspace)
++		m.LogInfo("No visible windows in tab %d", workspace)
+ 		// Exit terminal mode when switching to empty workspace
+ 		if m.Mode == TerminalMode {
+ 			// Record mode switch for tape recording
+@@ -308,7 +308,7 @@
+ 				m.TapeRecorder.RecordModeSwitch(tape.CommandTypeWindowManagementMode)
+ 			}
+ 			m.Mode = WindowManagementMode
+-			m.LogInfo("Switched to window management mode (empty workspace)")
++			m.LogInfo("Switched to window management mode (empty tab)")
+ 		}
+ 	} else {
+ 		// Record the preserved mode after workspace switch (for consistent playback)
+@@ -330,7 +330,7 @@
+ 	// splits (the BSP tree, the master-stack ratios and splits), so the
+ 	// retile lays the custom layout out again in the new box.
+ 	if m.AutoTiling && (!m.WorkspaceHasCustom[workspace] || m.tiledLayoutStale()) {
+-		m.LogInfo("Auto-tiling workspace %d (no custom layout)", workspace)
++		m.LogInfo("Auto-tiling tab %d (no custom layout)", workspace)
+ 		m.TileVisibleWorkspaceWindows()
+ 	} else {
+ 		m.settleBorderMode(workspace)
+@@ -415,7 +415,7 @@
+ 		return
+ 	}
+ 	if workspace < 1 || workspace > m.NumWorkspaces {
+-		m.LogWarn("Cannot move window: workspace %d out of range (1-%d)", workspace, m.NumWorkspaces)
++		m.LogWarn("Cannot move window: tab %d out of range (1-%d)", workspace, m.NumWorkspaces)
+ 		return
+ 	}
+ 
+@@ -426,7 +426,7 @@
+ 		return // Already in target workspace
+ 	}
+ 
+-	m.LogInfo("Moving window %s: workspace %d → %d", window.Title(), oldWorkspace, workspace)
++	m.LogInfo("Moving window %s: tab %d → %d", window.Title(), oldWorkspace, workspace)
+ 
+ 	// If window is moving away from the current visible workspace, unsubscribe from its PTY
+ 	if m.IsDaemonSession && m.DaemonClient != nil && oldWorkspace == m.CurrentWorkspace {
+@@ -439,14 +439,14 @@
+ 
+ 	// If we moved the focused window, find next window to focus in current workspace
+ 	if windowIndex == m.FocusedWindow {
+-		m.LogInfo("Moved focused window, finding next in workspace %d", m.CurrentWorkspace)
++		m.LogInfo("Moved focused window, finding next in tab %d", m.CurrentWorkspace)
+ 		m.FocusNextVisibleWindowInWorkspace()
+ 	}
+ 
+ 	// Retile current workspace AFTER moving (if in tiling mode)
+ 	// Now the filter excludes the moved window, so we tile N-1 windows correctly
+ 	if m.AutoTiling {
+-		m.LogInfo("Auto-tiling workspace %d after window move", m.CurrentWorkspace)
++		m.LogInfo("Auto-tiling tab %d after window move", m.CurrentWorkspace)
+ 		m.TileVisibleWorkspaceWindows()
+ 		// Save the layout immediately to capture the correct window positions
+ 		m.SaveCurrentLayout()
+--- a/internal/app/worktree_prompt.go
++++ b/internal/app/worktree_prompt.go
+@@ -86,7 +86,7 @@
+ func (m *OS) BeginWorktreePromptForSession(name string) {
+ 	info := m.sessionWorktreeInfo(name)
+ 	if info == nil {
+-		m.ShowNotification("The rail does not know which repository this session is in.", "info", m.Settings.NotificationDuration)
++		m.ShowNotification("The rail does not know which repository this workspace is in.", "info", m.Settings.NotificationDuration)
+ 		return
+ 	}
+ 	m.openWorktreePrompt(info.RepoRoot)
+@@ -99,7 +99,7 @@
+ func (m *OS) BeginWorktreePromptForRepo(repo string) {
+ 	root := m.worktreeRepoRoot(repo)
+ 	if root == "" {
+-		m.ShowNotification("The rail has no session in this repository.", "info", m.Settings.NotificationDuration)
++		m.ShowNotification("The rail has no workspace in this repository.", "info", m.Settings.NotificationDuration)
+ 		return
+ 	}
+ 	m.openWorktreePrompt(root)
+@@ -303,7 +303,7 @@
+ 	if msg.Session == "" {
+ 		return nil
+ 	}
+-	note := "Created worktree session '" + msg.Session + "'"
++	note := "Created worktree workspace '" + msg.Session + "'"
+ 	if msg.Path != "" {
+ 		note += " in " + shortenHome(msg.Path)
+ 	}
+--- a/internal/app/xpanes_exec.go
++++ b/internal/app/xpanes_exec.go
+@@ -39,7 +39,7 @@
+ 		case w == nil:
+ 			return nil, fmt.Errorf("window %s %s", t, ErrNotHereYet)
+ 		case w.Workspace != m.CurrentWorkspace:
+-			return nil, fmt.Errorf("window %s is on workspace %d, and workspace %d is showing. The window %s on the showing workspace", t, w.Workspace, m.CurrentWorkspace, ErrNotHereYet)
++			return nil, fmt.Errorf("window %s is on tab %d, and tab %d is showing. The window %s on the showing tab", t, w.Workspace, m.CurrentWorkspace, ErrNotHereYet)
+ 		case w.Minimized:
+ 			return nil, fmt.Errorf("window %s is minimized", t)
+ 		}
+@@ -59,15 +59,15 @@
+ 		return errTilingOff
+ 	}
+ 	if mode := m.LayoutModeName(); mode != config.LayoutModeBSP {
+-		return fmt.Errorf("ArrangePanes needs the bsp layout, and this session uses %s", mode)
++		return fmt.Errorf("ArrangePanes needs the bsp layout, and this workspace uses %s", mode)
+ 	}
+ 	if len(args) > 0 {
+ 		ws, err := strconv.Atoi(args[0])
+ 		if err != nil || ws < 1 {
+-			return fmt.Errorf("ArrangePanes takes a workspace number before the windows, not %q", args[0])
++			return fmt.Errorf("ArrangePanes takes a tab number before the windows, not %q", args[0])
+ 		}
+ 		if ws != m.CurrentWorkspace {
+-			return fmt.Errorf("workspace %d is not showing: the switch to it %s, or you switched away", ws, ErrNotHereYet)
++			return fmt.Errorf("tab %d is not showing: the switch to it %s, or you switched away", ws, ErrNotHereYet)
+ 		}
+ 		args = args[1:]
+ 	}
+@@ -89,7 +89,7 @@
+ 		ids = append(ids, m.GetWindowIntID(w.ID))
+ 	}
+ 	if len(ids) == 0 {
+-		return errors.New("the workspace has no tiled panes to arrange")
++		return errors.New("the tab has no tiled panes to arrange")
+ 	}
+ 	if err := m.GetOrCreateBSPTree().ArrangeTree(kind, ids); err != nil {
+ 		return err
+--- a/internal/config/gui_keybinds.go
++++ b/internal/config/gui_keybinds.go
+@@ -37,7 +37,7 @@
+ 	"gui_copy":             "Copy the selection",
+ 	"gui_paste":            "Paste",
+ 	"gui_keys":             "Show every key",
+-	"gui_quit":             "Quit the app. Sessions keep running",
++	"gui_quit":             "Quit the app. Workspaces keep running",
+ 	"gui_font_bigger":      "Make the text bigger",
+ 	"gui_font_smaller":     "Make the text smaller",
+ 	"gui_font_reset":       "Reset the text size",
+--- a/internal/config/keybind_descriptions.go
++++ b/internal/config/keybind_descriptions.go
+@@ -25,18 +25,18 @@
+ 		"collapse":      "Step up to the previous section",
+ 		"expand":        "Step down to the next section",
+ 		"activate":      "Activate the row: attach, or focus the pane",
+-		"reorder_down":  "Move the session or machine down the rail",
+-		"reorder_up":    "Move the session or machine up the rail",
+-		"section":       "Cycle the sessions, terminals and agents sections",
++		"reorder_down":  "Move the workspace or machine down the rail",
++		"reorder_up":    "Move the workspace or machine up the rail",
++		"section":       "Cycle the workspaces, terminals and agents sections",
+ 		"switch_edge":   "Focus the other visible rail",
+-		"agents_filter": "Agents: all sessions, or this one",
++		"agents_filter": "Agents: all workspaces, or this one",
+ 		"agents_sort":   "Agents: needs you, priority, or recency",
+ 		"file_search":   "Files: search below the folder the sidebar shows",
+ 		"mail":          "Open the mailbox, for the pane under the cursor",
+-		"palette":       "Find a pane in any session, or filter by @state",
++		"palette":       "Find a pane in any workspace, or filter by @state",
+ 		"narrow":        "Collapse the rail. On the divider: split down",
+ 		"widen":         "Expand the rail. On the divider: split up",
+-		"new_session":   "New session, the sessions header's +",
++		"new_session":   "New workspace, the workspaces header's +",
+ 		"new_window":    "New terminal, the terminals header's +",
+ 		"menu":          "Open the menu for the row under the cursor",
+ 		"kill":          "Open that row's menu on its Close or Kill row",
+@@ -59,18 +59,18 @@
+ 		"minimize_prefix_cancel":      "Cancel the minimize prefix",
+ 	},
+ 	ScopePrefixWorkspce: {
+-		"workspace_prefix_cancel": "Cancel the workspace prefix",
++		"workspace_prefix_cancel": "Cancel the tab prefix",
+ 	},
+ }
+ 
+ // numberedDescriptions describe the numbered action families by their
+ // prefix, per scope. The number is the action name's last character.
+ var numberedDescriptions = map[string]map[string]string{
+-	ScopeSidebar:        {"jump_": "Jump to session %s in the rail"},
++	ScopeSidebar:        {"jump_": "Jump to workspace %s in the rail"},
+ 	ScopePrefixMinimize: {"minimize_prefix_restore_": "Restore minimized window %s"},
+ 	ScopePrefixWorkspce: {
+-		"workspace_prefix_switch_": "Switch to workspace %s",
+-		"workspace_prefix_move_":   "Move the window to workspace %s",
++		"workspace_prefix_switch_": "Switch to tab %s",
++		"workspace_prefix_move_":   "Move the window to tab %s",
+ 	},
+ 	ScopeWindowMode: {"restore_minimized_": "Restore minimized window %s"},
+ }
+--- a/internal/config/keybind_guest.go
++++ b/internal/config/keybind_guest.go
+@@ -221,7 +221,7 @@
+ 			"ctrl+t": "tab mode",
+ 			"ctrl+n": "resize mode",
+ 			"ctrl+s": "search / scroll mode",
+-			"ctrl+o": "session mode",
++			"ctrl+o": "workspace mode",
+ 			"ctrl+g": "lock the whole keyboard",
+ 		},
+ 		Note: "zellij claims a row of bare ctrl+letter chords rather than one prefix, so it collides with more of tuios than tmux does.",
+--- a/internal/config/keybind_scopes.go
++++ b/internal/config/keybind_scopes.go
+@@ -216,7 +216,7 @@
+ 			Reaches:  ReachChorded,
+ 		},
+ 		{
+-			ID: ScopePrefixWorkspce, Name: "Workspace prefix", Chord: leader + " w",
++			ID: ScopePrefixWorkspce, Name: "Tab prefix", Chord: leader + " w",
+ 			Sections: []string{SectionWorkspacePrefix},
+ 			Reaches:  ReachChorded,
+ 		},
+--- a/internal/config/look_items.go
++++ b/internal/config/look_items.go
+@@ -73,29 +73,29 @@
+ 	"dock.right":  dockListKey("on the right end", defaultDockRight),
+ 
+ 	"dock.tabs.style": {
+-		Type: OptionString, Description: "How the workspace strip draws its tabs: pill, or flat for coloured runs of text",
++		Type: OptionString, Description: "How the tab strip draws its tabs: pill, or flat for coloured runs of text",
+ 		Accepted: []string{"", DockTabStylePill, DockTabStyleFlat}, MaxBytes: lookMarkBytes,
+ 	},
+ 	"dock.tabs.separator":    tabMarkKey("Text between two flat tabs. Empty is one blank column."),
+ 	"dock.tabs.separator_fg": tabColourKey("Colour of the text between two flat tabs"),
+-	"dock.tabs.active_fg":    tabColourKey("Text colour of the flat tab of the current workspace"),
+-	"dock.tabs.active_bg":    tabColourKey("Background colour of the flat tab of the current workspace"),
+-	"dock.tabs.active_bold":  {Type: OptionBool, Description: "Draw the flat tab of the current workspace in bold", Default: "false"},
+-	"dock.tabs.inactive_fg":  tabColourKey("Text colour of the flat tabs of the other workspaces"),
+-	"dock.tabs.inactive_bg":  tabColourKey("Background colour of the flat tabs of the other workspaces"),
++	"dock.tabs.active_fg":    tabColourKey("Text colour of the flat tab of the current tab"),
++	"dock.tabs.active_bg":    tabColourKey("Background colour of the flat tab of the current tab"),
++	"dock.tabs.active_bold":  {Type: OptionBool, Description: "Draw the flat tab of the current tab in bold", Default: "false"},
++	"dock.tabs.inactive_fg":  tabColourKey("Text colour of the flat tabs of the other tabs"),
++	"dock.tabs.inactive_bg":  tabColourKey("Background colour of the flat tabs of the other tabs"),
+ 	"dock.tabs.inactive_bold": {
+-		Type: OptionBool, Description: "Draw the flat tabs of the other workspaces in bold", Default: "false",
++		Type: OptionBool, Description: "Draw the flat tabs of the other tabs in bold", Default: "false",
+ 	},
+ 	"dock.tabs.number_glyphs": {
+ 		Type:        LookList,
+-		Description: "What {icon} in appearance.dock_workspace_tab_format shows for each workspace, the first item for workspace 1. A workspace past the end shows its number.",
++		Description: "What {icon} in appearance.dock_workspace_tab_format shows for each tab, the first item for tab 1. A tab past the end shows its number.",
+ 		Default:     "[]", MaxBytes: lookMarkBytes, MaxItems: 9,
+ 	},
+-	"dock.tabs.zoom_marker":     tabMarkKey("What {zoom} shows on the tab of the current workspace while a pane in it is zoomed"),
++	"dock.tabs.zoom_marker":     tabMarkKey("What {zoom} shows on the tab of the current tab while a pane in it is zoomed"),
+ 	"dock.tabs.show_add":        {Type: OptionBool, Description: "Keep the + tab in the flat style", Default: "false"},
+-	"dock.tabs.attention_fg":    tabColourKey("Text colour of the tab of a workspace with a pane that waits for you"),
+-	"dock.tabs.bell_marker":     tabMarkKey("Text after the label of a workspace whose pane rang the bell. Empty shows none."),
+-	"dock.tabs.activity_marker": tabMarkKey("Text after the label of a workspace whose pane printed since you looked. Empty shows none."),
++	"dock.tabs.attention_fg":    tabColourKey("Text colour of the tab of a tab with a pane that waits for you"),
++	"dock.tabs.bell_marker":     tabMarkKey("Text after the label of a tab whose pane rang the bell. Empty shows none."),
++	"dock.tabs.activity_marker": tabMarkKey("Text after the label of a tab whose pane printed since you looked. Empty shows none."),
+ }
+ 
+ // IsLookFileKey reports whether path is a look key the registry does not
+@@ -134,7 +134,7 @@
+ 	if path == "appearance.sidebar.sections" {
+ 		s, ok := v.(string)
+ 		if !ok {
+-			return nil, nil, fmt.Errorf("%s must be text, such as \"sessions,files\"", path)
++			return nil, nil, fmt.Errorf("%s must be text, such as \"workspaces,files\"", path)
+ 		}
+ 		return lookSections(s)
+ 	}
+--- a/internal/config/registry.go
++++ b/internal/config/registry.go
+@@ -660,8 +660,8 @@
+ 
+ 	// The rail's reorder actions. They are here for the machine header's menu,
+ 	// which resolves every row's label and key hint from this table.
+-	"reorder_up":   "Rail: move this session or machine up",
+-	"reorder_down": "Rail: move this session or machine down",
++	"reorder_up":   "Rail: move this workspace or machine up",
++	"reorder_down": "Rail: move this workspace or machine down",
+ 
+ 	// Window Management
+ 	"new_window":     "New window",
+@@ -671,7 +671,7 @@
+ 	"set_accent":     "Accent color",
+ 	// Reached from the rail's session row and its menu; the row carries which
+ 	// session, so it has no key of its own.
+-	"set_session_accent": "Session color",
++	"set_session_accent": "Workspace color",
+ 	"minimize_window":    "Minimize window",
+ 	"restore_all":        "Restore all minimized",
+ 	"toggle_zoom":        "Toggle zoom (fullscreen)",
+@@ -695,33 +695,33 @@
+ 
+ 	// Multifocus. Neither action has a default key.
+ 	"toggle_multifocus_active": "Add or remove the focused pane from multifocus",
+-	"toggle_multifocus_all":    "Add all panes on the workspace to multifocus, or clear it",
+-	"close_workspace":          "Close every pane on a workspace, after a confirmation",
++	"toggle_multifocus_all":    "Add all panes on the tab to multifocus, or clear it",
++	"close_workspace":          "Close every pane on a tab, after a confirmation",
+ 
+ 	// Workspaces
+-	"next_workspace":     "Switch to the next workspace that has panes",
+-	"prev_workspace":     "Switch to the previous workspace that has panes",
+-	"switch_workspace_1": "Switch to workspace 1",
+-	"switch_workspace_2": "Switch to workspace 2",
+-	"switch_workspace_3": "Switch to workspace 3",
+-	"switch_workspace_4": "Switch to workspace 4",
+-	"switch_workspace_5": "Switch to workspace 5",
+-	"switch_workspace_6": "Switch to workspace 6",
+-	"switch_workspace_7": "Switch to workspace 7",
+-	"switch_workspace_8": "Switch to workspace 8",
+-	"switch_workspace_9": "Switch to workspace 9",
+-	"move_and_follow_1":  "Move to workspace 1 and follow",
+-	"move_and_follow_2":  "Move to workspace 2 and follow",
+-	"move_and_follow_3":  "Move to workspace 3 and follow",
+-	"move_and_follow_4":  "Move to workspace 4 and follow",
+-	"move_and_follow_5":  "Move to workspace 5 and follow",
+-	"move_and_follow_6":  "Move to workspace 6 and follow",
+-	"move_and_follow_7":  "Move to workspace 7 and follow",
+-	"move_and_follow_8":  "Move to workspace 8 and follow",
+-	"move_and_follow_9":  "Move to workspace 9 and follow",
++	"next_workspace":     "Switch to the next tab that has panes",
++	"prev_workspace":     "Switch to the previous tab that has panes",
++	"switch_workspace_1": "Switch to tab 1",
++	"switch_workspace_2": "Switch to tab 2",
++	"switch_workspace_3": "Switch to tab 3",
++	"switch_workspace_4": "Switch to tab 4",
++	"switch_workspace_5": "Switch to tab 5",
++	"switch_workspace_6": "Switch to tab 6",
++	"switch_workspace_7": "Switch to tab 7",
++	"switch_workspace_8": "Switch to tab 8",
++	"switch_workspace_9": "Switch to tab 9",
++	"move_and_follow_1":  "Move to tab 1 and follow",
++	"move_and_follow_2":  "Move to tab 2 and follow",
++	"move_and_follow_3":  "Move to tab 3 and follow",
++	"move_and_follow_4":  "Move to tab 4 and follow",
++	"move_and_follow_5":  "Move to tab 5 and follow",
++	"move_and_follow_6":  "Move to tab 6 and follow",
++	"move_and_follow_7":  "Move to tab 7 and follow",
++	"move_and_follow_8":  "Move to tab 8 and follow",
++	"move_and_follow_9":  "Move to tab 9 and follow",
+ 	// Reached by the chord and by a dock pill's menu, so both name it the same.
+-	"workspace_prefix_rename": "Rename workspace",
+-	"workspace_pill_switch":   "Switch to workspace",
++	"workspace_prefix_rename": "Rename tab",
++	"workspace_pill_switch":   "Switch to tab",
+ 
+ 	// Layout
+ 	"snap_left":                 "Snap or focus left",
+@@ -777,11 +777,11 @@
+ 	"preselect_right":                "Preselect right for next window",
+ 	"preselect_up":                   "Preselect up for next window",
+ 	"preselect_down":                 "Preselect down for next window",
+-	"cycle_tiling_scheme":            "Cycle the workspace's tiling scheme: spiral, longest side, alternate, smart split",
+-	"set_tiling_scheme_spiral":       "Set the workspace's tiling scheme to spiral",
+-	"set_tiling_scheme_longest_side": "Set the workspace's tiling scheme to longest side",
+-	"set_tiling_scheme_alternate":    "Set the workspace's tiling scheme to alternate",
+-	"set_tiling_scheme_smart_split":  "Set the workspace's tiling scheme to smart split",
++	"cycle_tiling_scheme":            "Cycle the tab's tiling scheme: spiral, longest side, alternate, smart split",
++	"set_tiling_scheme_spiral":       "Set the tab's tiling scheme to spiral",
++	"set_tiling_scheme_longest_side": "Set the tab's tiling scheme to longest side",
++	"set_tiling_scheme_alternate":    "Set the tab's tiling scheme to alternate",
++	"set_tiling_scheme_smart_split":  "Set the tab's tiling scheme to smart split",
+ 
+ 	// Master-stack
+ 	"cycle_master_position":      "Move the master panes to the next side: left, right, top, bottom, center",
+@@ -803,17 +803,17 @@
+ 	"open_settings":       "Open settings",
+ 	"quit":                "Quit",
+ 	"focus_sidebar":       "Focus sidebar",
+-	"next_session":        "Next session",
+-	"prev_session":        "Previous session",
+-	"switch_session_1":    "Switch to session 1",
+-	"switch_session_2":    "Switch to session 2",
+-	"switch_session_3":    "Switch to session 3",
+-	"switch_session_4":    "Switch to session 4",
+-	"switch_session_5":    "Switch to session 5",
+-	"switch_session_6":    "Switch to session 6",
+-	"switch_session_7":    "Switch to session 7",
+-	"switch_session_8":    "Switch to session 8",
+-	"switch_session_9":    "Switch to session 9",
++	"next_session":        "Next workspace",
++	"prev_session":        "Previous workspace",
++	"switch_session_1":    "Switch to workspace 1",
++	"switch_session_2":    "Switch to workspace 2",
++	"switch_session_3":    "Switch to workspace 3",
++	"switch_session_4":    "Switch to workspace 4",
++	"switch_session_5":    "Switch to workspace 5",
++	"switch_session_6":    "Switch to workspace 6",
++	"switch_session_7":    "Switch to workspace 7",
++	"switch_session_8":    "Switch to workspace 8",
++	"switch_session_9":    "Switch to workspace 9",
+ 
+ 	// Clipboard
+ 	"copy_selection":  "Copy selection to clipboard",
+@@ -835,11 +835,11 @@
+ 
+ 	// Session lifecycle (context menu rows; no default keybinding)
+ 	"settings_sidebar":  "Sidebar settings",
+-	"rename_session":    "Rename the session the menu was opened on",
+-	"rename_workspace":  "Rename the workspace the session is showing",
+-	"kill_session":      "Kill the session the menu was opened on",
+-	"kill_session_next": "Kill session, go to next",
+-	"kill_session_quit": "Kill session and quit",
++	"rename_session":    "Rename the workspace the menu was opened on",
++	"rename_workspace":  "Rename the tab the workspace is showing",
++	"kill_session":      "Kill the workspace the menu was opened on",
++	"kill_session_next": "Kill workspace, go to next",
++	"kill_session_quit": "Kill workspace and quit",
+ 
+ 	// System
+ 	"toggle_logs":        "Toggle log viewer",
+@@ -865,17 +865,17 @@
+ 	"prefix_select_8":           "Jump to window 8",
+ 	"prefix_select_9":           "Jump to window 9",
+ 	"prefix_toggle_tiling":      "Toggle tiling mode",
+-	"prefix_workspace":          "Enter workspace prefix",
++	"prefix_workspace":          "Enter tab prefix",
+ 	"prefix_minimize":           "Enter minimize prefix",
+ 	"prefix_window":             "Enter window prefix",
+ 	"prefix_detach":             "Detach, leave running",
+-	"prefix_close_session":      "Close session and panes",
++	"prefix_close_session":      "Close workspace and panes",
+ 	"prefix_exit_mode":          "Leave terminal mode",
+ 	"prefix_selection":          "Enter copy/scrollback mode",
+ 	"prefix_help":               "Toggle help",
+ 	"prefix_debug":              "Enter debug prefix",
+ 	"prefix_tape":               "Enter tape manager prefix",
+-	"prefix_quit":               "Quit (daemon: kills session)",
++	"prefix_quit":               "Quit (daemon: kills workspace)",
+ 	"prefix_fullscreen":         "Fullscreen current window",
+ 	"prefix_split_horizontal":   "Split window horizontally",
+ 	"prefix_split_vertical":     "Split window vertically",
+@@ -892,22 +892,22 @@
+ 	"resize_pane_right_20":      "Widen the focused pane by 20",
+ 	"resize_pane_up_20":         "Shorten the focused pane by 20",
+ 	"resize_pane_down_20":       "Heighten the focused pane by 20",
+-	"new_workspace":             "Go to the first empty workspace",
+-	"last_workspace":            "Go back to the last workspace",
+-	"break_pane":                "Move the focused pane to the first empty workspace, and follow it",
+-	"last_session":              "Go back to the last session",
++	"new_workspace":             "Go to the first empty tab",
++	"last_workspace":            "Go back to the last tab",
++	"break_pane":                "Move the focused pane to the first empty tab, and follow it",
++	"last_session":              "Go back to the last workspace",
+ 	"send_prefix":               "Send the leader key to the focused pane",
+-	"move_workspace_left":       "Swap this workspace with the one before it",
+-	"move_workspace_right":      "Swap this workspace with the one after it",
+-	"send_to_workspace_1":       "Send the focused pane to workspace 1",
+-	"send_to_workspace_2":       "Send the focused pane to workspace 2",
+-	"send_to_workspace_3":       "Send the focused pane to workspace 3",
+-	"send_to_workspace_4":       "Send the focused pane to workspace 4",
+-	"send_to_workspace_5":       "Send the focused pane to workspace 5",
+-	"send_to_workspace_6":       "Send the focused pane to workspace 6",
+-	"send_to_workspace_7":       "Send the focused pane to workspace 7",
+-	"send_to_workspace_8":       "Send the focused pane to workspace 8",
+-	"send_to_workspace_9":       "Send the focused pane to workspace 9",
++	"move_workspace_left":       "Swap this tab with the one before it",
++	"move_workspace_right":      "Swap this tab with the one after it",
++	"send_to_workspace_1":       "Send the focused pane to tab 1",
++	"send_to_workspace_2":       "Send the focused pane to tab 2",
++	"send_to_workspace_3":       "Send the focused pane to tab 3",
++	"send_to_workspace_4":       "Send the focused pane to tab 4",
++	"send_to_workspace_5":       "Send the focused pane to tab 5",
++	"send_to_workspace_6":       "Send the focused pane to tab 6",
++	"send_to_workspace_7":       "Send the focused pane to tab 7",
++	"send_to_workspace_8":       "Send the focused pane to tab 8",
++	"send_to_workspace_9":       "Send the focused pane to tab 9",
+ 	"reload_config":             "Reload the config file",
+ 	"toggle_mouse":              "Turn mouse capture off or on (off: the terminal selects text)",
+ 	"cycle_layout":              "Cycle the layout: BSP, master-stack, scrolling",
+@@ -917,7 +917,7 @@
+ 	"prefix_screenshot":         "Take a screenshot",
+ 	"prefix_command_palette":    "Open the command palette",
+ 	"prefix_file_search":        "Search files below the focused pane's directory",
+-	"prefix_toggle_sidebar":     "Toggle the session sidebar",
++	"prefix_toggle_sidebar":     "Toggle the workspace sidebar",
+ 	"prefix_toggle_other_rail":  "Toggle the opposite sidebar",
+ 	"prefix_toggle_spotlight":   "Toggle spotlight",
+ 	"prefix_explore":            "Focus/leave sidebar",
+@@ -930,9 +930,9 @@
+ 	"prefix_review":             "Review the focused pane's changes",
+ 	"prefix_next_finished":      "Jump to the newest unseen finished turn",
+ 	"prefix_agents_settings":    "Open the Agents settings",
+-	"prefix_session_switcher":   "Open the session switcher",
+-	"prefix_workspace_switcher": "Open the workspace switcher",
+-	"choose_tree":               "Find a pane in every session and go to it",
++	"prefix_session_switcher":   "Open the workspace switcher",
++	"prefix_workspace_switcher": "Open the tab switcher",
++	"choose_tree":               "Find a pane in every workspace and go to it",
+ 	"prefix_layout":             "Enter layout prefix",
+ 
+ 	// Tape Prefix
+@@ -970,7 +970,7 @@
+ 	// Global (window mode and terminal mode alike)
+ 	"command_palette": "Open the command palette",
+ 	"launcher":        "Open the app launcher",
+-	"new_session":     "Make a session, asking which machine",
++	"new_session":     "Make a workspace, asking which machine",
+ 
+ 	// Script playback
+ 	"script_pause": "Pause or resume the playing tape",
+--- a/internal/config/save.go
++++ b/internal/config/save.go
+@@ -111,7 +111,7 @@
+ 	sb.WriteString("# WezTerm, foot, Alacritty; not Terminal.app), because nothing else reports\n")
+ 	sb.WriteString("# that a key was released. Naming a modifier key (leftalt, rightalt, leftctrl,\n")
+ 	sb.WriteString("# leftsuper) asks the terminal for one more thing on top: every keystroke in\n")
+-	sb.WriteString("# the session then arrives as an escape code. Any ordinary key (f13 to f63,\n")
++	sb.WriteString("# the workspace then arrives as an escape code. Any ordinary key (f13 to f63,\n")
+ 	sb.WriteString("# scrolllock, a spare letter) avoids that. Unbound by default.\n")
+ 	sb.WriteString("# ============================================================================\n\n")
+ 
+@@ -123,7 +123,7 @@
+ 	sb.WriteString("# reorder it, and omit a name to drop that segment.\n")
+ 	sb.WriteString("#\n")
+ 	sb.WriteString("#   [dock]\n")
+-	sb.WriteString("#   left   = [\"mode\", \"workspaces\", \"trail\", \"tape\"]\n")
++	sb.WriteString("#   left   = [\"mode\", \"tabs\", \"trail\", \"tape\"]\n")
+ 	sb.WriteString("#   center = [\"windows\"]\n")
+ 	sb.WriteString("#   right  = [\"notifications\", \"copy-help\", \"cpu\", \"ram\", \"clock\", \"session-controls\"]\n")
+ 	sb.WriteString("#\n")
+--- a/internal/config/sidebar_edges.go
++++ b/internal/config/sidebar_edges.go
+@@ -113,10 +113,10 @@
+ 			warn("width", "a negative width is not usable; the default width is used")
+ 		}
+ 		if edge.cfg.SessionWorkspace < 0 || edge.cfg.SessionWorkspace > 9 {
+-			warn("session_workspace", "must be 0 (all workspaces) or 1-9")
++			warn("session_workspace", "must be 0 (all tabs) or 1-9")
+ 		}
+ 		if edge.cfg.Session != "" && !edge.resolved.Enabled {
+-			warn("session", "the assigned session is not shown while this edge is disabled")
++			warn("session", "the assigned workspace is not shown while this edge is disabled")
+ 		}
+ 		for _, problem := range SidebarSectionProblems(edge.cfg.Sections) {
+ 			warn("sections", problem)
+--- a/internal/config/validation.go
++++ b/internal/config/validation.go
+@@ -387,7 +387,7 @@
+ 	if cfg.Appearance.Sidebar.Workspaces != "" {
+ 		result.Warnings = append(result.Warnings, ValidationError{
+ 			Field:   "appearance.sidebar.workspaces",
+-			Message: "no longer used: panes name their own workspace, and switching lives on the dock and alt+1..9",
++			Message: "no longer used: panes name their own tab, and switching lives on the dock and alt+1..9",
+ 		})
+ 	}
+ 	checkEnum("click_to_type", cfg.Appearance.ClickToType, ClickToTypeModes)
+--- a/internal/config/whichkey_menu.go
++++ b/internal/config/whichkey_menu.go
+@@ -68,13 +68,13 @@
+ // workspaceMenuRows is the workspace menu (leader w). The rows after rename are
+ // bound by a preset whose tab mode opens this menu (zellij).
+ var workspaceMenuRows = []menuRow{
+-	{parts: []menuPart{{"workspace_prefix_switch_1", "Switch to workspace"}, {"workspace_prefix_switch_2", "Switch to workspace"}, {"workspace_prefix_switch_3", "Switch to workspace"}, {"workspace_prefix_switch_4", "Switch to workspace"}, {"workspace_prefix_switch_5", "Switch to workspace"}, {"workspace_prefix_switch_6", "Switch to workspace"}, {"workspace_prefix_switch_7", "Switch to workspace"}, {"workspace_prefix_switch_8", "Switch to workspace"}, {"workspace_prefix_switch_9", "Switch to workspace"}}, desc: "Switch to workspace", numbered: true},
+-	{parts: []menuPart{{"workspace_prefix_move_1", "Move window to workspace"}, {"workspace_prefix_move_2", "Move window to workspace"}, {"workspace_prefix_move_3", "Move window to workspace"}, {"workspace_prefix_move_4", "Move window to workspace"}, {"workspace_prefix_move_5", "Move window to workspace"}, {"workspace_prefix_move_6", "Move window to workspace"}, {"workspace_prefix_move_7", "Move window to workspace"}, {"workspace_prefix_move_8", "Move window to workspace"}, {"workspace_prefix_move_9", "Move window to workspace"}}, desc: "Move window to workspace", numbered: true},
+-	{parts: []menuPart{{"workspace_prefix_rename", "Rename workspace"}}, desc: "Rename workspace"},
+-	{parts: []menuPart{{"new_workspace", "New workspace"}}, desc: "New workspace"},
+-	{parts: []menuPart{{"close_workspace", "Close workspace"}}, desc: "Close workspace"},
+-	{parts: []menuPart{{"prev_workspace", "Previous workspace"}, {"next_workspace", "Next workspace"}}, desc: "Prev/next workspace"},
+-	{parts: []menuPart{{"last_workspace", "Last workspace"}}, desc: "Last workspace"},
++	{parts: []menuPart{{"workspace_prefix_switch_1", "Switch to tab"}, {"workspace_prefix_switch_2", "Switch to tab"}, {"workspace_prefix_switch_3", "Switch to tab"}, {"workspace_prefix_switch_4", "Switch to tab"}, {"workspace_prefix_switch_5", "Switch to tab"}, {"workspace_prefix_switch_6", "Switch to tab"}, {"workspace_prefix_switch_7", "Switch to tab"}, {"workspace_prefix_switch_8", "Switch to tab"}, {"workspace_prefix_switch_9", "Switch to tab"}}, desc: "Switch to tab", numbered: true},
++	{parts: []menuPart{{"workspace_prefix_move_1", "Move window to tab"}, {"workspace_prefix_move_2", "Move window to tab"}, {"workspace_prefix_move_3", "Move window to tab"}, {"workspace_prefix_move_4", "Move window to tab"}, {"workspace_prefix_move_5", "Move window to tab"}, {"workspace_prefix_move_6", "Move window to tab"}, {"workspace_prefix_move_7", "Move window to tab"}, {"workspace_prefix_move_8", "Move window to tab"}, {"workspace_prefix_move_9", "Move window to tab"}}, desc: "Move window to tab", numbered: true},
++	{parts: []menuPart{{"workspace_prefix_rename", "Rename tab"}}, desc: "Rename tab"},
++	{parts: []menuPart{{"new_workspace", "New tab"}}, desc: "New tab"},
++	{parts: []menuPart{{"close_workspace", "Close tab"}}, desc: "Close tab"},
++	{parts: []menuPart{{"prev_workspace", "Previous tab"}, {"next_workspace", "Next tab"}}, desc: "Prev/next tab"},
++	{parts: []menuPart{{"last_workspace", "Last tab"}}, desc: "Last tab"},
+ 	{parts: []menuPart{{"workspace_prefix_cancel", "Cancel"}}, desc: "Cancel"},
+ }
+ 
+@@ -139,13 +139,13 @@
+ // binds these (tmux's c n p l 0-9 , & !). A row whose action has no key after
+ // the leader is left out, so the tuios menu does not show the section.
+ var leaderWorkspaceRows = []menuRow{
+-	{parts: []menuPart{{"new_workspace", "New workspace"}}, desc: "New workspace"},
+-	{parts: []menuPart{{"next_workspace", "Next workspace"}, {"prev_workspace", "Previous workspace"}}, desc: "Next/prev workspace"},
+-	{parts: []menuPart{{"last_workspace", "Last workspace"}}, desc: "Last workspace"},
+-	{parts: []menuPart{{"switch_workspace_1", "Go to workspace"}, {"switch_workspace_2", "Go to workspace"}, {"switch_workspace_3", "Go to workspace"}, {"switch_workspace_4", "Go to workspace"}, {"switch_workspace_5", "Go to workspace"}, {"switch_workspace_6", "Go to workspace"}, {"switch_workspace_7", "Go to workspace"}, {"switch_workspace_8", "Go to workspace"}, {"switch_workspace_9", "Go to workspace"}}, desc: "Go to workspace", numbered: true},
+-	{parts: []menuPart{{"rename_workspace", "Rename workspace"}}, desc: "Rename workspace"},
+-	{parts: []menuPart{{"close_workspace", "Close workspace"}}, desc: "Close workspace"},
+-	{parts: []menuPart{{"break_pane", "Pane to a new workspace"}}, desc: "Pane to a new workspace"},
++	{parts: []menuPart{{"new_workspace", "New tab"}}, desc: "New tab"},
++	{parts: []menuPart{{"next_workspace", "Next tab"}, {"prev_workspace", "Previous tab"}}, desc: "Next/prev tab"},
++	{parts: []menuPart{{"last_workspace", "Last tab"}}, desc: "Last tab"},
++	{parts: []menuPart{{"switch_workspace_1", "Go to tab"}, {"switch_workspace_2", "Go to tab"}, {"switch_workspace_3", "Go to tab"}, {"switch_workspace_4", "Go to tab"}, {"switch_workspace_5", "Go to tab"}, {"switch_workspace_6", "Go to tab"}, {"switch_workspace_7", "Go to tab"}, {"switch_workspace_8", "Go to tab"}, {"switch_workspace_9", "Go to tab"}}, desc: "Go to tab", numbered: true},
++	{parts: []menuPart{{"rename_workspace", "Rename tab"}}, desc: "Rename tab"},
++	{parts: []menuPart{{"close_workspace", "Close tab"}}, desc: "Close tab"},
++	{parts: []menuPart{{"break_pane", "Pane to a new tab"}}, desc: "Pane to a new tab"},
+ }
+ 
+ // leaderWindowRows is the leader menu's Windows section.
+@@ -181,20 +181,20 @@
+ // leaderSessionRows is the leader menu's Sessions section, before the detach
+ // and quit rows menuSections adds for the session kind.
+ var leaderSessionRows = []menuRow{
+-	{parts: []menuPart{{"prev_session", "Previous session"}, {"next_session", "Next session"}}, desc: "Prev/next session"},
+-	{parts: []menuPart{{"prefix_session_switcher", "Sessions"}}, desc: "Sessions"},
+-	{parts: []menuPart{{"prefix_workspace_switcher", "Workspaces"}}, desc: "Workspaces"},
++	{parts: []menuPart{{"prev_session", "Previous workspace"}, {"next_session", "Next workspace"}}, desc: "Prev/next workspace"},
++	{parts: []menuPart{{"prefix_session_switcher", "Workspaces"}}, desc: "Workspaces"},
++	{parts: []menuPart{{"prefix_workspace_switcher", "Tabs"}}, desc: "Tabs"},
+ 	{parts: []menuPart{{"choose_tree", "Find a pane"}}, desc: "Find a pane"},
+-	{parts: []menuPart{{"prefix_close_session", "Close session"}}, desc: "Close session"},
+-	{parts: []menuPart{{"toggle_scratch", "Scratch session"}}, desc: "Scratch session"},
+-	{parts: []menuPart{{"last_session", "Last session"}}, desc: "Last session"},
+-	{parts: []menuPart{{"rename_session", "Rename session"}}, desc: "Rename session"},
++	{parts: []menuPart{{"prefix_close_session", "Close workspace"}}, desc: "Close workspace"},
++	{parts: []menuPart{{"toggle_scratch", "Scratch workspace"}}, desc: "Scratch workspace"},
++	{parts: []menuPart{{"last_session", "Last workspace"}}, desc: "Last workspace"},
++	{parts: []menuPart{{"rename_session", "Rename workspace"}}, desc: "Rename workspace"},
+ }
+ 
+ // leaderMenuRows is the leader menu's Menus section.
+ var leaderMenuRows = []menuRow{
+ 	{parts: []menuPart{{"prefix_tuios", "tuios"}}, desc: "tuios", submenu: true},
+-	{parts: []menuPart{{"prefix_workspace", "Workspace"}}, desc: "Workspace", submenu: true},
++	{parts: []menuPart{{"prefix_workspace", "Tab"}}, desc: "Tab", submenu: true},
+ 	{parts: []menuPart{{"prefix_minimize", "Minimize"}}, desc: "Minimize", submenu: true},
+ 	{parts: []menuPart{{"prefix_window", "Window"}}, desc: "Window", submenu: true},
+ 	{parts: []menuPart{{"prefix_layout", "Layout"}}, desc: "Layout", submenu: true},
+@@ -262,12 +262,12 @@
+ 	// The leader's menu, in the sections the panel flows into columns. Each
+ 	// section is a few lines, so a column holds a section or two whole and the
+ 	// panel stays short enough to read without scrolling the eye down a list.
+-	sessions := menuSection{title: "Sessions", rows: slices.Clip(leaderSessionRows)}
++	sessions := menuSection{title: "Workspaces", rows: slices.Clip(leaderSessionRows)}
+ 	modes := menuSection{title: "Modes"}
+ 	// In daemon mode d detaches and Esc leaves for window mode; in local mode
+ 	// both leave for window mode.
+ 	if st.Daemon {
+-		sessions.rows = append(sessions.rows, row("prefix_detach", "Detach session"), row("prefix_quit", "Quit menu"))
++		sessions.rows = append(sessions.rows, row("prefix_detach", "Detach workspace"), row("prefix_quit", "Quit menu"))
+ 		modes.rows = append(modes.rows, row("prefix_exit_mode", "Window mode"))
+ 	} else {
+ 		sessions.rows = append(sessions.rows, row("prefix_quit", "Quit application"))
+@@ -300,7 +300,7 @@
+ 		row("prefix_file_search", "Search files"),
+ 	)
+ 	return []menuSection{
+-		{title: "Workspaces", rows: leaderWorkspaceRows},
++		{title: "Tabs", rows: leaderWorkspaceRows},
+ 		{title: "Windows", rows: leaderWindowRows},
+ 		{title: "Panes", rows: leaderPaneRows},
+ 		sessions,
+--- a/internal/input/prefix_tree_actions.go
++++ b/internal/input/prefix_tree_actions.go
+@@ -110,7 +110,7 @@
+ func handleNewWorkspace(msg tea.KeyPressMsg, o *app.OS) (*app.OS, tea.Cmd) {
+ 	ws := o.NewWorkspaceTarget()
+ 	if ws == 0 {
+-		o.ShowNotification("Every workspace has a pane", "info", o.Settings.NotificationDuration)
++		o.ShowNotification("Every tab has a pane", "info", o.Settings.NotificationDuration)
  		return o, nil
  	}
-+	if handled, cmd := o.GearAction(action); handled {
-+		o.ClearMenuTarget()
-+		return o, cmd
-+	}
- 	dispatcher := GetDispatcher()
- 	if !dispatcher.HasAction(action) {
- 		o.ClearMenuTarget()
-diff --git i/internal/input/handler.go w/internal/input/handler.go
-index 810abd3..6362678 100644
---- i/internal/input/handler.go
-+++ w/internal/input/handler.go
-@@ -24,6 +24,21 @@ func HandleInput(msg tea.Msg, o *app.OS) (tea.Model, tea.Cmd) {
- 	// line with it afterwards. See SettleMultiCopy.
- 	defer o.SettleMultiCopy()
- 
-+	// The gear is screen chrome: hit-test before mapping into a larger session.
-+	if click, ok := msg.(tea.MouseClickMsg); ok && click.Button == tea.MouseLeft && o.GearAt(click.X, click.Y) {
-+		o.GearPressActive = true
-+		o.OpenGearMenu("root")
-+		return o, nil
-+	}
-+	if o.GearPressActive {
-+		switch msg.(type) {
-+		case tea.MouseReleaseMsg:
-+			o.GearPressActive = false
-+			return o, nil
-+		case tea.MouseMotionMsg:
-+			return o, nil
-+		}
-+	}
- 	// A mouse event over the panes of a view of a larger session is handled
- 	// in the session's layout frame. See app.MapPointer.
- 	msg = o.MapPointer(msg)
-diff --git 1/internal/app/gear.go 2/internal/app/gear.go
-new file mode 100644
-index 0000000..501296a
---- /dev/null
-+++ 2/internal/app/gear.go
-@@ -0,0 +1,250 @@
-+package app
-+
-+import (
-+	"fmt"
-+	"image"
-+	"strings"
-+
-+	tea "charm.land/bubbletea/v2"
-+	"charm.land/lipgloss/v2"
-+	"github.com/Gaurav-Gosain/tuios/internal/config"
-+	"github.com/Gaurav-Gosain/tuios/internal/theme"
-+	uv "github.com/charmbracelet/ultraviolet"
-+	"github.com/charmbracelet/x/ansi"
-+)
-+
-+// GearAt owns only the three cells painted by the gear. All other input keeps
-+// going to the pane, even when its first row is under the gear.
-+func (m *OS) GearAt(x, y int) bool {
-+	return x >= m.gearX() && x < m.GetRenderWidth() && y >= 0 && y < m.GetRenderHeight() && y == m.gearY()
-+}
-+
-+func (m *OS) gearX() int { return max(0, m.GetRenderWidth()-3) }
-+
-+func (m *OS) gearY() int {
-+	if m.Settings.DockbarPosition == "bottom" {
-+		return max(0, m.GetRenderHeight()-m.Settings.DockHeight())
-+	}
-+	return 0
-+}
-+
-+// OpenGearMenu builds rows from the same action registry used by keybindings.
-+// No row sends a synthetic key to a guest terminal.
-+func (m *OS) OpenGearMenu(group string) {
-+	m.CloseContextMenu()
-+	cm := &ContextMenu{Title: "TUIOS", AnchorX: m.gearX(), AnchorY: m.gearY() + 1, Selected: -1, ItemH: 1,
-+		WindowIndex: m.FocusedWindow, Workspace: m.CurrentWorkspace}
-+	add := func(label, action string) {
-+		item := m.item("", label, action, false)
-+		item.Hint = m.gearHint(action)
-+		cm.Items = append(cm.Items, item)
-+	}
-+	sub := func(label, target string) { add(label+" ›", "gear:"+target) }
-+	switch group {
-+	case "root":
-+		sub("Display", "display")
-+		sub("Sessions", "sessions")
-+		sub("Panes", "panes")
-+		sub("Workspaces", "workspaces")
-+		sub("Layout", "layout")
-+		sub("Copy / search", "copy")
-+		sub("Tools / agents", "tools")
-+		cm.Items = append(cm.Items, separator())
-+		add("Keybindings", "prefix_keybinds")
-+		add("Reload configuration", "reload_config")
-+		add("Edit configuration", "command:edit-tuios-config")
-+	case "sessions":
-+		cm.Title = "Sessions"
-+		add("New session", "new_session")
-+		add("Switch session…", "prefix_session_switcher")
-+		add("Rename session…", "rename_session")
-+		add("Detach (keep processes)", "prefix_detach")
-+		add("End session (confirm)…", "prefix_close_session")
-+	case "panes":
-+		cm.Title = "Panes"
-+		add("New pane", "prefix_new_window")
-+		add("Split right", "prefix_split_vertical")
-+		add("Split down", "prefix_split_horizontal")
-+		for _, direction := range []string{"left", "down", "up", "right"} {
-+			add("Focus "+direction, "terminal_focus_"+direction)
-+			add("Swap "+direction, "swap_"+direction)
-+		}
-+		add("Zoom / restore", "toggle_zoom")
-+		add("Equalize", "equalize_splits")
-+		add("Rotate split", "rotate_split")
-+		sub("Move to workspace", "move")
-+		add("Close pane (confirm)…", "gear:confirm-pane")
-+	case "workspaces":
-+		cm.Title = "Workspaces"
-+		add("New workspace", "new_workspace")
-+		add("Switch workspace…", "prefix_workspace_switcher")
-+		add("Rename workspace…", "rename_workspace")
-+		add("Close workspace (confirm)…", "gear:confirm-workspace")
-+	case "layout":
-+		cm.Title = "Layout"
-+		current := "bsp"
-+		if m.UseScrollingLayout {
-+			current = "scrolling"
-+		} else if !m.UseBSPLayout {
-+			current = "master"
-+		}
-+		for _, layout := range []struct{ label, action, name string }{
-+			{"BSP tiling", "gear:layout:bsp", "bsp"},
-+			{"Master / stack", "gear:layout:master", "master"},
-+			{"Scrolling", "gear:layout:scrolling", "scrolling"},
-+		} {
-+			mark := ""
-+			if layout.name == current {
-+				mark = " ✓"
-+			}
-+			add(layout.label+mark, layout.action)
-+		}
-+	case "move":
-+		cm.Title = "Move pane to workspace"
-+		for i := 1; i <= 9; i++ {
-+			add(fmt.Sprintf("Workspace %d", i), fmt.Sprintf("workspace_prefix_move_%d", i))
-+		}
-+	case "copy":
-+		cm.Title = "Copy / search"
-+		add("Copy mode", "prefix_selection")
-+		add("Search scrollback", "copy_mode_search_backward")
-+		add("Scrollback browser", "prefix_scrollback")
-+	case "tools":
-+		cm.Title = "Tools / agents"
-+		add("Yazi", "command:yazi")
-+		add("Scratch terminal", "toggle_scratch")
-+		add("Codex", "command:codex")
-+		add("Command palette", "command_palette")
-+		add("Sidebar / agents", "prefix_toggle_sidebar")
-+		add("Inbox", "prefix_inbox")
-+		add("Jump to notification", "prefix_jump_notif")
-+	case "confirm-pane", "confirm-workspace":
-+		cm.Title = "Stop processes?"
-+		add("Cancel", "gear:root")
-+		action := "prefix_close_window"
-+		if group == "confirm-workspace" {
-+			action = "close_workspace"
-+		}
-+		add("Stop processes and close", action)
-+		cm.Items[len(cm.Items)-1].Warn = true
-+	}
-+	if group != "root" && !strings.HasPrefix(group, "confirm-") {
-+		cm.Items = append(cm.Items, separator())
-+		sub("Back", "root")
-+	}
-+	cm.Selected = cm.Next(1)
-+	m.ContextMenu = cm
-+}
-+
-+// GearAction handles only navigation; real operations use the normal dispatcher.
-+func (m *OS) GearAction(action string) (bool, tea.Cmd) {
-+	if !strings.HasPrefix(action, "gear:") {
-+		return false, nil
-+	}
-+	group := strings.TrimPrefix(action, "gear:")
-+	if strings.HasPrefix(group, "layout:") {
-+		want := strings.TrimPrefix(group, "layout:")
-+		for i := 0; i < 3; i++ {
-+			current := "master"
-+			if m.UseScrollingLayout {
-+				current = "scrolling"
-+			} else if m.UseBSPLayout {
-+				current = "bsp"
-+			}
-+			if current == want {
-+				break
-+			}
-+			m.ToggleLayoutMode()
-+		}
-+		m.OpenGearMenu("layout")
-+		return true, nil
-+	}
-+	if group == "display" {
-+		m.GearDisplay = true
-+		m.OpenSettingsAt("Display")
-+		m.SettingsCategory = 0
-+		m.SettingsSelected = 0
-+		return true, nil
-+	}
-+	m.OpenGearMenu(group)
-+	return true, nil
-+}
-+
-+// gearFrame overlays the same three cells on the fullscreen fast path, retaining
-+// the guest's data and the fast path's terminal and graphics handling.
-+func (m *OS) gearFrame(frame string) string {
-+	if m.GetRenderWidth() <= 0 || m.GetRenderHeight() <= 0 {
-+		return frame
-+	}
-+	// Parse the complete frame so a style carried across line breaks survives
-+	// the gear's own reset. Cutting a row's ANSI text loses that inherited style.
-+	m.gearCanvas.Resize(m.GetRenderWidth(), m.GetRenderHeight())
-+	m.gearCanvas.Clear()
-+	uv.NewStyledString(frame).Draw(&m.gearCanvas, m.gearCanvas.Bounds())
-+	m.drawGear(&m.gearCanvas)
-+	return m.gearCanvas.Render()
-+}
-+
-+// gearHint prefers a live global binding, then a complete prefix chord. The
-+// registry's ordinary context-menu hint omits global-only command bindings.
-+func (m *OS) gearHint(action string) string {
-+	if m.KeybindRegistry == nil {
-+		return ""
-+	}
-+	best, rank := "", 99
-+	for _, binding := range m.KeybindRegistry.Bindings() {
-+		if binding.Action != action || binding.Unbound || binding.Shadowed || binding.Press == "" {
-+			continue
-+		}
-+		candidateRank := 99
-+		if binding.Scope == config.ScopeGlobal {
-+			candidateRank = 0
-+		} else if strings.Contains(binding.Press, " ") {
-+			candidateRank = 1
-+		} else if binding.Scope == config.ScopeWindowMode {
-+			candidateRank = 2
-+		}
-+		if candidateRank < rank || (candidateRank == rank && len(binding.Press) < len(best)) {
-+			best, rank = binding.Press, candidateRank
-+		}
-+	}
-+	if rank == 2 {
-+		return best + " (window mode)"
-+	}
-+	if rank == 99 {
-+		return ""
-+	}
-+	return best
-+}
-+
-+func (m *OS) gearText() string {
-+	pal := theme.GroundUI()
-+	glyph := "  "
-+	if m.Settings.UseASCIIOnly {
-+		glyph = " * "
-+	}
-+	return ansi.Truncate(lipgloss.NewStyle().Foreground(pal.Fg).Render(glyph), max(0, m.GetRenderWidth()), "")
-+}
-+
-+// drawGear replaces only the gear's three cells, retaining the actual background
-+// already drawn beneath each one. It never paints a separate surface or fill.
-+func (m *OS) drawGear(canvas *frameCanvas) {
-+	if m.GetRenderWidth() <= 0 || m.GetRenderHeight() <= 0 {
-+		return
-+	}
-+	// Match the compositor's transparent overlay: retain the background of
-+	// the underlying terminal or bar, rather than replacing it with a fill.
-+	var behind [3]uv.Cell
-+	for i := range min(3, m.GetRenderWidth()) {
-+		if cell := canvas.CellAt(m.gearX()+i, m.gearY()); cell != nil {
-+			behind[i] = *cell
-+		}
-+	}
-+	uv.NewStyledString(m.gearText()).Draw(canvas,
-+		image.Rect(m.gearX(), m.gearY(), m.GetRenderWidth(), m.gearY()+1))
-+	for i := range min(3, m.GetRenderWidth()) {
-+		if cell := canvas.CellAt(m.gearX()+i, m.gearY()); cell != nil {
-+			cell.Style.Bg = behind[i].Style.Bg
-+		}
-+	}
-+}
+ 	o.SwitchToWorkspace(ws)

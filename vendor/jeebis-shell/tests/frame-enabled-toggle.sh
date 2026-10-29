@@ -114,7 +114,7 @@ check "a missing/non-false frameEnabled value in the state file still defaults t
 check "loadBarSurfaceState passes the parsed frameEnabled field through" \
   "$(grep -c 'root.applyBarSurfaceState(p && p.color, p && p.material, p && p.frameEnabled)' "$overlay_qml")" "1"
 check "personal notch always attaches to the screen edge, independent of frame visibility" \
-  "$(grep -A20 'id: notchOuter' "$notch_window_qml" | grep -c 'readonly property int restY: 0')" "1"
+  "$(grep -c 'readonly property int restY: 0' "$notch_window_qml")" "1"
 
 # Floating top spacing is configured by ShellConfig, independent of frame mode.
 check "personal floating top inset stays configured independently of frame visibility" \

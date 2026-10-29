@@ -1,3 +1,4 @@
+import "../../../motion" as Motion
 import "../../../ShellConfig.js" as ShellConfig
 import QtQuick
 import Quickshell
@@ -206,7 +207,7 @@ BarWidget {
       color: isPlaying ? "#f5c518" : "#3ecf5b"
       Behavior on color {
         enabled: !root.bar || root.bar.foregroundAnimationEnabled
-        ColorAnimation { duration: 160 }
+        Motion.JeebisColorAnimation { baseDuration: 160}
       }
 
       Text {
@@ -243,7 +244,7 @@ BarWidget {
         width: parent.width * Math.min(1, root.trackPosition / Math.max(1, root.trackLength))
         radius: ShellConfig.radius
         color: root.barForeground
-        Behavior on width { NumberAnimation { duration: 450 } }
+        Behavior on width { Motion.JeebisNumberAnimation { baseDuration: 450} }
       }
     }
   }
@@ -369,7 +370,7 @@ BarWidget {
             color: Color.accent
             Behavior on width {
               enabled: !seekDragArea.pressed
-              NumberAnimation { duration: 450 }
+              Motion.JeebisNumberAnimation { baseDuration: 450}
             }
           }
 

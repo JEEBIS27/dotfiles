@@ -111,7 +111,6 @@ in
   };
   config = {
     home.packages = [ package appPkgs.fuzzel appPkgs.cava appPkgs.fastfetch ];
-    xdg.dataFile."jeebis-shell/hyprland".source = jeebisShell + /hyprland;
     xdg.dataFile."jeebis-desktop/backgrounds".source = coreSource + /backgrounds;
     xdg.configFile = fileLinks // {
       "jeebis/desktop.lua".text = ''
@@ -160,6 +159,8 @@ in
           for entry in "$old"/*; do
             [ -e "$entry" ] || [ -L "$entry" ] || continue
             name="''${entry##*/}"
+            # Personal Hyprland settings replace the upstream preset directory.
+            [ "$name" = hyprland ] && continue
             if [ ! -e "$new/$name" ] && [ ! -L "$new/$name" ]; then
               run cp -a "$entry" "$new/$name"
             fi

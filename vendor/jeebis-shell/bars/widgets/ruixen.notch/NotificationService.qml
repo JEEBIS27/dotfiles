@@ -47,6 +47,8 @@ import "NotificationModel.js" as NotificationModel
 // bringing the sender's window forward.
 Item {
   id: service
+  signal notificationArrived()
+  readonly property double startedAt: Date.now()
 
   // Injected by Overlay.qml, same as every other service reference
   // this plugin already threads through (mediaService, etc) -- kept
@@ -126,6 +128,7 @@ Item {
 
       var at = index[entry.key]
       if (at === undefined) {
+        if (service.primed && entry.timestamp >= service.startedAt) service.notificationArrived()
         next.push(entry)
         index[entry.key] = next.length - 1
         changed = true
@@ -165,15 +168,16 @@ Item {
         var batch = NotificationModel.parseHistory(text)
         if (!service.primed) {
           for (var i = 0; i < batch.length; i++) batch[i].unread = false
-          service.primed = true
         }
         service.absorb(batch)
+        service.primed = true
       }
     }
   }
 
   function sweepNotifications() {
     if (sweepProc.running) return
+    // nullglob avoids awk aborting on an empty live directory before reading history.
     // awk 1 rather than cat: a torn file missing its trailing newline
     // must not glue itself onto the next one and take a valid entry
     // down with it. Both dirs in one pass -- a notification only ever
@@ -181,7 +185,7 @@ Item {
     // across on archive), so there is nothing to dedup between the two
     // halves of this read, only against what absorb() already knows.
     sweepProc.command = ["bash", "-c",
-      "awk 1 \"$1\"/*.json \"$2\"/*.json 2>/dev/null || true", "--",
+      "shopt -s nullglob; files=(\"$1\"/*.json \"$2\"/*.json); ((${#files[@]})) && awk 1 \"${files[@]}\" || true", "--",
       service.omarchyStateDir, service.historyDir]
     sweepProc.running = true
   }

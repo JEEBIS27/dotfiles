@@ -1,3 +1,4 @@
+import "../../../motion" as Motion
 import "../../../ShellConfig.js" as ShellConfig
 import QtQuick
 import QtQuick.Effects
@@ -5,6 +6,7 @@ import Quickshell.Widgets
 
 ClippingRectangle {
   id: root
+  property string motionGroup: "bar"
   property string effect: "reveal"
   property string fromPath: ""
   property string toPath: ""
@@ -83,7 +85,7 @@ ClippingRectangle {
     id:loop
     loops:Animation.Infinite
     PropertyAction { target:root; property:"progress"; value:0 }
-    NumberAnimation { target:root; property:"progress"; from:0; to:1; duration:root.durationMs; easing.type:Easing.InOutCubic }
+    Motion.JeebisNumberAnimation { motionGroup: root.motionGroup; bounded: true; target:root; property:"progress"; from:0; to:1; baseDuration: root.durationMs; }
     PauseAnimation { duration:1400 }
   }
 }

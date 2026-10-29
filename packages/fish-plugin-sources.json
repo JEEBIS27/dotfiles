@@ -1,0 +1,128 @@
+[
+  {
+    "name": "fifc",
+    "owner": "gazorby",
+    "repo": "fifc",
+    "rev": "20579faae44b971837af843cbe21948f712746bd",
+    "hash": "sha256-t5UM9b9SS0dmiywkhPo44N/Pg80X606g3Cenl5rdC6w="
+  },
+  {
+    "name": "autopair.fish",
+    "owner": "jorgebucaran",
+    "repo": "autopair.fish",
+    "rev": "4d1752ff5b39819ab58d7337c69220342e9de0e2",
+    "hash": "sha256-qt3t1iKRRNuiLWiVoiAYOu+9E7jsyECyIqZJ/oRIT1A="
+  },
+  {
+    "name": "colored_man_pages.fish",
+    "owner": "PatrickF1",
+    "repo": "colored_man_pages.fish",
+    "rev": "f885c2507128b70d6c41b043070a8f399988bc7a",
+    "hash": "sha256-ii9gdBPlC1/P1N9xJzqomrkyDqIdTg+iCg0mwNVq2EU="
+  },
+  {
+    "name": "done",
+    "owner": "franciscolourenco",
+    "repo": "done",
+    "rev": "b86292a52a2b8f646ef8d25daa3cc01ccab60b62",
+    "hash": "sha256-Tr22ktv2tQdtV153xm2vHnll8G26abSyXD5IokMjAj0="
+  },
+  {
+    "name": "forgit",
+    "owner": "wfxr",
+    "repo": "forgit",
+    "rev": "8b638f4765cabe41bf3e86196cfcce388daa9266",
+    "hash": "sha256-XjGNq7ezjX6xPTS0p/1b0An9fFGn3Xm+4ojuq2EZf1I="
+  },
+  {
+    "name": "puffer-fish",
+    "owner": "nickeb96",
+    "repo": "puffer-fish",
+    "rev": "83174b07de60078be79985ef6123d903329622b8",
+    "hash": "sha256-Dhx5+XRxJvlhdnFyimNxFyFiASrGU4ZwyefsDwtKnSg="
+  },
+  {
+    "name": "sponge",
+    "owner": "meaningful-ooo",
+    "repo": "sponge",
+    "rev": "384299545104d5256648cee9d8b117aaa9a6d7be",
+    "hash": "sha256-MdcZUDRtNJdiyo2l9o5ma7nAX84xEJbGFhAVhK+Zm1w="
+  },
+  {
+    "name": "fish-extract",
+    "owner": "shoriminimoe",
+    "repo": "fish-extract",
+    "rev": "8e3c4ed9d8d806d8f31afd7c0d156f3fcdf099d5",
+    "hash": "sha256-pMQcM2mbWBgPVmu5027/ZoXTTZHrKMA4hwteznesUfo="
+  },
+  {
+    "name": "fish-abbreviation-tips",
+    "owner": "gazorby",
+    "repo": "fish-abbreviation-tips",
+    "rev": "8ed76a62bb044ba4ad8e3e6832640178880df485",
+    "hash": "sha256-F1t81VliD+v6WEWqj1c1ehFBXzqLyumx5vV46s/FZRU="
+  },
+  {
+    "name": "fish-bd",
+    "owner": "0rax",
+    "repo": "fish-bd",
+    "rev": "ab686e028bfe95fa561a4f4e57840e36902d4d7d",
+    "hash": "sha256-GeWjoakXa0t2TsMC/wpLEmsSVGhHFhBVK3v9eyQdzv0="
+  },
+  {
+    "name": "replay.fish",
+    "owner": "jorgebucaran",
+    "repo": "replay.fish",
+    "rev": "d2ecacd3fe7126e822ce8918389f3ad93b14c86c",
+    "hash": "sha256-TzQ97h9tBRUg+A7DSKeTBWLQuThicbu19DHMwkmUXdg="
+  },
+  {
+    "name": "fish-ssh-agent",
+    "owner": "danhper",
+    "repo": "fish-ssh-agent",
+    "rev": "f10d95775352931796fd17f54e6bf2f910163d1b",
+    "hash": "sha256-cFroQ7PSBZ5BhXzZEKTKHnEAuEu8W9rFrGZAb8vTgIE="
+  },
+  {
+    "name": "fzf-help",
+    "owner": "BartSte",
+    "repo": "fzf-help",
+    "rev": "d061c823b79c6572825e56bced040bbd7e91675f",
+    "hash": "sha256-n+4QEUAoLZXrPvs6oV6+d51rvMpWgL2ud0ju4J0jTrc="
+  },
+  {
+    "name": "plugin-grc",
+    "owner": "oh-my-fish",
+    "repo": "plugin-grc",
+    "rev": "61de7a8a0d7bda3234f8703d6e07c671992eb079",
+    "hash": "sha256-NQa12L0zlEz2EJjMDhWUhw5cz/zcFokjuCK5ZofTn+Q="
+  },
+  {
+    "name": "spark.fish",
+    "owner": "jorgebucaran",
+    "repo": "spark.fish",
+    "rev": "90a60573ec8a8ecb741a861e0bfca2362f297e5f",
+    "hash": "sha256-cRSZeqtXSaEKuHeTSk3Kpmwf98mKJ986x1KSxa/HggU="
+  },
+  {
+    "name": "fishmarks",
+    "owner": "techwizrd",
+    "repo": "fishmarks",
+    "rev": "a8afddc7abc79682b045e4eca3133c201f9f3e64",
+    "hash": "sha256-NhKJaJXQ6hDQ/1J3Qc+ozbubDk3S5X3k18LMSk8vh7Y="
+  },
+  {
+    "name": "magic-enter.fish",
+    "owner": "mattmc3",
+    "repo": "magic-enter.fish",
+    "rev": "ddcf5c2cf9ff90c15a724bcdd794a486098492e0",
+    "hash": "sha256-zDrc2d2VTeTiukRLeezlbj06ICr0AJId/iJx11xPKyo="
+  },
+  {
+    "name": "plugin-license",
+    "owner": "oh-my-fish",
+    "repo": "plugin-license",
+    "rev": "0155b16f102957ec0c734a90979245dc1073f979",
+    "hash": "sha256-Bi9Q5rekZoyXYbRV+U4SmwCdqCl0pFupzm5si7SxFns="
+  }
+]

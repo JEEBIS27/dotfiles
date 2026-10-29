@@ -1,3 +1,4 @@
+import "../../../motion" as Motion
 import "../../../ShellConfig.js" as ShellConfig
 import QtQuick
 import QtQuick.Layouts
@@ -790,7 +791,7 @@ Item {
           color: root.accent
 
           Behavior on x {
-            NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+            Motion.JeebisNumberAnimation { motionGroup: "notch"; baseDuration: 180; }
           }
         }
 
@@ -1571,6 +1572,7 @@ Item {
           active: tile.hovered && tile.modelData.kind === "image" && tile.previewTarget !== ""
             && appearanceState.rendererEnabled && appearanceState.transitionOn
           sourceComponent: WallpaperEffectPreview {
+            motionGroup: "notch"
             accent: root.accent
             fromPath: root.currentBackground
             toPath: tile.previewTarget

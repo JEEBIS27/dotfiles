@@ -1,3 +1,4 @@
+import "../../../../motion" as Motion
 import "../../../../ShellConfig.js" as ShellConfig
 import QtQuick
 
@@ -168,12 +169,12 @@ Column {
               rotation: settingsRoot.pluginCheckStatus === "checking" ? checkSpinAngle : 0
               property real checkSpinAngle: 0
 
-              NumberAnimation on checkSpinAngle {
+              Motion.JeebisNumberAnimation on checkSpinAngle {
                 running: settingsRoot.pluginCheckStatus === "checking"
                 loops: Animation.Infinite
                 from: 0
                 to: 360
-                duration: 900
+                baseDuration: 900
               }
             }
 
@@ -221,12 +222,12 @@ Column {
               rotation: settingsRoot.pluginUpdateStatus === "updating" ? updateSpinAngle : 0
               property real updateSpinAngle: 0
 
-              NumberAnimation on updateSpinAngle {
+              Motion.JeebisNumberAnimation on updateSpinAngle {
                 running: settingsRoot.pluginUpdateStatus === "updating"
                 loops: Animation.Infinite
                 from: 0
                 to: 360
-                duration: 900
+                baseDuration: 900
               }
             }
 
@@ -370,7 +371,7 @@ Column {
             radius: ShellConfig.radius
             color: pluginRow.modelData.enabled ? settingsRoot.accent : Qt.rgba(1, 1, 1, 0.15)
             opacity: pluginRow.busy ? 0.5 : 1
-            Behavior on color { ColorAnimation { duration: 120 } }
+            Behavior on color { Motion.JeebisColorAnimation { baseDuration: 120} }
 
             Rectangle {
               width: 12
@@ -379,7 +380,7 @@ Column {
               color: "#ffffff"
               anchors.verticalCenter: parent.verticalCenter
               x: pluginRow.modelData.enabled ? parent.width - width - 2 : 2
-              Behavior on x { NumberAnimation { duration: 120 } }
+              Behavior on x { Motion.JeebisNumberAnimation { baseDuration: 120} }
             }
 
             MouseArea {

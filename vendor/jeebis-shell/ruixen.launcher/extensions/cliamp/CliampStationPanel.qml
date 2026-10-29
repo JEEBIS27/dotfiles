@@ -1,3 +1,4 @@
+import "../../../motion" as Motion
 import "../../../ShellConfig.js" as ShellConfig
 import QtQuick
 import "CliampStations.js" as CliampStations
@@ -276,8 +277,8 @@ Item {
                     SequentialAnimation on height {
                       running: root.playing
                       loops: Animation.Infinite
-                      NumberAnimation { to: eqBar.modelData.max; duration: eqBar.modelData.duration; easing.type: Easing.InOutSine }
-                      NumberAnimation { to: eqBar.modelData.min; duration: eqBar.modelData.duration; easing.type: Easing.InOutSine }
+                      Motion.JeebisNumberAnimation { to: eqBar.modelData.max; baseDuration: eqBar.modelData.duration; }
+                      Motion.JeebisNumberAnimation { to: eqBar.modelData.min; baseDuration: eqBar.modelData.duration; }
                     }
                   }
                 }

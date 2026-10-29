@@ -1,3 +1,4 @@
+import "../../../motion" as Motion
 import "../../../ShellConfig.js" as ShellConfig
 import QtQuick
 import qs.Commons
@@ -150,7 +151,7 @@ Item {
     z: 50
 
     Behavior on opacity {
-      NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+      Motion.JeebisNumberAnimation { bounded: true; baseDuration: 120; }
     }
   }
 

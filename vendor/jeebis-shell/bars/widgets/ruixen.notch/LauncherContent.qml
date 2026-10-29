@@ -1,3 +1,4 @@
+import "../../../motion" as Motion
 import "../../../ShellConfig.js" as ShellConfig
 import QtQuick
 import Quickshell
@@ -54,7 +55,7 @@ Item {
   // centered within the 410 footprint above -- leaves real side
   // padding so neither touches the notch's own curved edge.
   readonly property int contentWidth: 366
-  Behavior on opacity { NumberAnimation { duration: 160 } }
+  Behavior on opacity { Motion.JeebisNumberAnimation { motionGroup: "notch"; bounded: true; baseDuration: 160} }
 
   // ruixen-shell#89 follow-up: the search box/toggle/hover surfaces
   // below were all flat white-tinted translucent overlays
@@ -448,7 +449,7 @@ Item {
     height: 36
     radius: ShellConfig.radius
     color: favoritesToggle.filled ? overlayRoot.accent : surfaceTint(0.06)
-    Behavior on color { ColorAnimation { duration: 120 } }
+    Behavior on color { Motion.JeebisColorAnimation { motionGroup: "notch"; baseDuration: 120} }
 
     Text {
       anchors.centerIn: parent
@@ -497,7 +498,7 @@ Item {
           radius: ShellConfig.radius
           color: (cardMouse.containsMouse || tile.index === launcherContent.selectedIndex)
             ? surfaceTint(0.16) : surfaceTint(0.06)
-          Behavior on color { ColorAnimation { duration: 120 } }
+          Behavior on color { Motion.JeebisColorAnimation { motionGroup: "notch"; baseDuration: 120} }
 
           Image {
             id: appIcon

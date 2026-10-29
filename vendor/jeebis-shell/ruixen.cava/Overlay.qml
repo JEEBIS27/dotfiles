@@ -1,3 +1,4 @@
+import "../motion" as Motion
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -431,8 +432,8 @@ Item {
             color: bandItem.col
             opacity: bandItem.fade
 
-            Behavior on height { enabled: !root.barsHoriz; NumberAnimation { duration: 90; easing.type: Easing.OutQuad } }
-            Behavior on width { enabled: root.barsHoriz; NumberAnimation { duration: 90; easing.type: Easing.OutQuad } }
+            Behavior on height { enabled: !root.barsHoriz; Motion.JeebisNumberAnimation { baseDuration: 90; } }
+            Behavior on width { enabled: root.barsHoriz; Motion.JeebisNumberAnimation { baseDuration: 90; } }
           }
 
           // Segments -- a 10-block LED-meter look, direct follow-up
@@ -476,7 +477,7 @@ Item {
                    ? index * (segLen + segGap)
                    : (bandItem.height - (index + 1) * segLen - index * segGap))
 
-              Behavior on opacity { NumberAnimation { duration: 90 } }
+              Behavior on opacity { Motion.JeebisNumberAnimation { bounded: true; baseDuration: 90} }
             }
           }
         }

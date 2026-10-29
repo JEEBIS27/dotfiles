@@ -35,8 +35,9 @@ with tempfile.TemporaryDirectory(prefix='dotfiles-terminal-') as tmp:
     (root/'bin/tuios').symlink_to(tuios)
     config = (repo/'files/tuios/config.toml').read_text()
     # Test shell must not source any of the user's startup files.
-    (root/'config/tuios/config.toml').write_text(config.replace('preferred_shell = "zsh"', 'preferred_shell = "/bin/sh"'))
+    (root/'config/tuios/config.toml').write_text(config.replace('preferred_shell = "@fish@"', 'preferred_shell = "/bin/sh"'))
     env = {k: v for k, v in os.environ.items() if not k.startswith(('TUIOS', 'HERDR', 'TMUX'))}
+    env.pop('HYPRLAND_INSTANCE_SIGNATURE', None)
     env.update(HOME=str(root/'home'), XDG_CONFIG_HOME=str(root/'config'),
                XDG_RUNTIME_DIR=str(root/'runtime'), XDG_STATE_HOME=str(root/'state'),
                XDG_CACHE_HOME=str(root/'cache'), XDG_DATA_HOME=str(root/'data'),
@@ -60,10 +61,10 @@ with tempfile.TemporaryDirectory(prefix='dotfiles-terminal-') as tmp:
         raise AssertionError('TUIOS did not reach expected state')
 
     # Check launcher argument boundaries without opening a graphical terminal.
-    (root/'bin/rio').write_text('#!/usr/bin/env python3\nimport json,sys\nprint(json.dumps(sys.argv[1:]))\n')
+    (root/'bin/rio').write_text('#!/usr/bin/env python3\nimport json,os,sys\nassert \"NO_COLOR\" not in os.environ, \"KGP image IDs require colours\"\nprint(json.dumps(sys.argv[1:]))\n')
     (root/'bin/rio').chmod(0o755)
     got = json.loads(subprocess.check_output([str(repo/'files/desktop/helpers/jeebis-terminal'),
-        '--app-id=org.test.rio', '--cwd', tmp, '--', '/bin/echo', 'a b;$(literal)'], env=env, text=True))
+        '--app-id=org.test.rio', '--cwd', tmp, '--', '/bin/echo', 'a b;$(literal)'], env=dict(env, NO_COLOR='1'), text=True))
     assert got == ['--app-id', 'org.test.rio', '--working-dir', tmp, '-e', 'jeebis-tuios', '/bin/echo', 'a b;$(literal)'], got
     # Normal startup must retain the package's Rio identity and configured shell.
     plain = json.loads(subprocess.check_output([str(repo/'files/desktop/helpers/jeebis-terminal'),
@@ -138,11 +139,11 @@ with tempfile.TemporaryDirectory(prefix='dotfiles-terminal-') as tmp:
         thread.join(timeout=1)
         os.close(fd)
         fd = None
-        # Reattach explicitly and confirm that no pane was replaced.
+        # Reopen via the normal launcher and confirm it resumes with every pane.
         stop.clear()
         pid, fd = pty.fork()
         if pid == 0:
-            os.execvpe(tuios, [tuios, 'attach', 'test'], env)
+            os.execvpe(str(repo/'files/desktop/helpers/jeebis-tuios'), ['jeebis-tuios', '--attach', 'test'], env)
         thread = threading.Thread(target=drain, daemon=True)
         thread.start()
         eventually(lambda: next(s for s in json.loads(run('ls', '--json')) if s['name'] == 'test')['attached'])
@@ -156,15 +157,15 @@ with tempfile.TemporaryDirectory(prefix='dotfiles-terminal-') as tmp:
         thread.join(timeout=1)
         os.close(fd)
         fd = None
-        # A noninteractive launcher fails at attach, after preparing its session.
-        # The command itself must still be isolated and have only one pane.
-        p = subprocess.run([str(repo/'files/desktop/helpers/jeebis-tuios'), '/bin/sh', '-c',
-                            'printf launcher-marker; sleep 60'], env=env, capture_output=True, text=True, timeout=20)
-        assert p.returncode != 0 and 'interactive terminal' in p.stderr, p.stderr
-        session = next(s['name'] for s in json.loads(run('ls', '--json')) if s['name'].startswith('rio-'))
-        assert windows(session)['total'] == 1
-        window_id = windows(session)['focused_window_id']
-        eventually(lambda: 'launcher-marker' in run('capture-pane', '-s', session, '-w', window_id))
+        # An application owns one fixed session and one pane across launches.
+        helper = str(repo/'files/desktop/helpers/jeebis-tuios')
+        for _ in range(2):
+            p = subprocess.run([helper, '/bin/sh', '-c', 'printf launcher-marker; sleep 60'],
+                               env=env, capture_output=True, text=True, timeout=20)
+            assert p.returncode != 0 and 'interactive terminal' in p.stderr, p.stderr
+        assert windows('main')['total'] == 2
+        window_id = next(w['window_id'] for w in windows('main')['windows'] if w['workspace'] == 6)
+        eventually(lambda: 'launcher-marker' in run('capture-pane', '-s', 'main', '-w', window_id))
         # The worktree popup uses the native CLI without a nested client.
         git_repo = root/'repository'
         git_repo.mkdir()
@@ -175,8 +176,77 @@ with tempfile.TemporaryDirectory(prefix='dotfiles-terminal-') as tmp:
         p = subprocess.run([str(repo/'files/desktop/helpers/jeebis-tuios-worktree')],
                            input='feature-terminal\n\n', env=env, cwd=git_repo,
                            capture_output=True, text=True, timeout=30)
-        assert p.returncode == 0 and 'Created. Select the session' in p.stdout, (p.stdout, p.stderr)
+        assert p.returncode == 0 and 'Created. Select the workspace' in p.stdout, (p.stdout, p.stderr)
         assert 'feature-terminal' in subprocess.check_output(['git', '-C', str(git_repo), 'worktree', 'list'], text=True)
+        # The first command launch against a stopped, empty daemon creates
+        # exactly one session and replaces only its placeholder shell.
+        for session in json.loads(run('ls', '--json')):
+            run('kill-session', session['name'])
+        run('kill-server')
+        for n in range(2):
+            p = subprocess.run([helper, '/bin/sh', '-c', 'sleep 60'],
+                               env=env, capture_output=True, text=True, timeout=20)
+            assert p.returncode != 0 and 'interactive terminal' in p.stderr, p.stderr
+            sessions = json.loads(run('ls', '--json'))
+            assert len(sessions) == 1 and sessions[0]['name'] == 'main', sessions
+            assert windows('main')['total'] == 2
+        # Model desktop workspace changes without touching the real compositor.
+        mock = root/'bin/hyprctl'
+        mock.write_text('#!/usr/bin/env python3\nimport json,os\nprint(json.dumps({"name":os.environ["TEST_WORKSPACE"]}))\n')
+        mock.chmod(0o755)
+        for workspace in ['1', '2', '1', 'special:notes', 'named notes']:
+            p = subprocess.run([helper, '/bin/sh', '-c', 'sleep 60'],
+                env=dict(env, HYPRLAND_INSTANCE_SIGNATURE='fixture', TEST_WORKSPACE=workspace, JEEBIS_TUIOS_ROLE='yazi'),
+                capture_output=True, text=True, timeout=20)
+            assert p.returncode != 0 and 'interactive terminal' in p.stderr, p.stderr
+        assert windows('desktop-1')['total'] == 2
+        assert windows('desktop-2')['total'] == 2
+        sessions = json.loads(run('ls', '--json'))
+        assert len(sessions) == 5, sessions  # main + 4 distinct desktop workspaces
+        for role in ['codex', 'yazi', 'codex']:
+            p = subprocess.run([helper, '/bin/sh', '-c', 'sleep 60'],
+                env=dict(env, HYPRLAND_INSTANCE_SIGNATURE='fixture', TEST_WORKSPACE='1', JEEBIS_TUIOS_ROLE=role),
+                capture_output=True, text=True, timeout=20)
+            assert p.returncode != 0 and 'interactive terminal' in p.stderr, p.stderr
+        role_windows = windows('desktop-1')['windows']
+        assert sorted(w['workspace'] for w in role_windows) == [1,2,3], role_windows
+        labels = {w['workspace']: w['name'] for w in json.loads(run('list-workspaces','-s','desktop-1','--json'))['workspaces']}
+        assert labels[1] == 'Terminal' and labels[2] == 'Yazi' and labels[3] == 'Codex', labels
+        run('call', 'set-workspace-name', json.dumps({'session':'desktop-1','workspace':3,'name':'My Codex'}))
+        subprocess.run([helper, '/bin/sh', '-c', 'sleep 60'],
+            env=dict(env, HYPRLAND_INSTANCE_SIGNATURE='fixture', TEST_WORKSPACE='1', JEEBIS_TUIOS_ROLE='codex'),
+            capture_output=True, text=True, timeout=20)
+        labels = {w['workspace']: w['name'] for w in json.loads(run('list-workspaces','-s','desktop-1','--json'))['workspaces']}
+        assert labels[3] == 'My Codex', labels
+        sessions = json.loads(run('ls', '--json'))
+        before = {s['name']: s['window_count'] for s in sessions}
+        p = subprocess.run([helper], env=dict(env, HYPRLAND_INSTANCE_SIGNATURE='fixture', TEST_WORKSPACE='1', JEEBIS_TUIOS_ROLE='yazi'),
+                           capture_output=True, text=True, timeout=20)
+        assert p.returncode != 0 and 'interactive terminal' in p.stderr, p.stderr
+        assert {s['name']: s['window_count'] for s in json.loads(run('ls', '--json'))} == before
+        stop.clear()
+        pid, fd = pty.fork()
+        if pid == 0:
+            os.execvpe(helper, [helper, '/bin/sh', '-c', 'sleep 60'],
+                       dict(env, HYPRLAND_INSTANCE_SIGNATURE='fixture', TEST_WORKSPACE='99', JEEBIS_TUIOS_ROLE='desktop'))
+        fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack('HHHH', 40, 140, 1400, 800))
+        thread = threading.Thread(target=drain, daemon=True)
+        thread.start()
+        eventually(lambda: any(s['name'] == 'desktop-99' and s['attached'] for s in json.loads(run('ls','--json'))))
+        time.sleep(.4)
+        run('new-window', 'survivor', '-s', 'desktop-99', '--no-focus', '--', '/bin/sh', '-c', 'sleep 60')
+        eventually(lambda: windows('desktop-99')['total'] == 2)
+        os.write(fd, b'\x1bw')  # Alt+W closes only the focused pane.
+        eventually(lambda: windows('desktop-99')['total'] == 1)
+        assert any(s['name'] == 'desktop-99' for s in json.loads(run('ls','--json')))
+        os.write(fd, b'\x1bW')  # Alt+Shift+W ends the session and client.
+        eventually(lambda: not any(s['name'] == 'desktop-99' for s in json.loads(run('ls','--json'))))
+        os.waitpid(pid, 0)
+        pid = None
+        stop.set()
+        thread.join(timeout=1)
+        os.close(fd)
+        fd = None
         print('PASS: TOML, theme generation, binding diagnostics, application key forwarding, PTY split/workspace/new-window/detach/reattach, session isolation, command launcher, worktree popup')
     finally:
         stop.set()

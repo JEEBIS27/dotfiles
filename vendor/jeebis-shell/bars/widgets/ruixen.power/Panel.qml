@@ -1,3 +1,4 @@
+import "../../../motion" as Motion
 import "../../../ShellConfig.js" as ShellConfig
 import QtQuick
 import Quickshell
@@ -255,9 +256,9 @@ Panel {
 
   SequentialAnimation {
     id: phraseSwap
-    PropertyAnimation {
+    Motion.JeebisNumberAnimation { bounded: true;
       target: heroStatus; property: "opacity"
-      to: 0.0; duration: 180; easing.type: Easing.OutQuad
+      to: 0.0; baseDuration: 180;
     }
     ScriptAction {
       script: {
@@ -265,9 +266,9 @@ Panel {
         if (n > 0) root.phraseIndex = (root.phraseIndex + 1) % n
       }
     }
-    PropertyAnimation {
+    Motion.JeebisNumberAnimation { bounded: true;
       target: heroStatus; property: "opacity"
-      to: 1.0; duration: 260; easing.type: Easing.InQuad
+      to: 1.0; baseDuration: 260;
     }
   }
 
@@ -332,12 +333,12 @@ Panel {
           color: root.batteryIconColor
 
           Behavior on width {
-            NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+            Motion.JeebisNumberAnimation { baseDuration: 180; }
           }
 
           Behavior on color {
             enabled: !root.bar || root.bar.foregroundAnimationEnabled
-            ColorAnimation { duration: 160 }
+            Motion.JeebisColorAnimation { baseDuration: 160}
           }
         }
       }
@@ -409,7 +410,7 @@ Panel {
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
 
-            Behavior on color { ColorAnimation { duration: 200 } }
+            Behavior on color { Motion.JeebisColorAnimation { baseDuration: 200} }
           }
 
           Column {
@@ -456,7 +457,7 @@ Panel {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
 
-            Behavior on color { ColorAnimation { duration: 200 } }
+            Behavior on color { Motion.JeebisColorAnimation { baseDuration: 200} }
           }
         }
 
@@ -481,16 +482,16 @@ Panel {
             color: root.batteryFillColor
             width: Math.max(barTrack.height, barTrack.width * root.batteryFraction)
 
-            Behavior on width { NumberAnimation { duration: 320; easing.type: Easing.OutCubic } }
-            Behavior on color { ColorAnimation { duration: 220 } }
+            Behavior on width { Motion.JeebisNumberAnimation { baseDuration: 320; } }
+            Behavior on color { Motion.JeebisColorAnimation { baseDuration: 220} }
 
             // Subtle pulse while charging — visible signal that energy is flowing in.
             SequentialAnimation on opacity {
               running: root.charging && !root.fullyCharged && root.opened
               loops: Animation.Infinite
               alwaysRunToEnd: true
-              NumberAnimation { from: 1.0; to: 0.55; duration: 950; easing.type: Easing.InOutSine }
-              NumberAnimation { from: 0.55; to: 1.0; duration: 950; easing.type: Easing.InOutSine }
+              Motion.JeebisNumberAnimation { from: 1.0; to: 0.55; baseDuration: 950; }
+              Motion.JeebisNumberAnimation { from: 0.55; to: 1.0; baseDuration: 950; }
             }
           }
         }

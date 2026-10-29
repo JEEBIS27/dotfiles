@@ -1,166 +1,92 @@
 #!/usr/bin/env python3
-"""Exercise the patched native menu in a real PTY and save screen artifacts.
+"""Legacy command name: test gear removal, role workspace attach and native picker.
 
-Requires pyte (install into a temporary venv). Uses only a private XDG tree and
-private daemon; never attaches to or terminates the desktop's sessions.
+Uses only a private daemon and writes repeatable screen artifacts. Requires pyte.
 """
-import argparse
-import codecs
-import fcntl
-import json
-import os
+import argparse,codecs,fcntl,json,os,pty,select,struct,subprocess,tempfile,termios,time
 from pathlib import Path
-import pty
-import select
-import shutil
-import struct
-import subprocess
-import tempfile
-import termios
-import time
-import tomllib
 import pyte
-
-parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--tuios', required=True)
-parser.add_argument('--artifacts', type=Path, required=True)
-a = parser.parse_args()
-binary = str(Path(a.tuios).resolve())
-repo = Path(__file__).resolve().parent.parent
-a.artifacts.mkdir(parents=True, exist_ok=True)
-with tempfile.TemporaryDirectory(prefix='tuios-gear-test-') as temp:
-    root = Path(temp)
-    for name in ['home', 'config/tuios', 'state', 'cache', 'runtime', 'data', 'bin']:
-        (root/name).mkdir(parents=True)
-    (root/'runtime').chmod(0o700)
-    conf = root/'config/tuios'
-    (conf/'config.toml').write_text('include = ["defaults.toml", "local.toml"]\n')
-    defaults = (repo/'files/tuios/config.toml').read_text().replace('preferred_shell = "zsh"', 'preferred_shell = "/bin/sh"')
-    (conf/'defaults.toml').write_text(defaults)
-    (conf/'config.toml').chmod(0o444)
-    (conf/'defaults.toml').chmod(0o444)
-    (conf/'local.toml').touch()
-    editor = root/'bin/editor'
-    editor.write_text('#!/bin/sh\nprintf "%s" "$1" > "$HOME/editor-opened"\nsleep 30\n')
-    editor.chmod(0o755)
-    env = {k:v for k,v in os.environ.items() if not k.startswith(('TUIOS', 'TMUX', 'HERDR')) and k != 'NO_COLOR'}
-    env.update(HOME=str(root/'home'), XDG_CONFIG_HOME=str(root/'config'),
-               XDG_STATE_HOME=str(root/'state'), XDG_CACHE_HOME=str(root/'cache'),
-               XDG_RUNTIME_DIR=str(root/'runtime'), XDG_DATA_HOME=str(root/'data'),
-               PATH=f"{root/'bin'}:{repo/'files/desktop/helpers'}:{os.environ['PATH']}",
-               SHELL='/bin/sh', TERM='xterm-256color', COLORTERM='truecolor', EDITOR=str(editor))
-    env.pop('VISUAL', None)
-    screen = pyte.Screen(120, 40)
-    stream = pyte.Stream(screen)
-    decode = codecs.getincrementaldecoder('utf-8')('replace')
-    raw = bytearray()
-    pid, fd = pty.fork()
-    if pid == 0:
-        os.chdir(temp)
-        os.execvpe(binary, [binary, 'new', 'gear-test'], env)
-    fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack('HHHH', 40, 120, 1200, 800))
-
-    def pump(seconds=.2):
-        deadline = time.monotonic()+seconds
-        while time.monotonic() < deadline:
-            if select.select([fd], [], [], min(.05, max(0, deadline-time.monotonic())))[0]:
-                data = os.read(fd, 65536)
-                if not data:
-                    raise AssertionError('UI exited unexpectedly')
-                raw.extend(data)
-                stream.feed(decode.decode(data))
-                if b'\x1b[6n' in data:
-                    os.write(fd, b'\x1b[1;1R')
-                if b'\x1b[c' in data:
-                    os.write(fd, b'\x1b[?62;4;6;22c')
-
-    def text():
-        return '\n'.join(screen.display)
-
-    def wait(check):
-        until = time.monotonic()+8
-        while time.monotonic() < until:
-            pump()
-            if check():
-                return
-        raise AssertionError(text())
-
-    def keys(data):
-        os.write(fd, data)
-        pump(.3)
-
-    def click(x=119, y=1):
-        keys(f'\x1b[<0;{x};{y}M\x1b[<0;{x};{y}m'.encode())
-
-    def save(name):
-        (a.artifacts/(name+'.txt')).write_text(text())
-
-    def run(*args):
-        p = subprocess.run([binary, *args], env=env, capture_output=True, text=True, timeout=15)
-        assert p.returncode == 0, (args, p.stdout, p.stderr)
-        return p.stdout
-
-    try:
-        wait(lambda: '' in screen.display[0][-3:])
-        assert screen.buffer[0][118].bg == 'default', 'Gear must not set an opaque background'
-        save('01-overlay')
-        click()
-        wait(lambda: 'Edit configuration' in text())
-        assert 'Diagnostics' not in text()
-        save('02-menu')
-        keys(b'\r')
-        wait(lambda: 'Dim unfocused' in text())
-        save('03-display')
-        keys(b'j'*9+b'\r\x1537\r')
-        wait(lambda: tomllib.loads((conf/'local.toml').read_text()).get('appearance', {}).get('dim_unfocused') == 37)
-        keys(b'\x1b[D')
-        wait(lambda: tomllib.loads((conf/'local.toml').read_text())['appearance']['dim_unfocused'] == 36)
-        keys(b'\x1b[C')
-        wait(lambda: tomllib.loads((conf/'local.toml').read_text())['appearance']['dim_unfocused'] == 37)
-        save('04-dim-37')
-        keys(b'\x1b')
-        run('set-config', 'dockbar_position', 'top', '-s', 'gear-test')
-        pump(1)
-        assert text().count('') == 1, text()
-        click()
-        wait(lambda: 'Edit configuration' in text())
-        save('05-gear-on-bar')
-        # Enter the Tools group and verify the actual configured shortcut hint.
-        keys(b'j'*6+b'\r')
-        wait(lambda: 'Yazi' in text() and 'Inbox' in text())
-        assert 'alt+y' in text().lower() or 'Alt+y' in text(), text()
-        save('06-tools')
-        keys(b'\x1b')
-        click()
-        keys(b'j'*4+b'\r')
-        wait(lambda: 'BSP tiling' in text())
-        keys(b'j'*2+b'\r')
-        wait(lambda: 'Scrolling ✓' in text())
-        save('07-scrolling-layout')
-        keys(b'\x1b')
-        click()
-        keys(b'j'*2+b'\r')
-        wait(lambda: 'Split right' in text())
-        before = json.loads(run('list-windows', '-s', 'gear-test', '--json'))['total']
-        keys(b'j\r')
-        wait(lambda: json.loads(run('list-windows', '-s', 'gear-test', '--json'))['total'] == before+1)
-        click()
-        keys(b'j'*2+b'\r')
-        keys(b'\x1b[Fk\r')
-        wait(lambda: 'Stop processes?' in text())
-        save('08-close-confirmation')
-        keys(b'\x1b')
-        click()
-        keys(b'j'*9+b'\r')
-        wait(lambda: (root/'home/editor-opened').exists())
-        assert (root/'home/editor-opened').read_text() == str(conf/'local.toml')
-        assert (conf/'defaults.toml').read_text() == defaults
-        assert (conf/'config.toml').read_text() == 'include = ["defaults.toml", "local.toml"]\n'
-        (a.artifacts/'local.toml').write_text((conf/'local.toml').read_text())
-        print('PASS: gear overlay, mouse menu, display controls, numeric edit, 1% steps, writable override, bar relocation, live shortcut hints, scrolling layout, real pane split, close confirmation, config editor')
-    finally:
-        (a.artifacts/'terminal.ansi').write_bytes(raw)
-        save('last-screen')
-        subprocess.run([binary, 'kill-server'], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15)
-        os.close(fd)
-        os.waitpid(pid, 0)
+p=argparse.ArgumentParser(description=__doc__)
+p.add_argument('--tuios',required=True)
+p.add_argument('--artifacts',type=Path,required=True)
+a=p.parse_args(); binary=str(Path(a.tuios).resolve()); repo=Path(__file__).resolve().parent.parent
+a.artifacts.mkdir(parents=True,exist_ok=True)
+with tempfile.TemporaryDirectory(prefix='tuios-interface-') as temp:
+ root=Path(temp)
+ for d in ['home','config/tuios','runtime','state','data','cache']:(root/d).mkdir(parents=True)
+ (root/'runtime').chmod(0o700)
+ config=(repo/'files/tuios/config.toml').read_text().replace('@fish@','/bin/sh')
+ (root/'config/tuios/config.toml').write_text(config)
+ env={k:v for k,v in os.environ.items() if not k.startswith(('TUIOS','TMUX','HERDR','HYPRLAND')) and k!='NO_COLOR'}
+ env.update(HOME=str(root/'home'),XDG_CONFIG_HOME=str(root/'config'),XDG_RUNTIME_DIR=str(root/'runtime'),XDG_STATE_HOME=str(root/'state'),XDG_DATA_HOME=str(root/'data'),XDG_CACHE_HOME=str(root/'cache'),SHELL='/bin/sh',TERM='xterm-256color',COLORTERM='truecolor')
+ def run(*args):
+  result=subprocess.run([binary,*args],env=env,capture_output=True,text=True,timeout=15)
+  assert result.returncode==0,(args,result.stdout,result.stderr)
+  return result.stdout
+ for name in ['ui-check','switch-target','delete-target']:run('new',name,'--detach')
+ run('call','set-workspace-name',json.dumps({'session':'ui-check','workspace':2,'name':'Yazi'}))
+ run('new-window','Codex','-s','ui-check','--workspace','3','--no-focus','--','/bin/sh','-c','sleep 120')
+ (root/'project-alpha').mkdir()
+ run('new-window','Yazi','-s','ui-check','--workspace','2','--no-focus','--cwd',str(root/'project-alpha'),'--','/bin/sh','-c','printf role-two; sleep 120')
+ pid,fd=pty.fork()
+ if pid==0:os.execvpe(binary,[binary,'attach','ui-check','--workspace','2','--terminal-mode'],env)
+ fcntl.ioctl(fd,termios.TIOCSWINSZ,struct.pack('HHHH',40,120,1200,800))
+ screen=pyte.Screen(120,40);stream=pyte.Stream(screen);decode=codecs.getincrementaldecoder('utf8')('replace');raw=bytearray()
+ def pump(seconds=.2):
+  end=time.monotonic()+seconds
+  while time.monotonic()<end:
+   if select.select([fd],[],[],min(.05,max(0,end-time.monotonic())))[0]:
+    data=os.read(fd,65536);assert data,'UI unexpectedly exited'
+    raw.extend(data);stream.feed(decode.decode(data))
+    if b'\x1b[6n' in data:os.write(fd,b'\x1b[1;1R')
+    if b'\x1b[c' in data:os.write(fd,b'\x1b[?62;4;6;22c')
+ def text():return '\n'.join(screen.display)
+ def wait(fn):
+  end=time.monotonic()+10
+  while time.monotonic()<end:
+   pump()
+   if fn():return
+  raise AssertionError(text())
+ def keys(data):os.write(fd,data);pump(.4)
+ def save(name):(a.artifacts/(name+'.txt')).write_text(text())
+ def sessions():return json.loads(run('list-sessions','--json'))
+ try:
+  wait(lambda:json.loads(run('list-windows','-s','ui-check','--json'))['current_workspace']==2)
+  wait(lambda:'role-two' in text())
+  assert '\uf013' not in text(),'Gear still rendered'
+  save('01-role-workspace-no-gear')
+  # Workspace navigation must move between role workspaces, not panes.
+  for key, expected in [(b'\x1b[9;3u',3),(b'\x1b[9;4u',2),(b'\x1b[5;3~',1),(b'\x1b[6;3~',2)]:
+   keys(key)
+   wait(lambda:json.loads(run('list-windows','-s','ui-check','--json'))['current_workspace']==expected)
+  keys(b'\x1bs')
+  wait(lambda:'Tabs' in text() and 'Yazi' in text() and 'Directory:' in text() and 'Panes:' in text())
+  save('02-workspace-picker')
+  keys(b'Yazi')
+  wait(lambda:'Yazi' in text() and 'current' in text() and '1 pane' in text())
+  save('02-workspace-filter-by-name')
+  keys(b'\x15project-alpha')
+  wait(lambda:'current' in text() and '1 pane' in text())
+  save('02-workspace-filter-by-directory')
+  keys(b'\x1b')
+  keys(b'\x1bS');keys(b'switch-target');wait(lambda:'Workspaces' in text());save('02-native-search')
+  keys(b'\r')
+  wait(lambda:any(s['name']=='switch-target' and s['attached'] for s in sessions()))
+  keys(b'\x1bS');keys(b'delete-target');keys(b'\x1b[3~')
+  wait(lambda:'delete-target' in text() and 'Delete workspace?' in text())
+  save('03-delete-confirmation')
+  keys(b'n')
+  assert any(s['name']=='delete-target' for s in sessions())
+  keys(b'\x1b[3~');keys(b'y')
+  wait(lambda:not any(s['name']=='delete-target' for s in sessions()))
+  save('04-after-delete')
+  keys(b'\x1b')
+  keys(b'\x1b/')
+  wait(lambda:'Tabs' in text())
+  assert 'Sessions' not in text()
+  save('05-help-terminology')
+  print('PASS: gear absent; attach workspace 2; Alt+Tab/PgUp/PgDn workspace navigation; Alt+S workspace picker; Alt+Shift+S search/Enter switch; Delete confirmation/cancel/delete')
+ finally:
+  (a.artifacts/'terminal.ansi').write_bytes(raw)
+  subprocess.run([binary,'kill-server'],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=15)
+  os.close(fd);os.waitpid(pid,0)

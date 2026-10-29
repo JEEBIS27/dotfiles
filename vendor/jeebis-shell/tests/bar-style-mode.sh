@@ -76,7 +76,7 @@ check "notch reads shell.json to learn bar.style" \
 # see its own header for why the window itself is a separate, per-screen
 # file. shellConfigPath (checked above) stays on Overlay.qml's own root.
 check "notch hides itself in fullbar style" \
-  "$(grep -m1 'visible: !notchRoot.fullscreenActive && !notchRoot.barHidden && !notchRoot.fullbarStyle' "$repo_dir/bars/widgets/ruixen.notch/NotchWindow.qml")" '  visible: !notchRoot.fullscreenActive && !notchRoot.barHidden && !notchRoot.fullbarStyle'
+  "$(grep -m1 'visible: !notchRoot.fullscreenActive && (notchRoot.barShown || barRevealProgress > 0) && !notchRoot.fullbarStyle' "$repo_dir/bars/widgets/ruixen.notch/NotchWindow.qml")" '  visible: !notchRoot.fullscreenActive && (notchRoot.barShown || barRevealProgress > 0) && !notchRoot.fullbarStyle'
 
 check "bar style helper supports fullbar" \
   "$(grep -m1 'Usage: ruixen-bar-style <notch|fullbar|status>' "$style_script")" 'Usage: ruixen-bar-style <notch|fullbar|status>'

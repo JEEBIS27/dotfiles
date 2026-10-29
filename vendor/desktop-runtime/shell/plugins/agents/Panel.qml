@@ -733,7 +733,7 @@ Panel {
         id: limitValue
         textFormat: Text.PlainText
         text: limitRow.window && limitRow.window.percent >= 0
-          ? Math.round(limitRow.window.percent * 100) + "%"
+          ? Math.round((1 - root.clamp(limitRow.window.percent, 0, 1)) * 100) + "% left"
           : "—"
         color: limitRow.alarming ? root.urgent : root.foreground
         font.family: root.fontFamily
@@ -745,7 +745,7 @@ Panel {
 
     Meter {
       width: parent.width
-      value: limitRow.window ? limitRow.window.percent : -1
+      value: limitRow.window && limitRow.window.percent >= 0 ? 1 - root.clamp(limitRow.window.percent, 0, 1) : -1
       alarming: limitRow.alarming
     }
 
@@ -763,7 +763,7 @@ Panel {
     }
   }
 
-  // Rounded track showing the percentage of the allowance used.
+  // Rounded track showing the supplied fraction (remaining allowance for limits).
   component Meter: Item {
     id: meter
     property real value: -1

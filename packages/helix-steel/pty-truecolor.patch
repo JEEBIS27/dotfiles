@@ -1,0 +1,68 @@
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -6,7 +6,7 @@
+     },
+     RMut,
+ };
+-use config::{ColorAttribute, SrgbaTuple, TermConfig};
++use config::{ColorAttribute, TermConfig};
+ use portable_pty::{Child, CommandBuilder, NativePtySystem, PtyPair, PtySize, PtySystem};
+ use std::{
+     io::{Read, Write},
+@@ -263,20 +263,16 @@
+         .register_fn(
+             "term/color-attribute",
+             |attribute: &TermColorAttribute| match attribute.0 {
+-                ColorAttribute::TrueColorWithPaletteFallback(SrgbaTuple(r, g, b, a), _) => vec![
+-                    (r as isize).into_ffi_val().unwrap(),
+-                    (g as isize).into_ffi_val().unwrap(),
+-                    (b as isize).into_ffi_val().unwrap(),
+-                    (a as isize).into_ffi_val().unwrap(),
+-                ]
+-                .into_ffi_val(),
+-                ColorAttribute::TrueColorWithDefaultFallback(SrgbaTuple(r, g, b, a)) => vec![
+-                    (r as isize).into_ffi_val().unwrap(),
+-                    (g as isize).into_ffi_val().unwrap(),
+-                    (b as isize).into_ffi_val().unwrap(),
+-                    (a as isize).into_ffi_val().unwrap(),
+-                ]
+-                .into_ffi_val(),
++                ColorAttribute::TrueColorWithPaletteFallback(color, _)
++                | ColorAttribute::TrueColorWithDefaultFallback(color) => {
++                    let (r, g, b, a) = color.as_rgba_u8();
++                    vec![
++                        (r as isize).into_ffi_val().unwrap(),
++                        (g as isize).into_ffi_val().unwrap(),
++                        (b as isize).into_ffi_val().unwrap(),
++                        (a as isize).into_ffi_val().unwrap(),
++                    ].into_ffi_val()
++                }
+                 ColorAttribute::PaletteIndex(index) => (index as usize).into_ffi_val(),
+                 ColorAttribute::Default => false.into_ffi_val(),
+             },
+@@ -286,21 +282,14 @@
+             |attribute: &TermColorAttribute, shared_vec: FFIArg| {
+                 if let FFIArg::VectorRef(VectorRef { mut vec, .. }) = shared_vec {
+                     match attribute.0 {
+-                        ColorAttribute::TrueColorWithPaletteFallback(SrgbaTuple(r, g, b, a), _) => {
+-                            // Update in place.
++                        ColorAttribute::TrueColorWithPaletteFallback(color, _)
++                        | ColorAttribute::TrueColorWithDefaultFallback(color) => {
++                            // SRGBA channels are floats in 0..=1, not byte values.
++                            let (r, g, b, a) = color.as_rgba_u8();
+                             vec[0] = FFIValue::IntV(r as isize);
+                             vec[1] = FFIValue::IntV(g as isize);
+                             vec[2] = FFIValue::IntV(b as isize);
+                             vec[3] = FFIValue::IntV(a as isize);
+-
+-                            true.into_ffi_val()
+-                        }
+-                        ColorAttribute::TrueColorWithDefaultFallback(SrgbaTuple(r, g, b, a)) => {
+-                            vec[0] = FFIValue::IntV(r as isize);
+-                            vec[1] = FFIValue::IntV(g as isize);
+-                            vec[2] = FFIValue::IntV(b as isize);
+-                            vec[3] = FFIValue::IntV(a as isize);
+-
+                             true.into_ffi_val()
+                         }
+                         ColorAttribute::PaletteIndex(index) => (index as usize).into_ffi_val(),

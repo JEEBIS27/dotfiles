@@ -330,6 +330,17 @@ PanelWindow {
     readonly property int overlap: frameWindow.barRoot.seamOverlap
 
     function dockPath(ctx, dockColor, hemColor) {
+      // Each half follows the same progress as its widgets, including docked chrome.
+      for (var i = 0; i < 2; ++i) {
+        var progress = i === 0 ? frameWindow.barRoot.leftIslandProgress : frameWindow.barRoot.rightIslandProgress
+        ctx.save()
+        ctx.beginPath(); ctx.rect(i === 0 ? -100 : width / 2, -1000, i === 0 ? width / 2 + 100 : width / 2 + 100, 2000); ctx.clip()
+        ctx.translate(0, -(frameWindow.barRoot.notchClearance + Math.abs(frameWindow.barRoot.contentTopInset) + 16) * (1 - progress))
+        baseDockPath(ctx, dockColor, hemColor)
+        ctx.restore()
+      }
+    }
+    function baseDockPath(ctx, dockColor, hemColor) {
       var frameHemColor = hemColor || dockColor
       var r = frameWindow.barRoot.shoulderWingSize
       function wingPath(x, y, corner) {
@@ -502,6 +513,8 @@ PanelWindow {
       Connections {
         target: frameWindow.barRoot
         function onDockedChanged() { dockChromeShadowCanvas.requestPaint() }
+        function onLeftIslandProgressChanged() { dockChromeShadowCanvas.requestPaint() }
+        function onRightIslandProgressChanged() { dockChromeShadowCanvas.requestPaint() }
         function onFullbarStyleChanged() { dockChromeShadowCanvas.requestPaint() }
         function onDockedBarColorChanged() { dockChromeShadowCanvas.requestPaint() }
       }
@@ -531,6 +544,8 @@ PanelWindow {
       Connections {
         target: frameWindow.barRoot
         function onDockedChanged() { dockChromeFillCanvas.requestPaint() }
+        function onLeftIslandProgressChanged() { dockChromeFillCanvas.requestPaint() }
+        function onRightIslandProgressChanged() { dockChromeFillCanvas.requestPaint() }
         function onFullbarStyleChanged() { dockChromeFillCanvas.requestPaint() }
         function onDockedBarColorChanged() { dockChromeFillCanvas.requestPaint() }
       }

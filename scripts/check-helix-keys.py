@@ -57,7 +57,7 @@ with tempfile.TemporaryDirectory(prefix='helix-keys-') as temp:
     if a.tuios:
         (root/'config/tuios').mkdir()
         (root/'config/tuios/config.toml').write_text(
-            (repo/'files/tuios/config.toml').read_text().replace('preferred_shell = "zsh"', 'preferred_shell = "/bin/sh"'))
+            (repo/'files/tuios/config.toml').read_text().replace('preferred_shell = "@fish@"', 'preferred_shell = "/bin/sh"'))
 
     def tuios(*arguments):
         p = subprocess.run([a.tuios, *arguments], env=env, capture_output=True, text=True, timeout=30)

@@ -35,32 +35,59 @@ Item {
   readonly property bool fullscreenActive: ToplevelManager.activeToplevel
     ? ToplevelManager.activeToplevel.fullscreen : false
 
-  // Super+Shift+Space (stock Omarchy bind_toggle "bar") only ever told
-  // ruixen.bar to hide -- this is a completely separate PanelWindow, so
-  // it never heard about it at all. Direct report: "super shift space
-  // hides the float and docked icons on left and right, but the notch
-  // is different". Same flag-file mechanism ruixen.bar's own
-  // barHiddenProbe uses (see Bar.qml), so both surfaces read the exact
-  // same on-disk state `omarchy-toggle-bar` already flips -- not a
-  // second, competing toggle.
-  property bool barHidden: false
+  property bool barAutoHide: false
+  property bool barIslandsMode: false
+  property bool barShown: false
+  readonly property bool barHidden: !barShown
+  onBarShownChanged: if (!barShown) { pinnedOpen = false; launcherOpen = false }
+  property int barNotchHoverCount: 0
+  property int barNotchMenuCount: 0
+  function setBarNotchMenuOpen(open) {
+    barNotchMenuCount = Math.max(0, barNotchMenuCount + (open ? 1 : -1))
+    syncBarNotchHold()
+  }
+  property bool lastNotchHold: false
+  property bool sentNotchHold: false
+  property bool notchHoldDelivered: false
+  function setBarNotchHovered(hovered) {
+    barNotchHoverCount = Math.max(0, barNotchHoverCount + (hovered ? 1 : -1))
+    syncBarNotchHold()
+  }
+  function syncBarNotchHold() {
+    var held = barNotchHoverCount > 0 || barNotchMenuCount > 0 || pinnedOpen || launcherOpen
+    lastNotchHold = held
+    if (barNotchHoldProc.running || (notchHoldDelivered && held === sentNotchHold)) return
+    sentNotchHold = held
+    barNotchHoldProc.command = ["omarchy-shell", "jeebis.bar", "holdNotch", held ? "true" : "false"]
+    barNotchHoldProc.running = true
+  }
+  onPinnedOpenChanged: syncBarNotchHold()
+  onLauncherOpenChanged: syncBarNotchHold()
+  Process {
+    id: barNotchHoldProc
+    onExited: function(code) { root.notchHoldDelivered = code === 0; if (root.lastNotchHold !== root.sentNotchHold) Qt.callLater(root.syncBarNotchHold) }
+  }
+  Timer { interval: 500; running: root.barAutoHide; repeat: true; onTriggered: root.syncBarNotchHold() }
+  FileView {
+    id: barPeekState
+    path: Quickshell.env("HOME") + "/.local/state/jeebis-shell/bar-visibility.json"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: {
+      try {
+        var state = JSON.parse(text())
+        root.barAutoHide = state.autoHide === true
+        root.barIslandsMode = state.target === "islands" || state.target === "notch"
+        root.barShown = state.notchShown === true
+      }
+      catch (error) { root.barShown = false }
+    }
+  }
   // bar.style="fullbar" is a saved alternate bar skin that intentionally has
   // no notch overlay. Keep this plugin loaded so switching back to "notch"
   // is a config reload, not an install/uninstall operation.
   property bool fullbarStyle: false
-
-  Process {
-    id: barHiddenProbe
-    running: true
-    command: ["bash", "-c", "[[ -f $HOME/.local/state/omarchy/toggles/bar-off ]] && echo yes || echo no"]
-    stdout: SplitParser { onRead: function(line) { root.barHidden = String(line).trim() === "yes" } }
-  }
-  FileView {
-    path: Quickshell.env("HOME") + "/.local/state/omarchy/toggles"
-    watchChanges: true
-    printErrors: false
-    onFileChanged: barHiddenProbe.running = true
-  }
 
   readonly property string shellConfigPath: Quickshell.env("HOME") + "/.config/omarchy/shell.json"
 
@@ -518,6 +545,23 @@ Item {
   NotificationService {
     id: notificationHistory
     shell: root.shell
+    onNotificationArrived: notificationReveal.send()
+  }
+
+  // Owned IPC: coalesce arrivals while the previous request is in flight.
+  QtObject {
+    id: notificationReveal
+    property bool pending: false
+    function send() {
+      if (notificationRevealProc.running) { pending = true; return }
+      pending = false
+      notificationRevealProc.running = true
+    }
+  }
+  Process {
+    id: notificationRevealProc
+    command: ["omarchy-shell", "jeebis.bar", "trigger", "notification"]
+    onExited: if (notificationReveal.pending) Qt.callLater(notificationReveal.send)
   }
 
   // The notch's own Kanban tab backing store (4th dashboard tab) --
@@ -874,6 +918,8 @@ Item {
 
   IpcHandler {
     target: "ruixen.notch"
+    function visibilityState(): string { return JSON.stringify({shown: root.barShown, hovered: root.barNotchHoverCount, menus: root.barNotchMenuCount,
+      holdSent: root.sentNotchHold, delivered: root.notchHoldDelivered, fullscreen: root.fullscreenActive, fullbar: root.fullbarStyle}) }
     function openLauncher(): void { root.launcherOpen = true }
     function closeLauncher(): void { root.launcherOpen = false }
     function toggleLauncher(): void { root.launcherOpen = !root.launcherOpen }

@@ -32,7 +32,7 @@ in
   ];
 
   xdg.configFile."helix/init.scm".text = builtins.replaceStrings
-    [ "@zsh@" ] [ "${appPkgs.zsh}/bin/zsh" ]
+    [ "@fish@" ] [ "${config.jeebis.shell.package}/bin/fish" ]
     (builtins.readFile ../files/helix/steel/init.scm);
   xdg.configFile."helix/helix.scm".source = ../files/helix/steel/helix.scm;
   # Keep cogs/ writable: Steel generates its own helix/ API modules there.

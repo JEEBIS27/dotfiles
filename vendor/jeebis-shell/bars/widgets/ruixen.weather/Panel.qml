@@ -1,3 +1,4 @@
+import "../../../motion" as Motion
 import "../../../ShellConfig.js" as ShellConfig
 import QtQuick
 import Quickshell
@@ -650,10 +651,10 @@ Panel {
                 color: Util.alpha(Color.popups.text, 0.75)
                 font.pixelSize: Style.font.bodySmall
 
-                RotationAnimator on rotation {
+                Motion.JeebisRotationAnimator on rotation {
                   running: root.savingLocation
                   from: 0; to: 360
-                  duration: 800
+                  baseDuration: 800
                   loops: Animation.Infinite
                 }
               }

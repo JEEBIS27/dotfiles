@@ -1,3 +1,4 @@
+import "../../../../motion" as Motion
 import "../../../../ShellConfig.js" as ShellConfig
 import QtQuick
 import ".."
@@ -312,8 +313,8 @@ Column {
             border.width: 1
             border.color: iconBtn.isCurrent ? settingsRoot.accent
               : (iconMa.containsMouse ? Qt.rgba(1, 1, 1, 0.3) : Qt.rgba(1, 1, 1, 0.12))
-            Behavior on border.color { ColorAnimation { duration: 120 } }
-            Behavior on color { ColorAnimation { duration: 120 } }
+            Behavior on border.color { Motion.JeebisColorAnimation { baseDuration: 120} }
+            Behavior on color { Motion.JeebisColorAnimation { baseDuration: 120} }
 
             Text {
               anchors.centerIn: parent

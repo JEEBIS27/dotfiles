@@ -1,3 +1,4 @@
+import "../../../motion" as Motion
 import Quickshell
 import Quickshell.Wayland
 import QtQuick
@@ -61,7 +62,7 @@ PanelWindow {
       opacity: moveGhostWindow.barRoot.barMoveCandidate === modelData ? (moveGhostWindow.barRoot.transparent ? 0.45 : 0.7) : 0
 
       Behavior on opacity {
-        NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+        Motion.JeebisNumberAnimation { bounded: true; baseDuration: 140; }
       }
     }
   }

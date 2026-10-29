@@ -1,3 +1,4 @@
+import "../../../motion" as Motion
 import QtQuick
 
 // Shared "icon + slider + percentage" row -- Display's own Brightness
@@ -67,7 +68,7 @@ Item {
       width: Math.max(0, parent.valueX - parent.gapPx)
       radius: 3
       color: root.accent
-      Behavior on width { NumberAnimation { duration: 120 } }
+      Behavior on width { Motion.JeebisNumberAnimation { baseDuration: 120} }
     }
 
     Rectangle {
@@ -86,7 +87,7 @@ Item {
       height: parent.height + 8
       radius: 2
       color: "#ffffff"
-      Behavior on x { NumberAnimation { duration: 120 } }
+      Behavior on x { Motion.JeebisNumberAnimation { baseDuration: 120} }
     }
 
     MouseArea {

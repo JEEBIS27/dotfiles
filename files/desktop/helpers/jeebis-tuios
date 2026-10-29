@@ -1,16 +1,84 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Only the Codex launcher selects this client profile. Pane creation keeps the
+# normal config home so shells and other applications retain their settings.
+attach_session() {
+  if [[ ${JEEBIS_TUIOS_CODEX:-} == 1 ]]; then
+    exec env -u JEEBIS_TUIOS_CODEX XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}/tuios-codex" tuios attach "$@"
+  fi
+  exec tuios attach "$@"
+}
+role=${JEEBIS_TUIOS_ROLE:-}
+if [[ -z $role ]]; then
+  if [[ $# -gt 0 && $1 != --attach ]]; then role=$(basename -- "$1"); else role=desktop; fi
+fi
+unset JEEBIS_TUIOS_ROLE
+[[ $role =~ ^[a-zA-Z0-9_-]+$ ]] || { echo 'Invalid TUIOS role' >&2; exit 2; }
 if [[ ${1:-} == --attach ]]; then
   [[ $# == 2 ]] || { echo 'Usage: jeebis-tuios --attach SESSION' >&2; exit 2; }
-  exec tuios attach "$2"
+  attach_session "$2"
 fi
-if [[ $# == 0 ]]; then exec tuios new; fi
-# Name this session before starting a command; never target the last-active one.
-session="rio-$(cat /proc/sys/kernel/random/uuid)"
-tuios new "$session" --detach --cwd "$PWD"
-# new creates an initial shell. Replace that pane by a command pane only after
-# creation succeeds. A failed command leaves the session available for recovery.
-initial=$(tuios list-windows -s "$session" --json | jq -er '.windows[0].window_id')
-tuios new-window "$(basename -- "$1")" -s "$session" --cwd "$PWD" -- "$@"
-tuios close-window -s "$session" "$initial"
-exec tuios attach "$session"
+# Desktop terminals belong to their Hyprland workspace, not the globally
+# most recent TUIOS session. Named/special workspace names must not collide.
+desktop_session=
+if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+  workspace=$(hyprctl activeworkspace -j | jq -er '.name | select(type == "string" and length > 0)')
+  if [[ $workspace =~ ^[0-9]+$ ]]; then
+    desktop_session="desktop-$workspace"
+  else
+    workspace_key=$(printf '%s' "$workspace" | od -An -tx1 | tr -d ' \n')
+    desktop_session="desktop-n-$workspace_key"
+  fi
+fi
+case $role in
+  desktop) role_workspace=1; role_name=Terminal ;;
+  yazi) role_workspace=2; role_name=Yazi ;;
+  codex) role_workspace=3; role_name=Codex ;;
+  hx) role_workspace=4; role_name=Helix ;;
+  btop) role_workspace=5; role_name=btop ;;
+  *) role_workspace=6; role_name=Other ;;
+esac
+# Outside Hyprland, use one shared main session as well.
+[[ -n $desktop_session ]] || desktop_session=main
+# Serialize creation so simultaneous launches on one workspace reuse one session.
+state_dir="${XDG_RUNTIME_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}}/jeebis-tuios"
+mkdir -p "$state_dir"
+exec {session_lock}>"$state_dir/launch.lock"
+flock "$session_lock"
+# Exit 3 means the daemon is stopped (the JSON may list saved sessions).
+if sessions=$(tuios list-sessions --json); then
+  :
+else
+  status=$?
+  [[ $status == 3 ]] || exit "$status"
+  tuios start-server >/dev/null || tuios list-sessions --json >/dev/null
+  sessions=$(tuios list-sessions --json)
+fi
+if [[ -n $desktop_session ]]; then
+  session=$(jq -r --arg name "$desktop_session" '.[] | select(.name == $name) | .name' <<<"$sessions")
+else
+  session=$(jq -r 'sort_by(.last_active, .created, .name) | last | .name // empty' <<<"$sessions")
+fi
+if [[ -z $session ]]; then
+  session=$desktop_session
+  tuios new "$session" --detach --cwd "$PWD"
+  params=$(jq -nc --arg session "$session" '{session:$session, workspace:1, name:"Terminal"}')
+  tuios call set-workspace-name "$params" >/dev/null
+fi
+# Reuse the role's workspace, including its existing working directory and panes.
+workspace_info=$(tuios list-workspaces -s "$session" --json | jq -ec --argjson ws "$role_workspace" '.workspaces[] | select(.workspace == $ws)')
+count=$(jq -r '.window_count' <<<"$workspace_info")
+if [[ -z $(jq -r '.name // empty' <<<"$workspace_info") ]]; then
+  params=$(jq -nc --arg session "$session" --arg name "$role_name" --argjson workspace "$role_workspace" '{session:$session, workspace:$workspace, name:$name}')
+  tuios call set-workspace-name "$params" >/dev/null
+fi
+if [[ $count == 0 ]]; then
+  if [[ $# -gt 0 ]]; then
+    tuios new-window "$role" -s "$session" --workspace "$role_workspace" --no-focus --cwd "$PWD" -- "$@"
+  else
+    tuios new-window Terminal -s "$session" --workspace "$role_workspace" --no-focus --cwd "$PWD"
+  fi
+fi
+flock -u "$session_lock"
+exec {session_lock}>&-
+attach_session --workspace "$role_workspace" --terminal-mode "$session"

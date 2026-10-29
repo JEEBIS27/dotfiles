@@ -1,3 +1,4 @@
+import "../motion" as Motion
 import "../ShellConfig.js" as ShellConfig
 import QtQuick
 import "search/OmarchyMenuParser.js" as OmarchyMenuParser
@@ -133,8 +134,8 @@ Rectangle {
         SequentialAnimation on height {
           running: playingBars.visible
           loops: Animation.Infinite
-          NumberAnimation { to: bar.modelData.max; duration: bar.modelData.duration; easing.type: Easing.InOutSine }
-          NumberAnimation { to: bar.modelData.min; duration: bar.modelData.duration; easing.type: Easing.InOutSine }
+          Motion.JeebisNumberAnimation { to: bar.modelData.max; baseDuration: bar.modelData.duration; }
+          Motion.JeebisNumberAnimation { to: bar.modelData.min; baseDuration: bar.modelData.duration; }
         }
       }
     }

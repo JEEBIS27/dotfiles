@@ -101,12 +101,12 @@ Item {
           RowLayout {
             Layout.fillWidth: true
             Label { Layout.fillWidth: true; text: String(parent.parent.modelData.label || "Limit") }
-            Label { text: Math.round(Math.max(0, Math.min(1, Number(parent.parent.modelData.percent || 0))) * 100) + "%  ·  リセット " + root.resetText(parent.parent.modelData.resetsAt) }
+            Label { text: Math.round((1 - Math.max(0, Math.min(1, Number(parent.parent.modelData.percent || 0)))) * 100) + "% 残り  ·  リセット " + root.resetText(parent.parent.modelData.resetsAt) }
           }
           Rectangle {
             Layout.fillWidth: true; height: 5; radius: 2.5
             color: Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.12)
-            Rectangle { width: parent.width * Math.max(0, Math.min(1, Number(parent.parent.modelData.percent || 0))); height: parent.height; radius: 2.5; color: root.accent }
+            Rectangle { width: parent.width * (1 - Math.max(0, Math.min(1, Number(parent.parent.modelData.percent || 0)))); height: parent.height; radius: 2.5; color: root.accent }
           }
         }
       }

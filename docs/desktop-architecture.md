@@ -4,10 +4,10 @@ PCでは`home.nix`から共通モジュールを読み込み、`hosts/omarchy.ni
 
 | 定義 | 役割 |
 |---|---|
-| `modules/common.nix` / `modules/cli.nix` | PC・Android共通のZsh設定とCLIパッケージ |
+| `modules/common.nix` / `modules/cli.nix` | PC・Android共通のfish設定とCLIパッケージ |
 | `modules/apps.nix` | PC用TUIOS、NixOS用開発ツール |
 | `hosts/nix-on-droid.nix` / `hosts/android.nix` | Android用入口。PCモジュールは読み込まない |
-| `modules/zsh-files.nix` / `app-files.nix` | シェル・アプリ設定の配置 |
+| `modules/fish.nix` / `app-files.nix` | シェル・アプリ設定の配置 |
 | `modules/desktop.nix` | Hyprland、Quickshellプラグイン、Rio + TUIOS、テーマ |
 | `modules/input-method-files.nix` | Fcitx / Mozkey設定・NixOS用IMEサービス |
 | `modules/mounts.nix` | rcloneとuser systemd unit |

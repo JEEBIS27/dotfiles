@@ -33,7 +33,7 @@ Item {
     target: proxy
     property: "progress"
     to: 1
-    duration: ShellConfig.appTransfer.movingMs
+    baseDuration: ShellConfig.appTransfer.movingMs
     onFinished: proxy.coordinator.finishTransfer(proxy.appKey, proxy.serial)
   }
   AppCapsule {

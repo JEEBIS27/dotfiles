@@ -122,19 +122,105 @@ App島はタイリング用とFloat用を同時に持ち、Float島を右隣に�
 
 `workspaceResizeDuration`は丸の増減と選択幅の変化による伸縮時間、`appOrderPollMs`は実配置の更新間隔。処理の待機時間を含む合流・分離は既存のappArrival/appDepartureを使う。
 
-## 共通アニメーションプリセット（第1段階）
+## 共通アニメーションプリセット
 
-`vendor/jeebis-shell/ShellConfig.js`の先頭で選択する。
+`vendor/jeebis-shell/ShellConfig.js`の先頭で、Hyprland・ノッチ・バーを独立して選択する。値はQt Quickの`Easing`名（`Easing.`は不要）。
 
 ```js
-var animationPreset = "smooth"; // "linear" / "smooth" / "overshoot"
-var animationOvershoot = 1.70158;
+var hyprlandAnimationPreset = "InOutSine";
+var notchAnimationPreset = "OutBounce";     // ノッチ内部の通常動作・時計・ダッシュボード
+var notchShowAnimationPreset = "OutBounce"; // ノッチ単独の表示
+var notchHideAnimationPreset = "InQuart";   // ノッチ単独の非表示
+var barAnimationPreset = "OutBounce";       // バー内部・App/Float島・その他のShell UI
+var barShowAnimationPreset = "OutBounce";   // バー・左右の島の表示
+var barHideAnimationPreset = "InQuart";     // バー・左右の島の非表示
+var animationSpeed = 1.2; // 共通速度。2=2倍速、0.5=半速
+var animationOvershoot = 1.70158; // OutBackだけの行き過ぎ量
 ```
 
-- `linear`: 一定速度。
-- `smooth`: ゆっくり出発・加速・減速。QMLはInOutSine（(1-cos(πt))/2）、Hyprlandはベジェ近似（最大進捗誤差約0.022%）。
-- `overshoot`: Qt OutBack。目的地を行き過ぎて戻る。強さは0〜3、1.70158で約10%。Hyprlandにも同じ多項式をベジェとして生成する。
+| プリセット | 動き | Hyprland | ノッチ・バー |
+|---|---|---|---|
+| `Linear` | 一定速度 | 対応 | 対応 |
+| `InOutSine` | 三角関数S字 | ベジェ近似（最大進捗誤差約0.022%） | 対応 |
+| `OutBack` | 行き過ぎて戻る | ベジェ変換 | 対応 |
+| `OutBounce` | 到着時に跳ね返る | 未対応 | 対応 |
+| `InQuart` | ゆっくり出発し加速 | 未対応 | 対応 |
 
-対応範囲はApp島・Float島の合流、分離、並べ替え、島間移動と、Hyprlandのウィンドウ移動・リサイズ・開閉・横方向のワークスペース切り替え。範囲に制約のある表示率・透明度・島の幅はovershootでもsmoothを使用する。各動作の時間は既存設定を維持する。ノッチ・その他の島のアニメーションは今後の段階で対応する。
+無効・未対応の値は`InOutSine`に戻る。一体の`bar`モードではノッチもバー用の表示・非表示設定に従い、`islands`モードではノッチ用の設定に従う。表示途中に反転した場合も、その時点の表示／非表示用曲線を使う。範囲に制約のある値は`OutBack`を`InOutSine`へ置き換える。`OutBounce`と`InQuart`は0〜1に収まるため、そのまま使う。基準時間と共通速度倍率は従来どおり。
 
 Nixビルド時に`hyprland/jeebis-motion.lua`を生成し、Home Managerと`jeebis-shell-apply.sh`が`~/.config/jeebis/motion.lua`へ配置する。生成ファイルは直接編集しない。適用スクリプトはHyprlandの再読み込みも行うため、実行時はその変更も画面へ反映される。
+
+共通速度は`animationSpeed`で調整する（0.1〜10倍）。各動作の元の時間を倍率で割るため、速度2なら時間は半分になる。jeebis-shell全体とHyprlandに共通で反映し、表示維持時間や操作待ちタイマーには適用しない。無効値・0・負数は1倍に戻す。
+
+## 使用しない上流Hyprlandプリセット
+
+Home Managerでは`files/hypr/`を読み込む。上流の`vendor/jeebis-shell/hyprland/looknfeel.*.lua`と`ruixen-lookfeel.sh`はNixパッケージへコピーせず、`~/.local/share/jeebis-shell/hyprland`への一括配置もしない。旧データ移行でもこのディレクトリを除外する。
+
+上流ソース内のプリセットは上流install/update/uninstallスクリプトとそのテストから参照されるため保持する。現行Nix構成の編集対象ではない。`ShellConfig.js`から生成する`jeebis-curvature.lua`と`jeebis-motion.lua`だけは引き続き必要で、`~/.config/jeebis/`から読み込む。
+
+## バー・ノッチの表示モード
+
+| キー | 表示対象 | 切り替え | ウィンドウとの関係 |
+|---|---|---|---|
+| Super+B | ノッチを含むバー全体 | 自動表示 ↔ 常時表示 | 重ねる |
+| Super+N | 独立した左・ノッチ・右の島 | 自動表示 ↔ 常時表示 | 重ねる |
+| Super+Shift+B | バー全体 | 常時表示 ↔ 完全非表示 | 表示時に領域確保 |
+| Super+Shift+N | 独立した左・ノッチ・右の島 | 常時表示 ↔ 完全非表示 | 表示時に領域確保 |
+
+`bar`モードは左・ノッチ・右を一体で表示する。`islands`（島）モードは3つを独立して表示する。旧`notch`モードは`islands`へ移行する。島モードの自動表示では重なった島だけを表示する。常時表示ではノッチだけを常時表示し、左右はホバー・トリガーで自動表示する。完全非表示では3つとも表示しない。別の対象・方式のキーを押すとその方式へ切り替える。同じShift付きキーを常時表示中にもう一度押すと完全非表示になり、マウス・アプリ開閉・ワークスペース切替でも表示しない。
+
+自動表示のマウス呼び出し判定は、画面最上端の1論理pxに限定する。非表示中のバー本体は入力を通し、ウィンドウのタイトルバー操作を妨げない。表示後はバーや島の上にいる間、表示を維持する。自動表示では上端へのマウス移動中と、アプリ開閉・ワークスペース切り替え後に表示する。`ShellConfig.js`の`barActivityShowDuration = 2000`（ms）は最後のイベントからの表示時間、`barSlideDuration = 260`は上端から出入りするスライド時間。前者は共通アニメーション速度に左右されず、後者は速度倍率と選択したQt Quickプリセットに追従する。
+
+表示モードは`~/.local/state/jeebis-shell/bar-mode.json`に保存し、バーからノッチへの同期には`bar-visibility.json`を使う。描画ウィンドウと予約領域を別にするため、自動表示・重ねる常時表示でウィンドウの配置は動かない。Shift付きの常時表示はどちらのモードでも上部に予約領域を確保する。
+
+## Quickshell全体の共通アニメーション
+
+jeebis-shell内の数値・色・回転アニメーションは`motion/Jeebis*.qml`を経由し、`ShellConfig.js`の用途別プリセットと`animationSpeed`を参照する。バーの出入り、ワークスペース、トレイ、ノッチ展開、カード、ランチャー、設定画面、Shelf、壁紙効果も対象。追加するアニメーションはこの共通部品の`baseDuration`へ基準時間を渡す。
+
+透明度・色などの範囲が限られる値は`bounded: true`を使い、OutBack選択時も範囲内のInOutSineで変化させる。バーのスライド位置はOutBackを使用できる。装飾的な波は`motionProgress()`と`motionSpeed()`を使用する。実際の再生位置、入力待ち、表示維持、更新周期、PauseAnimationによる待機時間は速度倍率で変更しない。Omarchy本体の共有UI内部にあるアニメーションはこのソースの対象外。
+
+## 自動表示を起こすトリガー
+
+`ShellConfig.js`の`barTriggerModes`で、各トリガーを有効にする**モード**を指定する。
+
+```js
+var barTriggerIslandOnly = true; // 島モードでトリガー元の島だけを一時表示
+var barTriggerModes = {
+  app_open: "both",
+  app_close: "both",
+  workspace: "islands",
+  low_battery: "both",
+  agent_limit: "both",
+  volume_change: "islands",
+  notification: "islands",
+  network_disconnect: "both",
+  network_reconnect: "islands"
+};
+```
+
+- `bar`: バー全体の自動表示モード（Super+B）でだけ反応する。
+- `islands`: 島の自動表示モード（Super+N）でだけ反応する。旧値`notch`も移行用に同じ意味として受け付ける。
+- `both`: 両方の自動表示モードで反応する。
+- `none`: このトリガーを無効にする。未指定・無効な値も同じ。
+
+値は表示対象への切り替え指示ではない。例えば`low_battery: "bar"`はバー全体モードのときだけ低バッテリーで一時表示し、島モードでは反応しない。`both`なら両モードで反応する。モードは変更しない。バーモードの常時表示・完全非表示には影響しない。島モードの常時表示では左右の自動表示が有効なため、左右の島のトリガーに反応する。
+
+`barTriggerIslandOnly = true`では、島モードでトリガー元の島だけを一時表示する。アプリ開閉はApp島のある側、ワークスペースはその表示のある側、AgentのLimit切れはAgent島のある側（現在は右）。バッテリー・音量・新規通知・ネットワークはノッチ。左右の配置はバーのレイアウトから判定する。`false`なら島モードでもトリガーで3つ全てを表示する。バーモードではこのスイッチにかかわらず常に全体が一体で表示される。
+
+表示時間は共通の`barActivityShowDuration`（初期値2000ms）。同じトリガーや別の有効なトリガーが続くと、最後の発生から数え直す。カーソルが重なっている間は引き続き表示する。島モードでは各島が個別のタイマーを持ち、他の島のイベントで表示時間は延長されない。島間の空白はホバー対象にしない。
+
+低バッテリーは`batteryLowThreshold`（黄色になる%）以下の非充電状態へ移ったときに反応する。充電中は反応せず、低残量で充電を外すと反応する。Agentは既存の`~/.local/state/omarchy/agents/usage/*.json`の利用枠（0〜1）が100%になったときに反応し、リセット済みの古い利用枠は無視する。取得処理は既存のAgent収集処理を使い、トークン数からLimitを推定しない。
+
+音量変更は既定出力の音量・ミュート変更、新規通知は既存の通知履歴取込で新しく到着した通知、ネットワークはWi-Fi・有線の接続有無の変化を使う。Wi-Fiから有線へ接続が保たれたまま切り替わる場合や、通知の内容更新・既存履歴の再読込では反応しない。サービス起動時の最初の状態は基準として記録し、一時表示を起こさない。
+
+## ノッチ時計の数字の入れ替え
+
+ノッチ中央の時計は、変化した桁だけが上へ抜け、新しい数字が下から回り込む。コロンと変化しない桁は動かさず、初回表示や非表示中の更新は即時に反映する。横幅を固定して桁の入れ替えで位置が揺れないようにし、狭いノッチでは全体を縮小する。時刻の詳細ツールチップとクリック操作は従来どおり。
+
+`ShellConfig.js`の`notchClockRollEnabled`でオン・オフ、`notchClockRollDuration`（初期値420ms）で基準時間を調整する。曲線は`notchAnimationPreset`、速度は`animationSpeed`に従う。
+
+## ノッチ単独の出入り
+
+`islands`モードのノッチは上端中央を固定して拡大・縮小する。`OutBack`でサイズが1を超えても、上端は画面から離れない。消えるときの負のオーバーシュートは0で止め、反転表示を防ぐ。`bar`モードでは左右の島と揃ったスライドを維持する。
+
+自動表示の時間・曲線・速度は引き続き`barSlideDuration`・用途別のShow/Hideプリセット・`animationSpeed`を参照する。従来のノッチ独自のホバー表示も、島モードでは同じ上端固定の拡大・縮小を使う。

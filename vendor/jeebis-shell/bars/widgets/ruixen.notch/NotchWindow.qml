@@ -1,3 +1,4 @@
+import "../../../motion" as Motion
 import "../../../ShellConfig.js" as ShellConfig
 import QtQuick
 import QtQuick.Effects
@@ -47,6 +48,17 @@ import qs.Commons
 
 PanelWindow {
   id: panel
+  // Observe before child buttons' blocking hover handlers, then pass hover
+  // through. The Wayland input mask limits this to the notch footprint.
+  Item {
+    anchors.fill: parent
+    z: 10000
+    HoverHandler {
+      blocking: false
+      onHoveredChanged: panel.notchRoot.setBarNotchHovered(hovered)
+      Component.onDestruction: if (hovered) panel.notchRoot.setBarNotchHovered(false)
+    }
+  }
 
   component RoundCorner: Item {
     id: rc
@@ -123,6 +135,7 @@ PanelWindow {
     property real phaseSpeed: 2.5
 
     readonly property bool shouldAnimate: running && visible && width > 0 && opacity > 0
+    property real motionPhase: 0
     property real phase: 0
 
     onPaint: {
@@ -156,7 +169,8 @@ PanelWindow {
     FrameAnimation {
       running: wave.shouldAnimate
       onTriggered: {
-        wave.phase += wave.phaseSpeed * frameTime
+        wave.motionPhase += wave.phaseSpeed * frameTime * ShellConfig.motionSpeed()
+        wave.phase = 2 * Math.PI * ShellConfig.motionProgress((wave.motionPhase / (2 * Math.PI)) % 1, false, "notch")
         wave.requestPaint()
       }
     }
@@ -350,7 +364,7 @@ PanelWindow {
     Layout.alignment: Qt.AlignHCenter
     radius: ShellConfig.radius
     color: active ? panel.notchRoot.surfaceTint(0.14) : (tabMouse.containsMouse ? panel.notchRoot.surfaceTint(0.07) : "transparent")
-    Behavior on color { ColorAnimation { duration: 120 } }
+    Behavior on color { Motion.JeebisColorAnimation { motionGroup: "notch"; baseDuration: 120} }
 
     Text {
       anchors.centerIn: parent
@@ -374,7 +388,19 @@ PanelWindow {
   }
 
 
-  visible: !notchRoot.fullscreenActive && !notchRoot.barHidden && !notchRoot.fullbarStyle
+  property real pillRevealProgress: notchPillRevealed ? 1 : 0
+  Behavior on pillRevealProgress {
+    Motion.JeebisNumberAnimation { motionGroup: "notch"; motionDirection: panel.notchPillRevealed ? "show" : "hide"; baseDuration: ShellConfig.notchMoveDuration }
+  }
+  property real barRevealProgress: notchRoot.barShown ? 1 : 0
+  Behavior on barRevealProgress {
+    Motion.JeebisNumberAnimation {
+      motionGroup: panel.notchRoot.barIslandsMode ? "notch" : "bar"
+      motionDirection: panel.notchRoot.barShown ? "show" : "hide"
+      baseDuration: ShellConfig.barSlideDuration
+    }
+  }
+  visible: !notchRoot.fullscreenActive && (notchRoot.barShown || barRevealProgress > 0) && !notchRoot.fullbarStyle
   // bottom:true too, not just top/left/right -- the click-away-to-
   // dismiss MouseArea (see below) needs the panel's own surface to
   // actually reach the full screen height for its widened mask to
@@ -718,6 +744,14 @@ PanelWindow {
 
   Item {
     id: notchOuter
+    transform: [
+      Translate { y: panel.notchRoot.barIslandsMode ? 0 : -(notchOuter.height + 8) * (1 - panel.barRevealProgress) },
+      JeebisNotchRevealScale {
+        independent: panel.notchRoot.barIslandsMode
+        progress: Math.max(0, panel.barRevealProgress) * Math.max(0, panel.pillRevealProgress)
+        centerX: notchOuter.width / 2
+      }
+    ]
     anchors.horizontalCenter: parent.horizontalCenter
     // y, not anchors.top/topMargin -- direct follow-up on "On Hover"
     // mode ("instead of fading in, can we make it slide down"): an
@@ -734,8 +768,11 @@ PanelWindow {
     // painted to visually justify the gap, the resting 4px just read
     // as the pill floating off the true screen edge for no reason.
     readonly property int restY: 0
-    y: panel.notchPillRevealed ? restY : -(height + 8)
-    Behavior on y { NumberAnimation { duration: ShellConfig.notchMoveDuration; easing.type: Easing.OutCubic } }
+    y: panel.notchRoot.barIslandsMode || panel.notchPillRevealed ? restY : -(height + 8)
+    Behavior on y {
+      enabled: !panel.notchRoot.barIslandsMode
+      Motion.JeebisNumberAnimation { motionGroup: "notch"; motionDirection: panel.notchPillRevealed ? "show" : "hide"; baseDuration: ShellConfig.notchMoveDuration; }
+    }
 
     // Escape closes the expanded dashboard, same as the launcher's own
     // search box already does. Placed here (not on some deeper child)
@@ -831,8 +868,8 @@ PanelWindow {
     // value, change that one too.
     height: panel.launcherOpen ? 190 : (panel.pinnedOpen ? 400 : ShellConfig.collapsedBottom(Style))
 
-    Behavior on width { NumberAnimation { duration: ShellConfig.notchResizeDuration; easing.type: Easing.OutCubic } }
-    Behavior on height { NumberAnimation { duration: ShellConfig.notchResizeDuration; easing.type: Easing.OutCubic } }
+    Behavior on width { Motion.JeebisNumberAnimation { motionGroup: "notch"; baseDuration: ShellConfig.notchResizeDuration; } }
+    Behavior on height { Motion.JeebisNumberAnimation { motionGroup: "notch"; baseDuration: ShellConfig.notchResizeDuration; } }
 
     // Painted background, masked into the notch silhouette below.
     // Back to a plain, always-real fill -- direct live regression:
@@ -1025,8 +1062,8 @@ PanelWindow {
           bottomLeftRadius: ShellConfig.radius
           bottomRightRadius: ShellConfig.radius
 
-          Behavior on bottomLeftRadius { NumberAnimation { duration: ShellConfig.notchResizeDuration; easing.type: Easing.OutCubic } }
-          Behavior on bottomRightRadius { NumberAnimation { duration: ShellConfig.notchResizeDuration; easing.type: Easing.OutCubic } }
+          Behavior on bottomLeftRadius { Motion.JeebisNumberAnimation { motionGroup: "notch"; baseDuration: ShellConfig.notchResizeDuration; } }
+          Behavior on bottomRightRadius { Motion.JeebisNumberAnimation { motionGroup: "notch"; baseDuration: ShellConfig.notchResizeDuration; } }
         }
 
         RoundCorner {
@@ -1092,8 +1129,8 @@ PanelWindow {
         bottomLeftRadius: ShellConfig.radius
         bottomRightRadius: ShellConfig.radius
 
-        Behavior on bottomLeftRadius { NumberAnimation { duration: ShellConfig.notchResizeDuration; easing.type: Easing.OutCubic } }
-        Behavior on bottomRightRadius { NumberAnimation { duration: ShellConfig.notchResizeDuration; easing.type: Easing.OutCubic } }
+        Behavior on bottomLeftRadius { Motion.JeebisNumberAnimation { motionGroup: "notch"; baseDuration: ShellConfig.notchResizeDuration; } }
+        Behavior on bottomRightRadius { Motion.JeebisNumberAnimation { motionGroup: "notch"; baseDuration: ShellConfig.notchResizeDuration; } }
       }
 
       RoundCorner {
@@ -1120,6 +1157,7 @@ PanelWindow {
       clip: true
 
       NotchStatus {
+        onMenuHoldChanged: function(held) { panel.notchRoot.setBarNotchMenuOpen(held) }
         hostWindow: panel
         notificationHistory: panel.notchRoot.notificationHistory
         dnd: panel.notchRoot.dnd
@@ -1148,7 +1186,7 @@ PanelWindow {
         anchors.bottomMargin: 12
         anchors.leftMargin: 12
         anchors.rightMargin: 12
-        Behavior on opacity { NumberAnimation { duration: 160 } }
+        Behavior on opacity { Motion.JeebisNumberAnimation { motionGroup: "notch"; bounded: true; baseDuration: 160} }
 
         RowLayout {
           anchors.fill: parent

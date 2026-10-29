@@ -68,7 +68,7 @@ NixOSでは初回に既存のOS設定をバックアップして統合用の設�
 既存のNixOS flakeは上書きしない。既存flakeへの統合・復旧は[NixOS導入手順](docs/nixos-install.md)を参照。
 
 OmarchyのRio本体は `omarchy pkg add rio` で別途導入する。移行時は[検証・制限事項](docs/terminal-migration.md)も確認する。
-AndroidはZsh・CLIを共有し、PC用のHyprland・Quickshell・Rio・IME・クラウドマウントを読み込まない。[Android導入手順](docs/android-install.md)を参照。
+Androidはfish・CLIを共有し、PC用のHyprland・Quickshell・Rio・IME・クラウドマウントを読み込まない。[Android導入手順](docs/android-install.md)を参照。
 
 未対応OSはエラーで停止する。PC構成のユーザー名・配置先は現構成の前提を維持する。
 Nixのインストール自体やAndroidアプリの導入は、このコマンドの対象外。

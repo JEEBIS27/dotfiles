@@ -1,3 +1,4 @@
+import "../../../motion" as Motion
 import "../../../ShellConfig.js" as ShellConfig
 import QtQuick
 import QtQuick.Layouts
@@ -834,7 +835,7 @@ Item {
                     height: parent.height
                     radius: ShellConfig.radius
                     color: root.accent
-                    Behavior on width { NumberAnimation { duration: 200 } }
+                    Behavior on width { Motion.JeebisNumberAnimation { motionGroup: "notch"; baseDuration: 200} }
                   }
                 }
 
@@ -972,7 +973,7 @@ Item {
               height: parent.height
               radius: 3
               color: root.accent
-              Behavior on width { NumberAnimation { duration: 200 } }
+              Behavior on width { Motion.JeebisNumberAnimation { motionGroup: "notch"; baseDuration: 200} }
             }
           }
 
@@ -1241,7 +1242,7 @@ Item {
                   width: Math.max(0, parent.valueX - parent.gapPx)
                   radius: 3
                   color: root.accent
-                  Behavior on width { NumberAnimation { duration: 200 } }
+                  Behavior on width { Motion.JeebisNumberAnimation { motionGroup: "notch"; baseDuration: 200} }
                 }
 
                 Rectangle {
@@ -1265,7 +1266,7 @@ Item {
                   // surface is actually active, same fix as the dial
                   // tips above.
                   color: root.textColor
-                  Behavior on x { NumberAnimation { duration: 200 } }
+                  Behavior on x { Motion.JeebisNumberAnimation { motionGroup: "notch"; baseDuration: 200} }
                 }
               }
 
@@ -1624,14 +1625,14 @@ Item {
                   width: parent.width * root.netDownloadShare
                   height: parent.height
                   color: "#3ecf5b"
-                  Behavior on width { NumberAnimation { duration: 200 } }
+                  Behavior on width { Motion.JeebisNumberAnimation { motionGroup: "notch"; baseDuration: 200} }
                 }
 
                 Rectangle {
                   width: parent.width * (1 - root.netDownloadShare)
                   height: parent.height
                   color: "#e05252"
-                  Behavior on width { NumberAnimation { duration: 200 } }
+                  Behavior on width { Motion.JeebisNumberAnimation { motionGroup: "notch"; baseDuration: 200} }
                 }
               }
             }

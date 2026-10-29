@@ -15,12 +15,27 @@
     fi
   '';
   xdg.configFile = {
+    "omarchy/extensions/omarchy-menu.jsonc".source = ../files/omarchy/extensions/omarchy-menu.jsonc;
     "xdg-terminals.list".text = "rio.desktop\n";
     "rio/config.toml".source = ../files/rio/config.toml;
+    # Compatibility path for existing launchers; share the main renderer.
+    "rio-yazi/config.toml".source = ../files/rio/config.toml;
+    "rio-yazi/themes/Desktop.toml".source = config.lib.file.mkOutOfStoreSymlink "${config.jeebis.desktop.themeDirectory}/rio.toml";
+
     "rio/themes/Desktop.toml".source = config.lib.file.mkOutOfStoreSymlink "${config.jeebis.desktop.themeDirectory}/rio.toml";
     "tuios/config.toml".text = "include = [\"defaults.toml\", \"?local.toml\"]\n";
+    # Client-only Codex profile: share all regular settings, show the agent rail.
+    "tuios-codex/tuios/config.toml".text = ''
+      include = ["../../tuios/config.toml"]
+      [appearance.sidebar]
+      enabled = true
+      width = 16
+    '';
 
-    "tuios/defaults.toml".source = ../files/tuios/config.toml;
+
+    "tuios/defaults.toml".text = builtins.replaceStrings
+      [ "@fish@" ] [ "${config.jeebis.shell.package}/bin/fish" ]
+      (builtins.readFile ../files/tuios/config.toml);
     "bat/themes/Desktop.tmTheme".source = config.lib.file.mkOutOfStoreSymlink "${config.jeebis.desktop.themeDirectory}/preview.tmTheme";
     "nvim/after/lsp/lua_ls.lua".source = ../files/nvim/after/lsp/lua_ls.lua;
     "nvim/init.lua".source = ../files/nvim/init.lua;
@@ -72,5 +87,6 @@
     "yazi/plugins/unified-tabs.yazi/main.lua".source = ../files/yazi/plugins/unified-tabs.yazi/main.lua;
     "yazi/theme.toml".source = config.lib.file.mkOutOfStoreSymlink "${config.jeebis.desktop.themeDirectory}/yazi.toml";
     "yazi/yazi.toml".source = ../files/yazi/yazi.toml;
+    "yazi/plugins/fit-image.yazi/main.lua".source = ../files/yazi/plugins/fit-image.yazi/main.lua;
   };
 }
