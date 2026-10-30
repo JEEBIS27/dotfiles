@@ -29,7 +29,52 @@ for entry in 'gcl:clone' 'gs:status' 'gd:diff' 'ga:add' 'gA:add -A' 'gc:commit' 
     set -l parts (string split -m 1 : -- $entry)
     alias $parts[1] "git $parts[2]"
 end
-alias lg gs
+# Shared full Git label for the prompt and repository listing.
+function __jeebis_git_label --argument-names branch dirty color
+    set -l normal
+    set -l muted
+    set -l green
+    set -l orange
+    if test "$color" != never
+        set normal (set_color normal)
+        set muted (set_color dadada)
+        set green (set_color 87af87)
+        set orange (set_color ff8700)
+    end
+    printf '%s on %s %s' "$muted" "$green" "$branch"
+    test "$dirty" = 1; and printf '%s*' "$orange"
+    printf '%s' "$normal"
+end
+
+function lg --description 'Show Git status, or list nearby repositories'
+    if command git rev-parse --git-dir >/dev/null 2>&1
+        command git status $argv
+        return $status
+    end
+    if test (count $argv) -gt 0
+        printf 'lg: リポジトリの外では引数なしで実行してください。\n' >&2
+        return 2
+    end
+    set -l color never
+    isatty stdout; and set color always
+    for directory in (path filter --type dir -- * .*)
+        # A .git file also identifies linked worktrees and submodules.
+        if not test -e "$directory/.git"
+            test "$(command git -C "$directory" rev-parse --is-bare-repository 2>/dev/null)" = true; or continue
+        end
+        set -l branch (command git -C "$directory" symbolic-ref --quiet --short HEAD 2>/dev/null)
+        if test -z "$branch"
+            set branch (command git -C "$directory" rev-parse --short HEAD 2>/dev/null)
+            test -n "$branch"; or continue
+        end
+        set -l label (command eza --oneline --treat-dirs-as-files --icons=always --color=$color -- "$directory")
+        set -l dirty 0
+        test -n "$(command git -C "$directory" status --porcelain 2>/dev/null)"; and set dirty 1
+        printf '%s' "$label"
+        __jeebis_git_label "$branch" "$dirty" "$color"
+        printf '\n'
+    end
+end
 
 function __jeebis_find_directory
     set -l dir (zoxide query --list --base-dir "$PWD" --exclude "$PWD" | fzf --border-label ' Directory ' --preview 'eza --icons=always --color=always --tree --level=2 {}' --preview-window 'right:60%:nowrap')

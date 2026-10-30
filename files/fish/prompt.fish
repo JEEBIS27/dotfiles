@@ -160,20 +160,18 @@ function fish_prompt
     end
     __jeebis_prompt_pill '' "$__jeebis_prompt_time"
     set_color blue
-    printf ' %s' "$__jeebis_prompt_path_label"
+    if contains -- --final-rendering $argv
+        printf ' %s' "$__jeebis_prompt_path_label"
+    else
+        # Keep the active location explicit; only completed prompts use deltas.
+        printf ' %s' (__jeebis_prompt_path "$__jeebis_prompt_pwd" '')
+    end
     if test -n "$__jeebis_prompt_branch"
         set_color 87af87
         if test "$__jeebis_prompt_git" = "$__jeebis_previous_prompt_git"
             printf ' '
         else
-            set_color dadada
-            printf ' on '
-            set_color 87af87
-            printf ' %s' "$__jeebis_prompt_branch"
-            if test $__jeebis_prompt_dirty -eq 1
-                set_color ff8700
-                printf '*'
-            end
+            __jeebis_git_label "$__jeebis_prompt_branch" "$__jeebis_prompt_dirty"
         end
     end
     set_color normal
