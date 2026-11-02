@@ -168,8 +168,12 @@ function fish_prompt
     end
     if test -n "$__jeebis_prompt_branch"
         set_color 87af87
-        if test "$__jeebis_prompt_git" = "$__jeebis_previous_prompt_git"
+        if contains -- --final-rendering $argv; and test "$__jeebis_prompt_git" = "$__jeebis_previous_prompt_git"
             printf ' '
+            if test $__jeebis_prompt_dirty -eq 1
+                set_color ff8700
+                printf '*'
+            end
         else
             __jeebis_git_label "$__jeebis_prompt_branch" "$__jeebis_prompt_dirty"
         end
