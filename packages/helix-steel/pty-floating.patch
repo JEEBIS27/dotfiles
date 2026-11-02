@@ -188,6 +188,22 @@
  
         ;; TODO: Add custom key bindings for this
         [(and char (equal? (event->key-event event) ctrl-l))
+@@ -647,12 +644,9 @@
+-       ;; Close with ctrl-esc
++       ;; Forward Ctrl+Esc to the shell's clear binding.
+        [(key-event-escape? event)
+         (if (equal? (key-event-modifier event) key-modifier-ctrl)
+             (begin
+-
+-              (set-box! (Terminal-active state) #f)
+-              (set-editor-clip-right! 0)
+-
+-              event-result/close)
++              (pty-process-send-command *pty-process* "\x1b;[27;5u")
++              event-result/consume)
+             (begin
+               (pty-process-send-command *pty-process* "\x1b;")
+               event-result/consume))]
 @@ -870,7 +867,9 @@
  
    ;; When the cursor exists, we defer to opening an existing one

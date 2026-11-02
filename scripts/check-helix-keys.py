@@ -38,15 +38,29 @@ for mode in ['normal', 'select', 'insert']:
     assert keys['C-S-s'] == ('commit_undo_checkpoint' if mode == 'insert' else 'save_selection')
     assert all(value == 'no_op' for key, value in keys.items() if key.startswith('A-'))
     if mode != 'insert':
-        menu = keys['space']['m']
-        assert menu[';'] == 'flip_selections' and menu['d'] == 'delete_selection_noyank'
-        assert menu['e'] == ('extend_parent_node_end' if mode == 'select' else 'move_parent_node_end')
+        assert keys['del'] == 'delete_selection_noyank'
+        assert keys['ret'] == 'open_below' and keys['S-ret'] == 'open_above'
+        assert all(keys[key] == keys['g'][key] for key in ('w', 'b', 'W', 'B'))
+        assert keys['u'] == 'undo' and keys['U'] == 'redo'
+        assert keys['g']['k'] == ('goto_file_start' if mode == 'normal' else 'extend_to_file_start')
+        assert keys['g']['j'] == ('goto_file_end' if mode == 'normal' else 'extend_to_file_end')
+        assert keys['space'] == 'no_op'
+        assert all(keys[key] == 'no_op' for key in ('n', 'N'))
+        assert keys['e'] == ':jeebis-end-word' and keys['E'] == ':jeebis-end-WORD'
+        assert keys['G'][';'] == 'flip_selections'
+        assert keys['G']['b'] == 'extend_prev_word_start'
+        assert keys['G']['w'] == 'extend_next_word_start'
+        assert keys['C-g']['/'] == 'global_search'
+        assert keys['C-S-g']['r'] == 'rename_symbol'
 
 with tempfile.TemporaryDirectory(prefix='helix-keys-') as temp:
     root = Path(temp)
     conf = root/'config/helix'
     (conf/'themes').mkdir(parents=True)
     shutil.copy2(repo/'files/helix/config.toml', conf/'config.toml')
+    motions = (repo/'files/helix/steel/init.scm').read_text().split(';; BEGIN cursor motions\n')[1].split(';; END cursor motions')[0]
+    (conf/'init.scm').write_text(motions)
+
     (conf/'themes/Desktop.toml').write_text('inherits = "default"\n')
     (root/'runtime').mkdir(mode=0o700)
     env = {k: v for k, v in os.environ.items() if not k.startswith(('TUIOS', 'HERDR', 'TMUX'))}
@@ -128,17 +142,18 @@ with tempfile.TemporaryDirectory(prefix='helix-keys-') as temp:
         assert e.path.read_text() == '', 'Shifted save unexpectedly wrote the file'
         e.keys(b'bbb')
         e.keys(b'\x1b')
-        e.keys(b'u')
-        assert e.save() == 'aaa\n', 'Undo checkpoint rescue failed'
+        e.keys(b'\x1a')
+        result = e.save()
+        assert result == 'aaa\n', ('Undo checkpoint rescue failed', result, '\n'.join(e.screen.display))
         e.close()
 
         e = Editor('jump', 'zero\none\ntwo\nthree\n')
         editors.append(e)
-        e.keys(b'ggj')
+        e.keys(b'gkj')
         e.keys(b'\x1b[83;6u')
         e.keys(b'jj')
         e.keys(b'\x1b[83;6u')
-        e.keys(b'\x0f')
+        e.keys(b'gub')
         e.keys(b'iMARK')
         e.keys(b'\x1b')
         assert e.save().splitlines()[1] == 'MARKone', 'Jumplist rescue failed'
@@ -147,7 +162,7 @@ with tempfile.TemporaryDirectory(prefix='helix-keys-') as temp:
         e = Editor('flip', 'abcd\n')
         editors.append(e)
         e.keys(b'vll')
-        e.keys(b' m;')
+        e.keys(b'G;')
         e.keys(b';iZ')
         e.keys(b'\x1b')
         assert e.save() == 'Zabcd\n', 'Selection flip rescue failed'
@@ -156,9 +171,103 @@ with tempfile.TemporaryDirectory(prefix='helix-keys-') as temp:
         e = Editor('noyank', 'abcd\n')
         editors.append(e)
         e.keys(b'yl')
-        e.keys(b' md')
+        e.keys(b'd')
         e.keys(b'p')
         assert e.save() == 'acad\n', 'No-yank deletion changed the register'
+        e.close()
+
+        for mode, select_keys, expected in [('normal', b'', 'acad\n'), ('select', b'vl', 'ada\n')]:
+            e = Editor('delete-'+mode, 'abcd\n')
+            editors.append(e)
+            e.keys(b'yl'+select_keys)
+            e.keys(b'\x1b[3~')
+            e.keys(b'p')
+            assert e.save() == expected, ('Delete changed the yank register', mode)
+            e.close()
+
+        for mode, select_keys in [('normal', b''), ('select', b'v')]:
+            e = Editor('enter-'+mode, 'original\n')
+            editors.append(e)
+            e.keys(select_keys+b'\r')
+            e.keys(b'below')
+            e.keys(b'\x1b')
+            e.keys(b'gk'+select_keys)
+            e.keys(b'\x1b[13;2u')
+            e.keys(b'above')
+            e.keys(b'\x1b')
+            assert e.save() == 'above\noriginal\nbelow\n', ('Enter/Shift+Enter failed', mode)
+            e.close()
+
+        e = Editor('file-bounds', 'first\nmiddle\nlast\n')
+        editors.append(e)
+        e.keys(b'gj')
+        e.keys(b'iEND')
+        e.keys(b'\x1b')
+        e.save()
+        e.keys(b'gk')
+        e.keys(b'iTOP')
+        e.keys(b'\x1b')
+        assert e.save() == 'TOPfirst\nmiddle\nlast\nEND\n', 'g k/j file bounds failed'
+        e.keys(b'u')
+        result=e.save()
+        assert result == 'first\nmiddle\nlast\nEND\n', ('u undo alias failed', result)
+        e.keys(b'U')
+        assert e.save() == 'TOPfirst\nmiddle\nlast\nEND\n', 'U redo alias failed'
+        e.close()
+
+        # Unit selection and endpoint operations compose independently.
+        for name, text, packets, expected in [
+            ('word', 'alpha beta.foo gamma\n', [b'w', b'e', b'aX'], 'alpha betaX.foo gamma\n'),
+            ('WORD', 'alpha beta.foo gamma\n', [b'W', b'e', b'aX'], 'alpha beta.fooX gamma\n'),
+            ('WORD-E', 'alpha beta.foo gamma\n', [b'W', b'E', b'aX'], 'alpha beta.fooX gamma\n'),
+            ('word-E', 'alpha beta.foo gamma\n', [b'w', b'E', b'aX'], 'alpha betaX.foo gamma\n'),
+            ('single-char-E', 'alpha x.foo gamma\n', [b'w', b'E', b'aX'], 'alpha xX.foo gamma\n'),
+            ('word-unicode', 'alpha 日本語.foo gamma\n', [b'w', b'e', b'aX'], 'alpha 日本語X.foo gamma\n'),
+            ('WORD-unicode', 'alpha 日本語.foo gamma\n', [b'W', b'E', b'aX'], 'alpha 日本語.fooX gamma\n'),
+            ('word-combining', 'alpha café.foo gamma\n', [b'w', b'e', b'aX'], 'alpha caféX.foo gamma\n'),
+            ('WORD-back', 'alpha beta.foo gamma\n', [b'2W', b'B', b'e', b'aX'], 'alpha beta.fooX gamma\n'),
+            ('word-alone', 'alpha.foo beta\n', [b'e', b'aX'], 'alphaX.foo beta\n'),
+            ('WORD-alone', 'alpha.foo beta\n', [b'E', b'aX'], 'alpha.fooX beta\n'),
+            ('selection-end', 'alpha beta\n', [b'vll', b'e', b'aX'], 'alpXha beta\n'),
+            ('reverse-end', 'alpha beta\n', [b'vll', b'G;', b'e', b'aX'], 'alpXha beta\n'),
+            ('word-back', 'alpha beta gamma\n', [b'w', b'b', b'iX'], 'Xalpha beta gamma\n'),
+        ]:
+            e = Editor(name, text)
+            editors.append(e)
+            for packet in packets:
+                e.keys(packet)
+            e.keys(b'\x1b')
+            result = e.save()
+            assert result == expected, (name, result, '\n'.join(e.screen.display))
+            e.close()
+
+        e = Editor('multi-end', 'alpha beta\n')
+        editors.append(e)
+        e.keys(b'\x01')  # Select all, then split into two selected targets.
+        e.keys(b'G/alpha|beta\r')
+        e.keys(b'e')
+        e.keys(b'aX')
+        e.keys(b'\x1b')
+        assert e.save() == 'alphaX betaX\n', 'Endpoint operation lost multicursors'
+        e.close()
+
+        e = Editor('prefix-count', 'alpha beta gamma delta\n')
+        editors.append(e)
+        e.keys(b'2gw')
+        e.keys(b'iX')
+        e.keys(b'\x1b')
+        assert e.save() == 'alpha beta Xgamma delta\n', 'Count affected the cursor adjustment'
+        e.close()
+
+        e = Editor('prefix-code', '1\n')
+        editors.append(e)
+        e.keys(b'\x1b[71;6u')  # Ctrl+Shift+G, then number, next.
+        e.keys(b'nw')
+        result=e.save()
+        assert result == '2\n', ('Ctrl+Shift+G number increment failed', result, '\n'.join(e.screen.display))
+        e.keys(b'\x1b[71;6u')
+        e.keys(b'nb')
+        assert e.save() == '1\n', 'Ctrl+Shift+G number decrement failed'
         e.close()
 
         e = Editor('words', '')
@@ -167,7 +276,7 @@ with tempfile.TemporaryDirectory(prefix='helix-keys-') as temp:
         e.keys(b'\x1b[127;5u')
         e.keys(b'\x1b')
         assert e.save().strip() == 'aa bb', 'Ctrl+Backspace rescue failed'
-        e.keys(b'ggi')
+        e.keys(b'gki')
         e.keys(b'\x1b[3;5~')
         e.keys(b'\x1b')
         result = e.save()
@@ -195,4 +304,4 @@ with tempfile.TemporaryDirectory(prefix='helix-keys-') as temp:
             os.close(e.fd)
         if a.tuios:
             tuios('kill-server')
-print('PASS: save, undo checkpoint, jumplist, selection flip, no-yank register, word deletion, split/focus, insert rescue, close')
+print('PASS: directional prefixes, word movement/extension, save, undo checkpoint, jumplist, selection flip, no-yank register, word deletion, split/focus, insert rescue, close')

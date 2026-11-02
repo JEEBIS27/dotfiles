@@ -48,10 +48,12 @@ with tempfile.TemporaryDirectory(prefix='helix-steel-test-') as temporary:
                 yazi_config/'plugins/helix-open.yazi/main.lua')
     (home/'native').symlink_to(Path(a.native).resolve()/'lib')
     shutil.copy(repo/'files/helix/config.toml', conf/'config.toml')
-    (conf/'themes/Desktop.toml').write_text('inherits = "default"\n"ui.background" = { fg = "#a9b1d6" }\n"ui.text" = { fg = "#a9b1d6" }\n')
+    (conf/'themes/Desktop.toml').write_text('inherits = "default"\n"ui.background" = { fg = "#a9b1d6" }\n"ui.text" = { fg = "#a9b1d6" }\n"ui.cursor.primary.normal" = { bg = "#89b4fa" }\n"ui.cursor.primary.insert" = { bg = "#a6e3a1" }\n"ui.cursor.primary.select" = { bg = "#f5c2e7" }\n"ui.cursorline.primary" = { bg = "#313244" }\n')
     (conf/'helix.scm').write_text('')
     (root/'config/fish').mkdir()
     shutil.copy(repo/'files/fish/prompt.fish', root/'config/fish/config.fish')
+    with (root/'config/fish/config.fish').open('a') as fish_config:
+        fish_config.write("\nbind ctrl-escape 'command clear; commandline -f repaint'\n")
     init = (repo/'files/helix/steel/init.scm').read_text().replace('@fish@', a.fish)
     # Prove the last statement ran: an earlier require failure must fail the test.
     init += '\n(require (prefix-in test.hx. "helix/static.scm"))\n(define (test-only) (test.hx.wonly))\n'
@@ -128,6 +130,31 @@ with tempfile.TemporaryDirectory(prefix='helix-steel-test-') as temporary:
         send((shlex.join([a.helix, '--log', str(root/'helix.log'), str(sample)])+'\n').encode(), 5)
         assert (root/'loaded').exists(), '\n'.join(screen.display)
         print('startup OK', flush=True)
+        # Relative numbers and current-line highlight are visible in the grid.
+        content = [(y, line.index('alpha beta gamma')) for y, line in enumerate(screen.display) if 'alpha beta gamma' in line]
+        assert content, '\n'.join(screen.display)
+        row, col = content[0]
+        assert screen.buffer[row][col+35].bg == '313244', 'Current line is not highlighted'
+        second = next(line for line in screen.display if 'second line' in line)
+        assert second.split('second line')[0].strip() == '1', ('Relative line number missing', second)
+        start = len(output)
+        send(b'i')
+        assert b'\x1b[6 q' in output[start:], 'Insert cursor is not a bar'
+        assert b'\x1b]12;#a6e3a1' in output[start:], 'Insert cursor color missing'
+        send(b'\x1b')
+        assert b'\x1b]12;#89b4fa' in output[start:], 'Normal cursor color missing'
+        send(b'v')
+        assert b'\x1b]12;#f5c2e7' in output[start:], 'Select cursor color missing'
+        send(b'\x1b')
+        print('appearance OK: relative lines, current line, block/bar, mode colors', flush=True)
+
+        before = '\n'.join(screen.display)
+        send(b'\x07f', 1)  # Ctrl+G, F: TOML picker and Steel submenu must coexist.
+        assert '\n'.join(screen.display) != before, 'Ctrl+G F was shadowed by Steel'
+        send(b'\x1b')
+        send(b'\x07uf', .5)  # Ctrl+G, U, F: extension submenu.
+        send(b'\x1b')
+
         for name in ['flash', 'recentf-open-files', 'microscope-file-explorer']:
             command(name)
             send(b'\x1b')
@@ -173,6 +200,11 @@ with tempfile.TemporaryDirectory(prefix='helix-steel-test-') as temporary:
         assert screen.buffer[y][x].bg == '303030', screen.buffer[y][x]
         assert screen.buffer[y][x+9].fg == 'a9b1d6', screen.buffer[y][x+9]
         assert screen.buffer[y][x+9].bg == 'default', screen.buffer[y][x+9]
+        send(b'\x1b[27;5u', 1)
+        floating_bounds()
+        assert 'RGB_MARK' not in '\n'.join(screen.display), 'Ctrl+Esc did not clear output'
+        terminal_command(b'echo CLEAR_$HELIX_TERM_TEST\r')
+        assert 'CLEAR_retained' in '\n'.join(screen.display), 'Ctrl+Esc closed or restarted the shell'
         send(b'\x14', .5)
         assert '╭' not in '\n'.join(screen.display), 'Ctrl+T did not hide terminal'
         send(b'\x14', .5)
@@ -237,6 +269,7 @@ with tempfile.TemporaryDirectory(prefix='helix-steel-test-') as temporary:
         command('quit-all!')
         send(b'exit\n')
         child.wait(timeout=5)
+        assert b'\x1b]112\x07' in output, 'Terminal cursor color was not restored on exit'
         log = (root/'helix.log').read_text()
         assert 'UnboundIdentifier' not in log and 'Error loading' not in log, log[-6000:]
         print('PASS: interactive fish job control, Ctrl+Y, seven extensions, terminal command, zoom, Yazi chooser, original buffer unchanged, Yazi vertical/horizontal split')
