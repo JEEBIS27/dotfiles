@@ -111,7 +111,7 @@ TUIOSの描画から色を省くと画像が表示されない。GUI検証を直
 
 HyprlandのWorkspace1はTUIOSの `desktop-1` Workspace、2は `desktop-2` Workspaceを使う。
 名前付き・specialのHyprland Workspaceも、独立したTUIOS Workspaceに対応する。
-その中でTUIOS Tab1=Terminal、2=Yazi、3=Codex、4=Helix、5=btop、6=その他を使い分ける。
+その中でTerminal・Yazi・Codex・Helix・btopなどの役割Tabを使い分ける。使用中なら空き番号に同じ役割の別Tabを追加する。
 再起動では同じ役割のTabへ戻り、ペインを追加しない。空の場合だけ作り直す。
 
 - Alt+Shift+S: 内蔵Workspace検索。入力で絞り込み、Enterで切り替え、Delete（またはCtrl+D）で削除確認、Escで戻る。
@@ -130,3 +130,11 @@ Tab検索には役割名・ペインタイトル・選択中Tabの作業ディ�
 
 UIは旧SessionをWorkspace、旧WorkspaceをTabと呼ぶ。Alt+SはTab検索、Alt+Shift+SはWorkspace検索。
 既存設定・CLIとの互換性のため、`prefix_session_switcher`、`prefix_workspace_switcher`、`tuios attach`などの内部名やコマンド名は変更しない。
+
+
+## 複数のRioウィンドウ
+
+各Rioは選択中のTabとフォーカスを独立して保持する。Codexを開いても、既存Terminalの表示は切り替わらない。
+同じ役割のTabが別ウィンドウで使用中なら、新しいTabを `Terminal 2`、`Terminal 3` のように追加する。
+ウィンドウを閉じて使用中でなくなったTabは、次回の同じ役割の起動で再利用する。
+役割のTab番号は空き状況によって変わるため、Alt+Sの名前で選ぶ。既存の作業やディレクトリは上書きしない。

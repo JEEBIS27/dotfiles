@@ -154,6 +154,7 @@ in
     home.file.".local/bin/jeebis-helix-reload" = { source = personalHelpers + /jeebis-helix-reload; executable = true; };
     home.file.".local/bin/jeebis-terminal" = { source = personalHelpers + /jeebis-terminal; executable = true; };
     home.file.".local/bin/jeebis-tuios" = { source = personalHelpers + /jeebis-tuios; executable = true; };
+    home.file.".local/bin/jeebis-tuios-select-tab" = { source = personalHelpers + /jeebis-tuios-select-tab; executable = true; };
     home.file.".local/bin/jeebis-tuios-edit-config" = { source = personalHelpers + /jeebis-tuios-edit-config; executable = true; };
     home.file.".local/bin/jeebis-tuios-worktree" = { source = personalHelpers + /jeebis-tuios-worktree; executable = true; };
     home.file.".local/bin/jeebis-codex-tuios" = { source = personalHelpers + /jeebis-codex-tuios; executable = true; };
