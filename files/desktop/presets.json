@@ -2,16 +2,19 @@
   {
     "name": "tokyonight",
     "palette": "tokyonight",
-    "wallpaper": "tokyonight.jpg"
+    "wallpaper": "tokyonight.jpg",
+    "lockWallpaper": "tokyonight.jpg"
   },
   {
     "name": "kanagawa",
     "palette": "kanagawa",
-    "wallpaper": "kanagawa.jpg"
+    "wallpaper": "kanagawa.jpg",
+    "lockWallpaper": "kanagawa.jpg"
   },
   {
     "name": "catppuccin",
     "palette": "catppuccin",
-    "wallpaper": "catppuccin.png"
+    "wallpaper": "catppuccin.png",
+    "lockWallpaper": "catppuccin.png"
   }
 ]

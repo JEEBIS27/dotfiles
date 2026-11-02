@@ -20,7 +20,7 @@ nix --extra-experimental-features 'nix-command flakes' run "path:$PWD#just" -- s
 
 configuration.nixから読み込むハードウェア・ディスク・ブート設定、ユーザーとパスワード、system.stateVersionは移行先の既存値を維持する。VM用の仮ディスク定義は使わない。Home Managerの管理先に既存の実ファイルがある場合は、エラーに出た対象だけを退避して再実行する。強制上書きはしない。
 
-適用後はログアウトし、Hyprlandセッションへログインする。ログイン画面の設定は移行先のものを使う。現在の共通モジュールは独自のログイン画面を導入しない。
+適用後は再起動し、SDDMのログイン画面からHyprland（UWSM）へログインする。共通モジュールはSDDMと既定セッションを追加するため、インストーラーではデスクトップなしを選べる。Plasma本体は導入しない。自動ログインは設定しない。既存設定で別のログインマネージャーを有効にしている場合は、SDDMとの重複を解消してから適用する。ログイン画面はSDDM + Astronaut（astronautデザイン）。テーマとQt依存は固定済みNixpkgsから導入する。jeebis-desktopのプリセット配色とロック壁紙をログイン画面にも適用する。
 
 ## 更新
 
@@ -44,3 +44,16 @@ sudo nixos-rebuild switch --rollback
 ## 対応範囲
 
 実機のGPU・スリープ・音声等はハードウェアごとに確認する。外部プラグイン取得・クラウド認証・一部GUIアプリ本体の導入は別途必要。[パッケージ一覧](managed-items.md)、[入力・マウント](input-and-mounts.md)を参照。
+
+## 移行先で別途用意するもの
+
+- GPUドライバー、ディスク・ブート・暗号化、ユーザーとパスワード、ホスト名は移行先のOS設定で管理する。
+- タイムゾーン・ロケール・コンソール配列はAsia/Tokyo・ja_JP.UTF-8・jp106を既定値とし、移行先の明示設定を優先する。Hyprlandの共通配列はjp/jp106。
+- Wi-Fi認証、rclone、Git/SSH、アプリのログイン・ライセンス等の秘密情報は同期しない。
+- モニター配置・倍率は機種ごとに確認する。書き込み可能なmonitors.luaの変更はGitへ自動反映しない。
+- 指紋認証、プリンター、VPN、独自ハードウェア等は必要なPCだけOS側に追加する。
+- 音声・Bluetooth・NetworkManager・電源管理・Hyprland・IME・デスクトップシェルは共通構成の対象。実機での動作確認は別途必要。
+
+GNOME KeyringとSDDMログイン時の解除連携を含む。SDDM以外のgreeterとブートスプラッシュは追加していない。詳しい管理対象と対象外は[同期範囲の監査](sync-audit.md)を参照。
+
+既定ブラウザーはHelium。公式Linux AppImageを`packages/helium.nix`でバージョン・ハッシュ固定して導入する。ブラウザープロファイル・認証情報は管理しない。更新時はバージョンと公式アセットのハッシュを同時に更新する。

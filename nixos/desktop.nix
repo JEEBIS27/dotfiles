@@ -1,9 +1,26 @@
 { appPkgs, pkgs, lib, ... }:
 let
   mozkey = import ../packages/mozkey-fcitx5.nix { pkgs = appPkgs; };
+  helium = import ../packages/helium.nix { inherit pkgs; };
+  astronaut = (pkgs.sddm-astronaut.override { embeddedTheme = "astronaut"; }).overrideAttrs (old: {
+    installPhase = old.installPhase + ''
+      chmod u+w "$out/share/sddm/themes/sddm-astronaut-theme/Themes" "$out/share/sddm/themes/sddm-astronaut-theme/Backgrounds"
+      ln -s /var/lib/jeebis-theme/current/sddm.conf "$out/share/sddm/themes/sddm-astronaut-theme/Themes/astronaut.conf.user"
+      ln -s /var/lib/jeebis-theme/current/lock-wallpaper "$out/share/sddm/themes/sddm-astronaut-theme/Backgrounds/jeebis"
+    '';
+  });
   fish = import ../packages/fish.nix { pkgs = appPkgs; };
 in
 {
+  time.timeZone = lib.mkDefault "Asia/Tokyo";
+  i18n.defaultLocale = lib.mkDefault "ja_JP.UTF-8";
+  console.keyMap = lib.mkDefault "jp106";
+  services.xserver.xkb.layout = lib.mkDefault "jp";
+  programs.dconf.enable = true;
+  services.gnome.gnome-keyring.enable = true;
+  security.pam.services.sddm.enableGnomeKeyring = true;
+  security.pam.services.omarchy-lock-password.enableGnomeKeyring = true;
+  services.gvfs.enable = true;
   programs.fish.enable = true;
   users.users.jeebis.shell = fish;
   environment.shells = [ fish ];
@@ -13,10 +30,20 @@ in
     package = appPkgs.hyprland;
     portalPackage = appPkgs.xdg-desktop-portal-hyprland;
   };
-  environment.systemPackages = with appPkgs; [
-    chromium nautilus hyprland-preview-share-picker hyprsunset
-    wl-clipboard grim slurp libnotify brightnessctl
+  # A graphical login without installing the Plasma desktop. Use the registered
+  # UWSM session so user services receive the Wayland session environment.
+  services.displayManager.sddm.enable = lib.mkDefault true;
+  services.displayManager.sddm.wayland.enable = lib.mkDefault true;
+  systemd.tmpfiles.rules = [ "d /var/lib/jeebis-theme 0755 jeebis users -" ];
+  services.displayManager.sddm.theme = "sddm-astronaut-theme";
+  services.displayManager.sddm.extraPackages = with pkgs.kdePackages; [
+    qtsvg qtmultimedia qtvirtualkeyboard
   ];
+  services.displayManager.defaultSession = lib.mkDefault "hyprland-uwsm";
+  environment.systemPackages = [ astronaut helium ] ++ (with appPkgs; [
+    nautilus hyprland-preview-share-picker hyprsunset
+    wl-clipboard grim slurp libnotify brightnessctl
+  ]);
   fonts.packages = [ appPkgs.hackgen-nf-font ];
   fonts.fontconfig.defaultFonts.monospace = [ "HackGen35 Console NF" ];
   i18n.inputMethod = {
