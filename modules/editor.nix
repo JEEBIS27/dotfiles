@@ -31,6 +31,10 @@ in
     vtsls vue-language-server prettierd
   ];
 
+  # Keep the legacy path and latexmk's automatic XDG lookup in sync.
+  xdg.configFile."tex/.latexmkrc".source = ../files/tex/latexmkrc;
+  xdg.configFile."latexmk/latexmkrc".source = ../files/tex/latexmkrc;
+
   xdg.configFile."helix/init.scm".text = builtins.replaceStrings
     [ "@fish@" ] [ "${config.jeebis.shell.package}/bin/fish" ]
     (builtins.readFile ../files/helix/steel/init.scm);
