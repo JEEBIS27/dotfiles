@@ -7,7 +7,11 @@ in
     enable = true;
     package = steel.editor;
     defaultEditor = true;
-    settings = builtins.fromTOML (builtins.readFile ../files/helix/config.toml);
+    settings = import ../packages/helix-steel/keymap.nix {
+      inherit lib;
+      settings = builtins.fromTOML (builtins.readFile ../files/helix/config.toml);
+      inherit (import ../files/helix/key-layout.nix) directionKeys;
+    };
     languages = let
       parsed = builtins.fromTOML (builtins.readFile ../files/helix/languages.toml);
     in lib.recursiveUpdate parsed {

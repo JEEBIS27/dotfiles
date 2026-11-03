@@ -1,5 +1,5 @@
-# Super: desktop. Alt: TUIOS. Ctrl: application. g/G: move/extend.
-# Spatial movement: hjkl. Sequential movement: b/w (previous/next).
+# Logical keys; modules/editor.nix applies files/helix/key-layout.nix.
+# Super: desktop. Alt: TUIOS. Ctrl: app. h/j/k/l: spatial; e/w: previous/next.
 "theme" = "Desktop"
 
 [editor]
@@ -23,12 +23,11 @@
 "up" = "move_visual_line_up"
 "l" = "move_char_right"
 "right" = "move_char_right"
-"t" = "no_op"
-"f" = "no_op"
+"f" = "find_next_char"
 "T" = "no_op"
-"F" = "no_op"
-"r" = "replace"
-"R" = "no_op"
+"F" = "find_prev_char"
+"r" = ":jeebis-replace"
+"R" = ":jeebis-replace-yank"
 "A-." = "no_op"
 "~" = "no_op"
 "`" = "no_op"
@@ -36,26 +35,26 @@
 "home" = "goto_line_start"
 "end" = "goto_line_end"
 "w" = ":jeebis-word-next"
-"b" = ":jeebis-word-prev"
-"e" = ":jeebis-end-word"
+"b" = ":jeebis-word-start"
+"e" = ":jeebis-word-prev"
 "W" = ":jeebis-WORD-next"
-"B" = ":jeebis-WORD-prev"
-"E" = ":jeebis-end-WORD"
+"B" = ":jeebis-WORD-start"
+"E" = ":jeebis-WORD-prev"
 "v" = "select_mode"
 ":" = "command_mode"
 "i" = "insert_mode"
-"I" = "insert_at_line_start"
-"a" = "append_mode"
-"A" = "insert_at_line_end"
-"o" = "no_op"
-"O" = "no_op"
+"I" = "append_mode"
+"a" = "select_all"
+"A" = "no_op"
+"o" = "open_below"
+"O" = "open_above"
 "d" = "delete_selection_noyank"
 "A-d" = "no_op"
 "c" = "change_selection_noyank"
 "A-c" = "no_op"
-"C" = "no_op"
+"C" = "change_selection"
 "A-C" = "no_op"
-"s" = "no_op"
+"s" = ":jeebis-surround"
 "A-s" = "no_op"
 "A-minus" = "no_op"
 "A-_" = "no_op"
@@ -76,16 +75,14 @@
 "A-b" = "no_op"
 "A-a" = "no_op"
 "%" = "no_op"
-"x" = "no_op"
-"X" = "no_op"
+"x" = "select_line_below"
+"X" = "select_line_above"
 "A-x" = "no_op"
 "m" = "no_op"
 "[" = "no_op"
 "]" = "no_op"
 "/" = "search"
 "?" = "no_op"
-"n" = "no_op"
-"N" = "no_op"
 "*" = "no_op"
 "A-*" = "no_op"
 "u" = "undo"
@@ -95,8 +92,8 @@
 "y" = "yank"
 "p" = "paste_after"
 "P" = "paste_before"
-"Q" = "no_op"
-"q" = "no_op"
+"Q" = ":quit!"
+"q" = ":write-quit"
 ">" = "no_op"
 "<" = "no_op"
 "=" = "no_op"
@@ -115,9 +112,9 @@
 "A-:" = "no_op"
 "esc" = ["normal_mode", "collapse_selection"]
 "C-b" = "buffer_picker"
-"pageup" = "page_up"
+"pageup" = ":jeebis-smooth-page-up"
 "C-f" = "file_picker"
-"pagedown" = "page_down"
+"pagedown" = ":jeebis-smooth-page-down"
 "C-u" = "no_op"
 "C-d" = "changed_file_picker"
 "C-w" = ":quit"
@@ -126,7 +123,7 @@
 "tab" = "no_op"
 "C-o" = "no_op"
 "C-s" = ":write"
-"space" = "no_op"
+"space" = "command_mode"
 "z" = "no_op"
 "Z" = "no_op"
 "\"" = "no_op"
@@ -161,16 +158,64 @@
 "del" = "delete_selection_noyank"
 "ret" = "open_below"
 "S-ret" = "open_above"
+"V" = ":jeebis-line-mode"
+"D" = "delete_selection"
+"Y" = ["yank", "yank_to_clipboard"]
+
+[keys.normal.t]
+"w" = ":jeebis-current-word"
+"W" = ":jeebis-current-WORD"
+"f" = ":jeebis-target call here"
+"F" = ":jeebis-target function here"
+"s" = ":jeebis-wrapper"
+"i" = ":jeebis-wrapper-inner"
+"p" = ":jeebis-textobject p"
+"m" = ":jeebis-textobject m"
+"(" = ":jeebis-textobject paren"
+")" = ":jeebis-textobject paren"
+"[" = ":jeebis-textobject bracket"
+"]" = ":jeebis-textobject bracket"
+"{" = ":jeebis-textobject brace"
+"}" = ":jeebis-textobject brace"
+"\"" = ":jeebis-textobject quote"
+"'" = ":jeebis-textobject apostrophe"
+"`" = ":jeebis-textobject backtick"
+
+[keys.normal.n]
+"w" = ":jeebis-word-next"
+"W" = ":jeebis-WORD-next"
+"f" = ":jeebis-target call next"
+"F" = ":jeebis-target function next"
+"/" = "search_next"
+"d" = "goto_next_diag"
+"c" = "goto_next_change"
+"b" = "goto_next_buffer"
+"u" = "jump_forward"
+"p" = "goto_next_paragraph"
+"s" = "select_next_sibling"
+
+[keys.normal.N]
+"w" = ":jeebis-word-prev"
+"W" = ":jeebis-WORD-prev"
+"f" = ":jeebis-target call prev"
+"F" = ":jeebis-target function prev"
+"/" = "search_prev"
+"d" = "goto_prev_diag"
+"c" = "goto_prev_change"
+"b" = "goto_previous_buffer"
+"u" = "jump_backward"
+"p" = "goto_prev_paragraph"
+"s" = "select_prev_sibling"
 
 [keys.normal.G]
 "h" = "extend_to_line_start"
-"k" = "extend_to_file_start"
+"k" = ":jeebis-smooth-extend-file-start"
 "l" = "extend_to_line_end"
-"j" = "extend_to_file_end"
+"j" = ":jeebis-smooth-extend-file-end"
 "left" = "extend_to_line_start"
-"up" = "extend_to_file_start"
+"up" = ":jeebis-smooth-extend-file-start"
 "right" = "extend_to_line_end"
-"down" = "extend_to_file_end"
+"down" = ":jeebis-smooth-extend-file-end"
 "H" = "no_op"
 "L" = "no_op"
 "K" = ["select_mode", "goto_prev_paragraph", "normal_mode"]
@@ -190,87 +235,38 @@
 "_" = "trim_selections"
 "g" = "no_op"
 "|" = "no_op"
-"e" = ":jeebis-end-word"
+"e" = "extend_prev_word_start"
 "d" = "no_op"
 "D" = "no_op"
 "y" = "no_op"
 "i" = "no_op"
 "c" = "no_op"
-"b" = "extend_prev_word_start"
+"b" = ":jeebis-word-start"
 "m" = "no_op"
 "n" = "no_op"
 "p" = "no_op"
 "." = "no_op"
 "w" = "extend_next_word_start"
 "f" = "no_op"
-"B" = "extend_prev_long_word_start"
+"B" = ":jeebis-WORD-start"
 "W" = "extend_next_long_word_start"
 "t" = "no_op"
-"E" = ":jeebis-end-WORD"
-
-[keys.normal.G.a]
-"h" = "extend_to_line_start"
-"l" = "extend_to_line_end"
-"k" = "extend_line_up"
-"j" = "extend_line_down"
-"left" = "extend_to_line_start"
-"right" = "extend_to_line_end"
-"up" = "extend_line_up"
-"down" = "extend_line_down"
-
-[keys.normal.G.r]
-"b" = "extend_search_prev"
-"w" = "extend_search_next"
-
-[keys.normal.G.s]
-"b" = "select_prev_sibling"
-"w" = "select_next_sibling"
-"h" = "extend_parent_node_start"
-"l" = "extend_parent_node_end"
-"k" = "expand_selection"
-"j" = "shrink_selection"
-"a" = "select_all_siblings"
-"c" = "select_all_children"
-"left" = "extend_parent_node_start"
-"right" = "extend_parent_node_end"
-"up" = "expand_selection"
-"down" = "shrink_selection"
-
-[keys.normal.G.o]
-
-[keys.normal.G.o.f]
-"b" = ["select_mode", "goto_prev_function", "normal_mode"]
-"w" = ["select_mode", "goto_next_function", "normal_mode"]
-
-[keys.normal.G.o.c]
-"b" = ["select_mode", "goto_prev_class", "normal_mode"]
-"w" = ["select_mode", "goto_next_class", "normal_mode"]
-
-[keys.normal.G.o.a]
-"b" = ["select_mode", "goto_prev_parameter", "normal_mode"]
-"w" = ["select_mode", "goto_next_parameter", "normal_mode"]
-
-[keys.normal.G.o.m]
-"b" = ["select_mode", "goto_prev_comment", "normal_mode"]
-"w" = ["select_mode", "goto_next_comment", "normal_mode"]
-
-[keys.normal.G.o.t]
-"b" = ["select_mode", "goto_prev_test", "normal_mode"]
-"w" = ["select_mode", "goto_next_test", "normal_mode"]
-
-[keys.normal.G.o.x]
-"b" = ["select_mode", "goto_prev_xml_element", "normal_mode"]
-"w" = ["select_mode", "goto_next_xml_element", "normal_mode"]
+"E" = "extend_prev_long_word_start"
+"a" = "no_op"
+"r" = "no_op"
+"s" = "no_op"
+"o" = "no_op"
+"u" = "no_op"
 
 [keys.normal.g]
 "h" = "goto_line_start"
-"k" = "goto_file_start"
+"k" = ":jeebis-smooth-file-start"
 "l" = "goto_line_end"
-"j" = "goto_file_end"
+"j" = ":jeebis-smooth-file-end"
 "left" = "goto_line_start"
-"up" = "goto_file_start"
+"up" = ":jeebis-smooth-file-start"
 "right" = "goto_line_end"
-"down" = "goto_file_end"
+"down" = ":jeebis-smooth-file-end"
 "H" = "no_op"
 "L" = "no_op"
 "K" = "goto_prev_paragraph"
@@ -288,87 +284,21 @@
 "n" = "no_op"
 "p" = "no_op"
 "." = "no_op"
-"e" = ":jeebis-end-word"
+"e" = ":jeebis-word-prev"
 "w" = ":jeebis-word-next"
-"b" = ":jeebis-word-prev"
-"B" = ":jeebis-WORD-prev"
+"b" = ":jeebis-word-start"
+"B" = ":jeebis-WORD-start"
 "W" = ":jeebis-WORD-next"
 "t" = "no_op"
-"E" = ":jeebis-end-WORD"
-
-[keys.normal.g.a]
-"h" = "goto_line_start"
-"l" = "goto_line_end"
-"k" = "move_line_up"
-"j" = "move_line_down"
-"left" = "goto_line_start"
-"right" = "goto_line_end"
-"up" = "move_line_up"
-"down" = "move_line_down"
-
-[keys.normal.g.f]
-"b" = "goto_previous_buffer"
-"w" = "goto_next_buffer"
-
-[keys.normal.g.r]
-"b" = "search_prev"
-"w" = "search_next"
-
-[keys.normal.g.s]
-"b" = "select_prev_sibling"
-"w" = "select_next_sibling"
-"h" = "move_parent_node_start"
-"l" = "move_parent_node_end"
-"k" = "expand_selection"
-"j" = "shrink_selection"
-"a" = "select_all_siblings"
-"c" = "select_all_children"
-"left" = "move_parent_node_start"
-"right" = "move_parent_node_end"
-"up" = "expand_selection"
-"down" = "shrink_selection"
-
-[keys.normal.g.o]
-
-[keys.normal.g.o.f]
-"b" = "goto_prev_function"
-"w" = "goto_next_function"
-
-[keys.normal.g.o.c]
-"b" = "goto_prev_class"
-"w" = "goto_next_class"
-
-[keys.normal.g.o.a]
-"b" = "goto_prev_parameter"
-"w" = "goto_next_parameter"
-
-[keys.normal.g.o.m]
-"b" = "goto_prev_comment"
-"w" = "goto_next_comment"
-
-[keys.normal.g.o.t]
-"b" = "goto_prev_test"
-"w" = "goto_next_test"
-
-[keys.normal.g.o.x]
-"b" = "goto_prev_xml_element"
-"w" = "goto_next_xml_element"
-
-[keys.normal.g.d]
-"b" = "goto_prev_diag"
-"w" = "goto_next_diag"
-"B" = "goto_first_diag"
-"W" = "goto_last_diag"
-
-[keys.normal.g.c]
-"b" = "goto_prev_change"
-"w" = "goto_next_change"
-"B" = "goto_first_change"
-"W" = "goto_last_change"
-
-[keys.normal.g.u]
-"b" = "jump_backward"
-"w" = "jump_forward"
+"E" = ":jeebis-WORD-prev"
+"a" = "no_op"
+"f" = "no_op"
+"r" = "no_op"
+"s" = "no_op"
+"o" = "no_op"
+"d" = "no_op"
+"c" = "no_op"
+"u" = "no_op"
 
 [keys.normal.g.v]
 "k" = "goto_window_top"
@@ -402,14 +332,14 @@
 "t" = "switch_case"
 
 [keys.normal.C-S-g.s]
-"a" = "surround_add"
-"r" = "surround_replace"
-"d" = "surround_delete"
-"i" = "select_textobject_inner"
-"o" = "select_textobject_around"
+"a" = ":jeebis-surround"
+"r" = ":jeebis-replace"
+"d" = "delete_selection_noyank"
+"i" = ":jeebis-wrapper-inner"
+"o" = ":jeebis-wrapper"
 
 [keys.normal.C-S-g.n]
-"b" = "decrement"
+"e" = "decrement"
 "w" = "increment"
 
 [keys.normal.C-S-g.p]
@@ -446,12 +376,11 @@
 "up" = "extend_visual_line_up"
 "l" = "extend_char_right"
 "right" = "extend_char_right"
-"t" = "no_op"
-"f" = "no_op"
+"f" = "find_next_char"
 "T" = "no_op"
-"F" = "no_op"
-"r" = "replace"
-"R" = "no_op"
+"F" = "find_prev_char"
+"r" = ":jeebis-replace"
+"R" = ":jeebis-replace-yank"
 "A-." = "no_op"
 "~" = "no_op"
 "`" = "no_op"
@@ -459,26 +388,26 @@
 "home" = "extend_to_line_start"
 "end" = "extend_to_line_end"
 "w" = "extend_next_word_start"
-"b" = "extend_prev_word_start"
-"e" = ":jeebis-end-word"
+"b" = ":jeebis-word-start"
+"e" = "extend_prev_word_start"
 "W" = "extend_next_long_word_start"
-"B" = "extend_prev_long_word_start"
-"E" = ":jeebis-end-WORD"
+"B" = ":jeebis-WORD-start"
+"E" = "extend_prev_long_word_start"
 "v" = "normal_mode"
 ":" = "command_mode"
 "i" = "insert_mode"
-"I" = "insert_at_line_start"
-"a" = "append_mode"
-"A" = "insert_at_line_end"
-"o" = "no_op"
-"O" = "no_op"
+"I" = "append_mode"
+"a" = "select_all"
+"A" = "no_op"
+"o" = "open_below"
+"O" = "open_above"
 "d" = "delete_selection_noyank"
 "A-d" = "no_op"
 "c" = "change_selection_noyank"
 "A-c" = "no_op"
-"C" = "no_op"
+"C" = "change_selection"
 "A-C" = "no_op"
-"s" = "no_op"
+"s" = ":jeebis-surround"
 "A-s" = "no_op"
 "A-minus" = "no_op"
 "A-_" = "no_op"
@@ -499,16 +428,14 @@
 "A-b" = "no_op"
 "A-a" = "no_op"
 "%" = "no_op"
-"x" = "no_op"
-"X" = "no_op"
+"x" = "select_line_below"
+"X" = "select_line_above"
 "A-x" = "no_op"
 "m" = "no_op"
 "[" = "no_op"
 "]" = "no_op"
 "/" = "search"
 "?" = "no_op"
-"n" = "no_op"
-"N" = "no_op"
 "*" = "no_op"
 "A-*" = "no_op"
 "u" = "undo"
@@ -518,8 +445,8 @@
 "y" = "yank"
 "p" = "paste_after"
 "P" = "paste_before"
-"Q" = "no_op"
-"q" = "no_op"
+"Q" = ":quit!"
+"q" = ":write-quit"
 ">" = "no_op"
 "<" = "no_op"
 "=" = "no_op"
@@ -538,9 +465,9 @@
 "A-:" = "no_op"
 "esc" = ["normal_mode", "collapse_selection"]
 "C-b" = "buffer_picker"
-"pageup" = "page_up"
+"pageup" = ":jeebis-smooth-page-up"
 "C-f" = "file_picker"
-"pagedown" = "page_down"
+"pagedown" = ":jeebis-smooth-page-down"
 "C-u" = "no_op"
 "C-d" = "changed_file_picker"
 "C-w" = ":quit"
@@ -549,7 +476,7 @@
 "tab" = "no_op"
 "C-o" = "no_op"
 "C-s" = ":write"
-"space" = "no_op"
+"space" = "command_mode"
 "z" = "no_op"
 "Z" = "no_op"
 "\"" = "no_op"
@@ -584,16 +511,64 @@
 "del" = "delete_selection_noyank"
 "ret" = "open_below"
 "S-ret" = "open_above"
+"V" = ":jeebis-line-mode"
+"D" = "delete_selection"
+"Y" = ["yank", "yank_to_clipboard"]
+
+[keys.select.t]
+"w" = ":jeebis-current-word"
+"W" = ":jeebis-current-WORD"
+"f" = ":jeebis-target call here"
+"F" = ":jeebis-target function here"
+"s" = ":jeebis-wrapper"
+"i" = ":jeebis-wrapper-inner"
+"p" = ":jeebis-textobject p"
+"m" = ":jeebis-textobject m"
+"(" = ":jeebis-textobject paren"
+")" = ":jeebis-textobject paren"
+"[" = ":jeebis-textobject bracket"
+"]" = ":jeebis-textobject bracket"
+"{" = ":jeebis-textobject brace"
+"}" = ":jeebis-textobject brace"
+"\"" = ":jeebis-textobject quote"
+"'" = ":jeebis-textobject apostrophe"
+"`" = ":jeebis-textobject backtick"
+
+[keys.select.n]
+"w" = "extend_next_word_start"
+"W" = "extend_next_long_word_start"
+"f" = ":jeebis-target call next"
+"F" = ":jeebis-target function next"
+"/" = "search_next"
+"d" = "goto_next_diag"
+"c" = "goto_next_change"
+"b" = "goto_next_buffer"
+"u" = "jump_forward"
+"p" = "goto_next_paragraph"
+"s" = "select_next_sibling"
+
+[keys.select.N]
+"w" = "extend_prev_word_start"
+"W" = "extend_prev_long_word_start"
+"f" = ":jeebis-target call prev"
+"F" = ":jeebis-target function prev"
+"/" = "search_prev"
+"d" = "goto_prev_diag"
+"c" = "goto_prev_change"
+"b" = "goto_previous_buffer"
+"u" = "jump_backward"
+"p" = "goto_prev_paragraph"
+"s" = "select_prev_sibling"
 
 [keys.select.G]
 "h" = "extend_to_line_start"
-"k" = "extend_to_file_start"
+"k" = ":jeebis-smooth-extend-file-start"
 "l" = "extend_to_line_end"
-"j" = "extend_to_file_end"
+"j" = ":jeebis-smooth-extend-file-end"
 "left" = "extend_to_line_start"
-"up" = "extend_to_file_start"
+"up" = ":jeebis-smooth-extend-file-start"
 "right" = "extend_to_line_end"
-"down" = "extend_to_file_end"
+"down" = ":jeebis-smooth-extend-file-end"
 "H" = "no_op"
 "L" = "no_op"
 "K" = ["goto_prev_paragraph"]
@@ -613,87 +588,38 @@
 "_" = "trim_selections"
 "g" = "no_op"
 "|" = "no_op"
-"e" = ":jeebis-end-word"
+"e" = "extend_prev_word_start"
 "d" = "no_op"
 "D" = "no_op"
 "y" = "no_op"
 "i" = "no_op"
 "c" = "no_op"
-"b" = "extend_prev_word_start"
+"b" = ":jeebis-word-start"
 "m" = "no_op"
 "n" = "no_op"
 "p" = "no_op"
 "." = "no_op"
 "w" = "extend_next_word_start"
 "f" = "no_op"
-"B" = "extend_prev_long_word_start"
+"B" = ":jeebis-WORD-start"
 "W" = "extend_next_long_word_start"
 "t" = "no_op"
-"E" = ":jeebis-end-WORD"
-
-[keys.select.G.a]
-"h" = "extend_to_line_start"
-"l" = "extend_to_line_end"
-"k" = "extend_line_up"
-"j" = "extend_line_down"
-"left" = "extend_to_line_start"
-"right" = "extend_to_line_end"
-"up" = "extend_line_up"
-"down" = "extend_line_down"
-
-[keys.select.G.r]
-"b" = "extend_search_prev"
-"w" = "extend_search_next"
-
-[keys.select.G.s]
-"b" = "select_prev_sibling"
-"w" = "select_next_sibling"
-"h" = "extend_parent_node_start"
-"l" = "extend_parent_node_end"
-"k" = "expand_selection"
-"j" = "shrink_selection"
-"a" = "select_all_siblings"
-"c" = "select_all_children"
-"left" = "extend_parent_node_start"
-"right" = "extend_parent_node_end"
-"up" = "expand_selection"
-"down" = "shrink_selection"
-
-[keys.select.G.o]
-
-[keys.select.G.o.f]
-"b" = "goto_prev_function"
-"w" = "goto_next_function"
-
-[keys.select.G.o.c]
-"b" = "goto_prev_class"
-"w" = "goto_next_class"
-
-[keys.select.G.o.a]
-"b" = "goto_prev_parameter"
-"w" = "goto_next_parameter"
-
-[keys.select.G.o.m]
-"b" = "goto_prev_comment"
-"w" = "goto_next_comment"
-
-[keys.select.G.o.t]
-"b" = "goto_prev_test"
-"w" = "goto_next_test"
-
-[keys.select.G.o.x]
-"b" = "goto_prev_xml_element"
-"w" = "goto_next_xml_element"
+"E" = "extend_prev_long_word_start"
+"a" = "no_op"
+"r" = "no_op"
+"s" = "no_op"
+"o" = "no_op"
+"u" = "no_op"
 
 [keys.select.g]
 "h" = "extend_to_line_start"
-"k" = "extend_to_file_start"
+"k" = ":jeebis-smooth-extend-file-start"
 "l" = "extend_to_line_end"
-"j" = "extend_to_file_end"
+"j" = ":jeebis-smooth-extend-file-end"
 "left" = "extend_to_line_start"
-"up" = "extend_to_file_start"
+"up" = ":jeebis-smooth-extend-file-start"
 "right" = "extend_to_line_end"
-"down" = "extend_to_file_end"
+"down" = ":jeebis-smooth-extend-file-end"
 "H" = "no_op"
 "L" = "no_op"
 "K" = ["goto_prev_paragraph"]
@@ -713,77 +639,28 @@
 "_" = "trim_selections"
 "g" = "no_op"
 "|" = "no_op"
-"e" = ":jeebis-end-word"
+"e" = "extend_prev_word_start"
 "d" = "no_op"
 "D" = "no_op"
 "y" = "no_op"
 "i" = "no_op"
 "c" = "no_op"
-"b" = "extend_prev_word_start"
+"b" = ":jeebis-word-start"
 "m" = "no_op"
 "n" = "no_op"
 "p" = "no_op"
 "." = "no_op"
 "w" = "extend_next_word_start"
 "f" = "no_op"
-"B" = "extend_prev_long_word_start"
+"B" = ":jeebis-WORD-start"
 "W" = "extend_next_long_word_start"
 "t" = "no_op"
-"E" = ":jeebis-end-WORD"
-
-[keys.select.g.a]
-"h" = "extend_to_line_start"
-"l" = "extend_to_line_end"
-"k" = "extend_line_up"
-"j" = "extend_line_down"
-"left" = "extend_to_line_start"
-"right" = "extend_to_line_end"
-"up" = "extend_line_up"
-"down" = "extend_line_down"
-
-[keys.select.g.r]
-"b" = "extend_search_prev"
-"w" = "extend_search_next"
-
-[keys.select.g.s]
-"b" = "select_prev_sibling"
-"w" = "select_next_sibling"
-"h" = "extend_parent_node_start"
-"l" = "extend_parent_node_end"
-"k" = "expand_selection"
-"j" = "shrink_selection"
-"a" = "select_all_siblings"
-"c" = "select_all_children"
-"left" = "extend_parent_node_start"
-"right" = "extend_parent_node_end"
-"up" = "expand_selection"
-"down" = "shrink_selection"
-
-[keys.select.g.o]
-
-[keys.select.g.o.f]
-"b" = "goto_prev_function"
-"w" = "goto_next_function"
-
-[keys.select.g.o.c]
-"b" = "goto_prev_class"
-"w" = "goto_next_class"
-
-[keys.select.g.o.a]
-"b" = "goto_prev_parameter"
-"w" = "goto_next_parameter"
-
-[keys.select.g.o.m]
-"b" = "goto_prev_comment"
-"w" = "goto_next_comment"
-
-[keys.select.g.o.t]
-"b" = "goto_prev_test"
-"w" = "goto_next_test"
-
-[keys.select.g.o.x]
-"b" = "goto_prev_xml_element"
-"w" = "goto_next_xml_element"
+"E" = "extend_prev_long_word_start"
+"a" = "no_op"
+"r" = "no_op"
+"s" = "no_op"
+"o" = "no_op"
+"u" = "no_op"
 
 [keys.select.C-e]
 "h" = "swap_view_left"
@@ -812,14 +689,14 @@
 "t" = "switch_case"
 
 [keys.select.C-S-g.s]
-"a" = "surround_add"
-"r" = "surround_replace"
-"d" = "surround_delete"
-"i" = "select_textobject_inner"
-"o" = "select_textobject_around"
+"a" = ":jeebis-surround"
+"r" = ":jeebis-replace"
+"d" = "delete_selection_noyank"
+"i" = ":jeebis-wrapper-inner"
+"o" = ":jeebis-wrapper"
 
 [keys.select.C-S-g.n]
-"b" = "decrement"
+"e" = "decrement"
 "w" = "increment"
 
 [keys.select.C-S-g.p]
@@ -848,6 +725,8 @@
 [keys.select.C-g.u]
 
 [keys.insert]
+"pageup" = ":jeebis-smooth-page-up"
+"pagedown" = ":jeebis-smooth-page-down"
 "C-s" = ":write"
 "C-w" = ":quit"
 "C-n" = ":new"
@@ -941,7 +820,7 @@
 "o" = "select_textobject_around"
 
 [keys.insert.C-S-g.n]
-"b" = "decrement"
+"e" = "decrement"
 "w" = "increment"
 
 [keys.insert.C-S-g.p]
