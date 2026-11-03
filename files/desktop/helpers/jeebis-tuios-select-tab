@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Reserve an unused view of a role Tab, or resume one whose window closed."""
-import hashlib,json,os,re,subprocess,sys,time
+import fcntl,hashlib,json,os,re,subprocess,sys,time
 from pathlib import Path
 
 def process_start(pid):
@@ -10,10 +10,38 @@ def process_start(pid):
     except (OSError,IndexError):
         return None
 
+def view_directory(state,session):
+    return Path(state)/'views'/hashlib.sha256((os.environ.get('TUIOS_SERVER','')+'\0'+session).encode()).hexdigest()[:24]
+
+def yazi_exited(window):
+    state=os.environ.get('XDG_RUNTIME_DIR',os.environ.get('XDG_STATE_HOME',str(Path.home()/'.local/state')))
+    state=Path(state)/'jeebis-tuios'
+    state.mkdir(parents=True,exist_ok=True)
+    with (state/'launch.lock').open('a') as lock:
+        fcntl.flock(lock,fcntl.LOCK_EX)
+        panes=json.loads(subprocess.check_output(['tuios','list-windows','--all','--json']))['panes']
+        pane=next((p for p in panes if p['window_id']==window),None)
+        if pane is None or not re.fullmatch(r'Yazi(?: [2-9][0-9]*)?',pane.get('workspace_name','')):
+            return
+        session,ws=pane['session'],pane['workspace']
+        tabs=json.loads(subprocess.check_output(['tuios','list-workspaces','-s',session,'--json']))['workspaces']
+        used={t.get('name') for t in tabs if t['workspace']!=ws}
+        name='Terminal-Yazi'
+        n=2
+        while name in used:
+            name=f'Terminal-Yazi {n}';n+=1
+        subprocess.run(['tuios','call','set-workspace-name',json.dumps(dict(session=session,workspace=ws,name=name))],check=True,stdout=subprocess.DEVNULL)
+        file=view_directory(state,session)/f'{ws}.json'
+        if file.exists():
+            item=json.loads(file.read_text())
+            item.update(role='terminal-yazi',ordinal=n-1)
+            pending=file.with_suffix('.tmp');pending.write_text(json.dumps(item));pending.chmod(0o600)
+            os.replace(pending,file)
+
 def select():
     state,session,role,label,preferred,owner=sys.argv[1:]
     preferred,owner=int(preferred),int(owner)
-    directory=Path(state)/'views'/hashlib.sha256((os.environ.get('TUIOS_SERVER','')+'\0'+session).encode()).hexdigest()[:24]
+    directory=view_directory(state,session)
     directory.mkdir(parents=True,exist_ok=True,mode=0o700)
     tabs=json.loads(subprocess.check_output(['tuios','list-workspaces','-s',session,'--json']))['workspaces']
     metadata={}
@@ -61,6 +89,8 @@ def select():
     print(json.dumps(dict(workspace=ws,name=name,rename=not bool(tab.get('name')),create=not bool(tab['window_count']))))
 
 if __name__=='__main__':
-    try:select()
+    try:
+        if len(sys.argv)==3 and sys.argv[1]=='--yazi-exited':yazi_exited(sys.argv[2])
+        else:select()
     except (RuntimeError,subprocess.CalledProcessError,KeyError,ValueError) as error:
         print(f'TUIOS: {error}',file=sys.stderr);sys.exit(1)

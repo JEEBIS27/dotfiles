@@ -101,6 +101,9 @@ end
 function __jeebis_yazi
     set -l tmp (mktemp -t yazi-cwd.XXXXXX); or return
     command yazi $argv --cwd-file="$tmp"
+    if set -q TUIOS_WINDOW_ID
+        command jeebis-tuios-select-tab --yazi-exited "$TUIOS_WINDOW_ID"
+    end
     set -l cwd (command cat -- "$tmp")
     command rm -f -- "$tmp"
     test -n "$cwd"; and test "$cwd" != "$PWD"; and cd -- "$cwd"
