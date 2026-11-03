@@ -27,7 +27,7 @@
 | Alt+O | 通知対象へ移動 | TUIOSの最新メッセージ対象へ移動 |
 | Alt+D | デタッチ | TUIOSデタッチ、プロセスを保持 |
 | Alt+W | ペインを閉じる | TUIOSウィンドウを閉じる |
-| Alt+Shift+W | Workspace全体を閉じる | 現Workspaceを全プロセスごと削除し、TUIOSを終了 |
+| Alt+Shift+W | Tabを閉じる | 現Tabの全ペインを閉じる（確認あり）。他のTabは保持 |
 | Alt+Shift+D | Tabを閉じる | TUIOSの現Tab全ペインを閉じる（確認あり） |
 | Alt+Shift+F | ズーム | TUIOSズーム |
 | Alt+; | 前のペイン | TUIOS last pane |
@@ -120,7 +120,7 @@ HyprlandのWorkspace1はTUIOSの `desktop-1` Workspace、2は `desktop-2` Worksp
 - Alt+Shift+Tab / Alt+PgUp: 前のTUIOS Tab。
 - Super+W: Rioを閉じる。Workspaceと実行中プロセスは保持する。
 - Alt+W: 現在のペインを閉じる。
-- Alt+Shift+W: 現在のWorkspace全体を削除してTUIOSを終了する。
+- Alt+Shift+W: 現在のTabの全ペインを閉じる（確認あり）。他のTabとWorkspaceは保持する。
 
 歯車マークは表示しない。過去の役割別Workspaceは自動削除せず、必要ならAlt+Shift+Sから削除する。
 

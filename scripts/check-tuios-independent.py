@@ -92,7 +92,30 @@ with tempfile.TemporaryDirectory(prefix='tuios-independent-') as temp:
   assert len(windows())==3
   assert 'TERMINAL_ONE_MARKER' in text(terminal) and 'CODEX_MARKER' in text(codex)
   save(resumed,'04-resumed-terminal-two')
-  print('PASS: simultaneous Terminal/Codex views remain independent; Terminal 2 has a separate PTY; closed Terminal 2 resumes without creating another Tab or session')
+  # A half-width shell beside a full-width shell must not resize both PTYs
+  # on every focus/input change. This used to alternate 80x30 and 120x40.
+  fcntl.ioctl(terminal['fd'],termios.TIOCSWINSZ,struct.pack('HHHH',30,80,800,600))
+  terminal['screen'].resize(30,80)
+  pump(2)
+  dimensions=[]
+  for i in range(6):
+   client=terminal if i%2==0 else resumed
+   marker=f'RESIZE_STABLE_{i:02d}'
+   os.write(client['fd'],f'printf "{marker}\\n"\r'.encode())
+   wait(lambda client=client,marker=marker:marker in text(client))
+   pump(1.1) # Cross the latest-client policy's one-second ownership lease.
+   info=json.loads(run('session-info','-s','desktop-1','--json'))
+   dimensions.append((info['session_width'],info['session_height']))
+  assert dimensions==[(80,30)]*6,dimensions
+  for client,parity in [(terminal,0),(resumed,1)]:
+   # The wide client's right-hand padding is outside the shared pane area.
+   rows=[row[:80].strip() for row in client['screen'].display[:30]]
+   for n in range(parity,6,2):
+    marker=f'RESIZE_STABLE_{n:02d}'
+    assert rows.count(marker)==1,(marker,rows)
+  assert 'CODEX_MARKER' in text(codex)
+  save(terminal,'05-stable-narrow');save(resumed,'05-stable-wide')
+  print('PASS: independent views, separate PTYs, closed Tab reuse; alternating input at different window sizes keeps shared geometry stable')
  finally:
   for i,c in enumerate(clients):
    (a.artifacts/f'client-{i}.ansi').write_bytes(c['raw'])

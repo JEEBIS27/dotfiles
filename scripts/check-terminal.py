@@ -234,13 +234,23 @@ with tempfile.TemporaryDirectory(prefix='dotfiles-terminal-') as tmp:
         thread.start()
         eventually(lambda: any(s['name'] == 'desktop-99' and s['attached'] for s in json.loads(run('ls','--json'))))
         time.sleep(.4)
-        run('new-window', 'survivor', '-s', 'desktop-99', '--no-focus', '--', '/bin/sh', '-c', 'sleep 60')
-        eventually(lambda: windows('desktop-99')['total'] == 2)
+        run('new-window', 'survivor', '-s', 'desktop-99', '--workspace', '2', '--no-focus', '--', '/bin/sh', '-c', 'sleep 60')
+        run('new-window', 'same-tab', '-s', 'desktop-99', '--workspace', '1', '--no-focus', '--', '/bin/sh', '-c', 'sleep 60')
+        eventually(lambda: windows('desktop-99')['total'] == 3)
+        survivor = next(w['window_id'] for w in windows('desktop-99')['windows'] if w['workspace'] == 2)
         os.write(fd, b'\x1bw')  # Alt+W closes only the focused pane.
-        eventually(lambda: windows('desktop-99')['total'] == 1)
+        eventually(lambda: windows('desktop-99')['total'] == 2)
         assert any(s['name'] == 'desktop-99' for s in json.loads(run('ls','--json')))
-        os.write(fd, b'\x1bW')  # Alt+Shift+W ends the session and client.
-        eventually(lambda: not any(s['name'] == 'desktop-99' for s in json.loads(run('ls','--json'))))
+        os.write(fd, b'\x1bW')  # Alt+Shift+W asks to close this Tab only.
+        time.sleep(.3)
+        assert windows('desktop-99')['total'] == 2
+        os.write(fd, b'\x1b[B\r')  # Select Close instead of the default Cancel.
+        eventually(lambda: windows('desktop-99')['total'] == 1)
+        assert windows('desktop-99')['windows'][0]['window_id'] == survivor
+        assert any(s['name'] == 'desktop-99' for s in json.loads(run('ls','--json')))
+        # The original client and the other Tab remain alive.
+        assert os.waitpid(pid, os.WNOHANG) == (0, 0)
+        os.write(fd, b'\x1bd')
         os.waitpid(pid, 0)
         pid = None
         stop.set()
