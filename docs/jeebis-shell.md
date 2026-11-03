@@ -233,6 +233,8 @@ var barTriggerModes = {
 
 解像度・倍率・位置を維持し、`displayRotationTouchDevices`で指定した内蔵タッチパネルとペンの座標も同時に回転させる。別機種では入力デバイス名とY符号を確認して変更する。実際に本体を逆さまにした際の判定とタッチ／ペン位置は実機で確認する。
 
+選択した画面・タッチ入力の回転ルールは`~/.local/state/jeebis-shell/display-rotation.lua`にも保存し、Hyprlandのモニター設定の後に読み込む。設定の再読み込みでも向きを維持し、回転アニメーションは再生しない。自動反転は安定した傾きが変わったときだけ実行する。
+
 キーボードから戻す場合も`jeebis-desktop shell jeebis.display toggle`を使える。状態は`jeebis-desktop shell jeebis.display state`、自動切替は`jeebis-desktop shell jeebis.display toggleAuto`。
 
 画面反転の演出は`displayRotationAnimationEnabled`でオン／オフ、`displayRotationAnimationDuration`で時間を調整する。曲線は`notchAnimationPreset`、速度は`animationSpeed`に従う。静止画を画面内に収まる大きさへ縮小しながら回し、回転完了後は画像を保持したまま実際の画面方向を切り替え、向きを補正して新しいデスクトップへクロスフェードする。終端を黒幕へ置き換えない。`displayRotationCrossfadeDuration`（初期値180ms）でクロスフェード時間を調整する。手動・自動の両方に適用する。

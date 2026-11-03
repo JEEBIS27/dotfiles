@@ -33,6 +33,10 @@ class RotationTests(unittest.TestCase):
         self.assertIsNone(stable.update(2,0))
         self.assertIsNone(stable.update(2,1))
         self.assertEqual(stable.update(2,1.5),2)
+        self.assertIsNone(stable.update(2,1.8))
+        self.assertIsNone(stable.update(None,1.9))
+        self.assertIsNone(stable.update(2,2.0))
+        self.assertIsNone(stable.update(2,3.6))
         self.assertIsNone(stable.update(None,2))
         self.assertIsNone(stable.update(2,2.1))
         self.assertIsNone(stable.update(0,3.0))
@@ -50,6 +54,13 @@ class RotationTests(unittest.TestCase):
             module.save_state(path,{'automatic':False,'transform':2})
             self.assertEqual(json.loads(path.read_text())['transform'],2)
             self.assertEqual(len(list(root.glob('.rotation-*'))),0)
+
+    def test_reload_rule_keeps_inverted_orientation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)/"display-rotation.lua"
+            module.save_rotation_rule(path, MONITOR, 2, {"touchDevices": ["internal-touch"]})
+            self.assertEqual(path.read_text().strip(), module.rotation_command(MONITOR, 2, ["internal-touch"]))
+            self.assertEqual(list(path.parent.glob(".rotation-*")), [])
 
     def test_preserve_mode_and_target_touch_only(self):
         command=module.rotation_command(MONITOR,2,['internal-touch'])

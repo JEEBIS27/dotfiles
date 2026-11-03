@@ -68,6 +68,7 @@ class StableOrientation:
         self.delay = delay
         self.candidate = None
         self.since = 0
+        self.accepted = None
 
     def update(self, value, now):
         if value is None:
@@ -75,7 +76,10 @@ class StableOrientation:
             return None
         if value != self.candidate:
             self.candidate, self.since = value, now
-        return value if now - self.since >= self.delay else None
+        if now - self.since < self.delay or value == self.accepted:
+            return None
+        self.accepted = value
+        return value
 
 
 def lua(value):
@@ -197,6 +201,19 @@ def save_state(path, value):
             os.unlink(temporary)
 
 
+def save_rotation_rule(path, monitor, transform, config):
+    """Reload the chosen orientation with the monitor rules, without animation."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=".rotation-", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w") as stream:
+            stream.write(rotation_command(monitor, transform, config.get("touchDevices", [])) + "\n")
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
 def status(config, state):
     monitor = select_monitor(monitors(), config.get("output", ""))
     sensor = sensor_path(config)
@@ -235,6 +252,7 @@ def main():
                     current = select_monitor(monitors(), info["output"])
                     target = current["transform"] ^ 2
                     apply(current, target, config)
+                    save_rotation_rule(path.with_suffix(".lua"), current, target, config)
                     state.update(automatic=False, output=info["output"], transform=target)
                 save_state(path, state)
                 info = status(config, state)
@@ -244,12 +262,15 @@ def main():
                     value = orientation(read_vector(Path(info["sensor"])), int(config.get("normalYSign", -1)))
                     target = stable.update(value, time.monotonic())
                 else:
-                    stable.update(None, time.monotonic())
-                    if state.get("output") == info["output"] and type(state.get("transform")) is int and state["transform"] in range(8):
-                        target = state["transform"]
+                    # Manual orientation belongs to the compositor; never fight
+                    # unrelated monitor-rule changes by replaying saved state.
+                    stable = StableOrientation(stable.delay)
                 if target is not None and info["available"] and target != info["transform"]:
                     current = select_monitor(monitors(), info["output"])
                     apply(current, target, config)
+                    save_rotation_rule(path.with_suffix(".lua"), current, target, config)
+                    state.update(output=info["output"], transform=target)
+                    save_state(path, state)
                     info = status(config, state)
         except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
             info = {"error": str(error), "available": False}

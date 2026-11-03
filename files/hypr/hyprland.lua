@@ -27,6 +27,7 @@ require("hypr.looknfeel")
 -- Personal geometry and pre-Ruixen window motion take precedence.
 require("jeebis.curvature")
 require("hypr.window-animations")
+require("hypr.display-rotation")
 require("hypr.autostart")
 
 -- Toggle config flags dynamically.
