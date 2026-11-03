@@ -224,3 +224,17 @@ var barTriggerModes = {
 `islands`モードのノッチは上端中央を固定して拡大・縮小する。`OutBack`でサイズが1を超えても、上端は画面から離れない。消えるときの負のオーバーシュートは0で止め、反転表示を防ぐ。`bar`モードでは左右の島と揃ったスライドを維持する。
 
 自動表示の時間・曲線・速度は引き続き`barSlideDuration`・用途別のShow/Hideプリセット・`animationSpeed`を参照する。従来のノッチ独自のホバー表示も、島モードでは同じ上端固定の拡大・縮小を使う。
+
+## ダッシュボードの画面反転
+
+1ページ目のawakeの右にある回転ボタンをクリックすると、内蔵画面を180度反転し、もう一度で戻す。右クリックまたは長押しでセンサーによる自動反転を切り替える。手動操作は自動反転を解除する。外部ディスプレイの向きは変更しない。設定は`~/.local/state/jeebis-shell/display-rotation.json`に保存する。
+
+`ShellConfig.js`の`displayRotation*`と`displayAutoRotate`で対象・初期値・判定待ち時間・入力機器を調整できる。Inspiron 14 7440 2-in-1の読み取り可能なIIO加速度センサーを使い、追加のrootサービスは不要。自動反転は0/180度のみで、傾きが1.5秒安定してから切り替わる。水平・横向きでは現在の向きを維持する。取り付け行列があれば使用し、通常方向のY符号はこの機種に合わせて負を初期値にしている。
+
+解像度・倍率・位置を維持し、`displayRotationTouchDevices`で指定した内蔵タッチパネルとペンの座標も同時に回転させる。別機種では入力デバイス名とY符号を確認して変更する。実際に本体を逆さまにした際の判定とタッチ／ペン位置は実機で確認する。
+
+キーボードから戻す場合も`jeebis-desktop shell jeebis.display toggle`を使える。状態は`jeebis-desktop shell jeebis.display state`、自動切替は`jeebis-desktop shell jeebis.display toggleAuto`。
+
+画面反転の演出は`displayRotationAnimationEnabled`でオン／オフ、`displayRotationAnimationDuration`で時間を調整する。曲線は`notchAnimationPreset`、速度は`animationSpeed`に従う。静止画を画面内に収まる大きさへ縮小しながら回し、回転完了後は画像を保持したまま実際の画面方向を切り替え、向きを補正して新しいデスクトップへクロスフェードする。終端を黒幕へ置き換えない。`displayRotationCrossfadeDuration`（初期値180ms）でクロスフェード時間を調整する。手動・自動の両方に適用する。
+
+画面画像はQuickshellの`ScreencopyView`でメモリ上だけに保持する。画像ファイル・画像キャッシュ・クリップボードには書き込まない。終了時と失敗時にはキャプチャ用コンポーネントを破棄する。処理が中断された場合は監視タイマーで解除し、シェル終了／再起動でも保持オブジェクトは残らない。キャプチャできない環境では演出なしで反転する。

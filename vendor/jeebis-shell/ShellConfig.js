@@ -20,8 +20,8 @@ var floatOverlapThresholdPercent = 90;
 
 var hyprlandAnimationPreset = "InOutSine";
 var notchAnimationPreset = "OutBack";
-var notchShowAnimationPreset = "OutBack";
-var notchHideAnimationPreset = "InBounce";
+var notchShowAnimationPreset = "OutBounce";
+var notchHideAnimationPreset = "InQuart";
 var barAnimationPreset = "OutBack"; // その他のShell UI（ランチャー等）の既定も兼ねる
 var barShowAnimationPreset = "OutBounce";
 var barHideAnimationPreset = "InQuart";
@@ -47,6 +47,7 @@ function motionPreset(bounded, group, direction) {
     preset = group === "notch" ? notchShowAnimationPreset : barShowAnimationPreset;
   else if (direction === "hide")
     preset = group === "notch" ? notchHideAnimationPreset : barHideAnimationPreset;
+  if (group === "rotation") preset = displayRotationAnimationPreset;
   preset = String(preset);
   if (["Linear", "InOutSine", "OutBack", "OutBounce", "InQuart"].indexOf(preset) < 0)
     return "InOutSine";
@@ -76,6 +77,21 @@ function motionOvershoot() {
   var value = Number(animationOvershoot);
   return isFinite(value) ? Math.max(0, Math.min(3, value)) : 1.70158;
 }
+
+// ===== 内蔵ディスプレイの上下反転 =====
+// 左クリック: 180度反転/元に戻す（自動を解除）。右クリック・長押し: 自動反転。
+// 自動反転は0/180度のみ。水平・横向き・移動中は向きを保持する。
+var displayRotationOutput = ""; // 空欄でeDP/LVDS/DSIの内蔵画面を自動選択
+var displayRotationAnimationEnabled = true; // キャプチャはメモリのみ。画像ファイルは作らない
+var displayRotationCrossfadeDuration = 180; // 回転画像から実画面へ透かしてつなぐ時間ms
+var displayRotationAnimationPreset = "InOutSine"; // 回転専用のQt Quick曲線。ノッチとは独立
+var displayRotationAnimationDuration = 650; // 回転時間ms。animationSpeedに追従
+var displayAutoRotate = false; // 保存済みの自動設定がない場合の初期値
+var displayRotationStableMs = 1000; // 傾きがこの時間続いたら反転
+var displayRotationSensor = ""; // 空欄で読み取り可能なIIO加速度センサーを検出
+var displayRotationNormalYSign = -1; // Inspiron 14 7440: 通常の向きで加速度Yが負
+// 内蔵タッチパネル/ペンだけを画面と同じ向きにする。外付け入力機器は含めない。
+var displayRotationTouchDevices = ["elan3233:00-04f3:423e", "elan3233:00-04f3:423e-unknown", "elan3233:00-04f3:423e-stylus"];
 
 // ===== バーの自動表示 =====
 // Super+B/Nの自動表示で、アプリ開閉・ワークスペース切替後の表示時間（ms）。

@@ -1,6 +1,7 @@
 import "../../../motion" as Motion
 import "../../../ShellConfig.js" as ShellConfig
 import QtQuick
+import QtQuick.Controls as Controls
 import QtQuick.Layouts
 import QtQuick.Effects
 import Quickshell
@@ -254,6 +255,7 @@ Item {
   // by the v4.0.3 restriction, since that only gates the in-process
   // firstPartyServiceFor() object handoff, not omarchy-shell's own IPC
   // surface.
+  property var rotationController: null
   property bool nightlightEnabled: false
   property bool stayAwakeEnabled: false
 
@@ -433,6 +435,10 @@ Item {
   component QuickToggle: Rectangle {
     id: qt
     property string glyph: ""
+    property string hint: ""
+    property bool secondaryAction: false
+    property bool controlEnabled: true
+    signal secondaryActivated()
     property bool active: false
     property int size: 32
     signal activated()
@@ -452,10 +458,19 @@ Item {
     }
 
     MouseArea {
+      id: toggleMouse
+      property bool longPressed: false
       anchors.fill: parent
+      enabled: qt.controlEnabled
+      acceptedButtons: qt.secondaryAction ? Qt.LeftButton | Qt.RightButton : Qt.LeftButton
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
-      onClicked: qt.activated()
+      onPressed: longPressed = false
+      onClicked: mouse => { if (longPressed) return; if (mouse.button === Qt.RightButton) qt.secondaryActivated(); else qt.activated() }
+      onPressAndHold: mouse => { if (qt.secondaryAction) { longPressed = true; qt.secondaryActivated(); mouse.accepted = true } }
+      Controls.ToolTip.visible: containsMouse && qt.hint.length > 0
+      Controls.ToolTip.delay: 500
+      Controls.ToolTip.text: qt.hint
     }
   }
 
@@ -1151,6 +1166,19 @@ Item {
             // sendIdleAction's own comment for the real (inverted)
             // mapping to the underlying enable/disable IPC calls.
             onActivated: root.sendIdleAction(!root.stayAwakeEnabled)
+          }
+
+          QuickToggle {
+            size: 40
+            glyph: "\uf01e"
+            active: root.rotationController && (root.rotationController.state.transform === 2 || root.rotationController.state.automatic === true)
+            secondaryAction: true
+            controlEnabled: root.rotationController && !root.rotationController.busy
+            hint: "180°反転 / 元に戻す\n右クリック・長押し: 自動反転 "
+              + (root.rotationController && root.rotationController.state.automatic ? "ON" : "OFF")
+              + (root.rotationController && root.rotationController.state.error ? "\n" + root.rotationController.state.error : "")
+            onActivated: if (root.rotationController) root.rotationController.request("toggle")
+            onSecondaryActivated: if (root.rotationController) root.rotationController.request("toggle-auto")
           }
         }
       }

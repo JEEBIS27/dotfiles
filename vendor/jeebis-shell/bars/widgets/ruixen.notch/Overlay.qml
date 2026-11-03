@@ -25,6 +25,8 @@ import qs.Commons
 // this pass.
 Item {
   id: root
+  readonly property alias displayRotation: displayRotationController
+  JeebisDisplayRotation { id: displayRotationController }
   property var shell: null
   property var manifest: null
 
