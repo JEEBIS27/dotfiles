@@ -771,15 +771,15 @@ hl.unbind("SUPER + ALT + K")
 hl.unbind("SUPER + CTRL + K")
 -- Keep application and monitor switching in the desktop's Super namespace.
 for _, binding in ipairs({
-    { "SUPER + SHIFT + PAGE_UP", "Previous workspace", "e-1" },
-    { "SUPER + SHIFT + PAGE_DOWN", "Next workspace", "e+1" },
+    { "SUPER + PAGE_UP", "Previous workspace", "e-1" },
+    { "SUPER + PAGE_DOWN", "Next workspace", "e+1" },
 }) do
     hl.unbind(binding[1])
     desktop.bind(binding[1], binding[2], focus_workspace_with_apps(binding[3]))
 end
 for _, binding in ipairs({
-    { "SUPER + CTRL + PAGE_UP", "Previous monitor", "-1" },
-    { "SUPER + CTRL + PAGE_DOWN", "Next monitor", "+1" },
+    { "SUPER + SHIFT + PAGE_UP", "Previous monitor", "-1" },
+    { "SUPER + SHIFT + PAGE_DOWN", "Next monitor", "+1" },
 }) do
     hl.unbind(binding[1])
     desktop.bind(binding[1], binding[2], hl.dsp.focus({ monitor = binding[3] }))
@@ -815,10 +815,6 @@ hl.unbind("SUPER + SHIFT + RETURN")
 desktop.bind("SUPER + RETURN", "Split terminal right", function() split_terminal("r") end)
 desktop.bind("SUPER + SHIFT + RETURN", "Split terminal down", function() split_terminal("d") end)
 
-for _, binding in ipairs({ { "SUPER + PAGE_UP", false }, { "SUPER + PAGE_DOWN", true } }) do
-    hl.unbind(binding[1])
-    desktop.bind(binding[1], "Cycle window", hl.dsp.window.cycle_next({ next = binding[2] }))
-end
 hl.unbind("SUPER + E")
 desktop.bind("SUPER + E", "Exchange window: choose direction", hl.dsp.submap("exchange"))
 hl.define_submap("exchange", function()
