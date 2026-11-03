@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import pty
+import re
 import select
 import shutil
 import struct
@@ -38,15 +39,34 @@ for mode in ['normal', 'select', 'insert']:
     assert keys['C-S-s'] == ('commit_undo_checkpoint' if mode == 'insert' else 'save_selection')
     assert all(value == 'no_op' for key, value in keys.items() if key.startswith('A-'))
     if mode != 'insert':
-        menu = keys['space']['m']
-        assert menu[';'] == 'flip_selections' and menu['d'] == 'delete_selection_noyank'
-        assert menu['e'] == ('extend_parent_node_end' if mode == 'select' else 'move_parent_node_end')
+        assert keys['del'] == 'delete_selection_noyank'
+        assert keys['ret'] == 'open_below' and keys['S-ret'] == 'open_above'
+        assert all(keys[key] == keys['g'][key] for key in ('w', 'e', 'W', 'E'))
+        assert keys['u'] == 'undo' and keys['U'] == 'redo'
+        assert keys['g']['k'] == (':jeebis-smooth-file-start' if mode == 'normal' else ':jeebis-smooth-extend-file-start')
+        assert keys['g']['j'] == (':jeebis-smooth-file-end' if mode == 'normal' else ':jeebis-smooth-extend-file-end')
+        assert keys['space'] == 'command_mode'
+        assert keys['n']['f'] == ':jeebis-target call next' and keys['N']['f'] == ':jeebis-target call prev'
+        assert keys['b'] == ':jeebis-word-start' and keys['B'] == ':jeebis-WORD-start'
+        assert keys['i'] == 'insert_mode' and keys['I'] == 'append_mode'
+        assert keys['D'] == 'delete_selection' and keys['C'] == 'change_selection'
+        assert keys['a'] == 'select_all' and keys['V'] == ':jeebis-line-mode'
+        assert keys['q'] == ':write-quit' and keys['Q'] == ':quit!'
+        assert keys['G'][';'] == 'flip_selections'
+        assert keys['G']['e'] == 'extend_prev_word_start'
+        assert keys['G']['w'] == 'extend_next_word_start'
+        assert keys['C-g']['/'] == 'global_search'
+        assert keys['C-S-g']['r'] == 'rename_symbol'
 
 with tempfile.TemporaryDirectory(prefix='helix-keys-') as temp:
     root = Path(temp)
     conf = root/'config/helix'
     (conf/'themes').mkdir(parents=True)
     shutil.copy2(repo/'files/helix/config.toml', conf/'config.toml')
+    motions = (repo/'files/helix/steel/init.scm').read_text().split(';; BEGIN cursor motions\n')[1].split(';; END cursor motions')[0]
+    smooth = (repo/'files/helix/steel/init.scm').read_text().split(';; BEGIN smooth scrolling\n')[1].split(';; END smooth scrolling')[0]
+    (conf/'init.scm').write_text(motions + '\n' + smooth + '\n(define (test-half-down) (motion.half_page_down))\n(define (test-file-start) (motion.goto_file_start) (motion.align_view_top))\n(define (test-file-end) (motion.goto_file_end) (motion.align_view_bottom))\n(define (test-extend-end) (motion.extend_to_file_end))\n')
+
     (conf/'themes/Desktop.toml').write_text('inherits = "default"\n')
     (root/'runtime').mkdir(mode=0o700)
     env = {k: v for k, v in os.environ.items() if not k.startswith(('TUIOS', 'HERDR', 'TMUX'))}
@@ -73,6 +93,7 @@ with tempfile.TemporaryDirectory(prefix='helix-keys-') as temp:
             self.screen = TerminalScreen(120, 36)
             self.stream = pyte.ByteStream(self.screen)
             self.output = b''
+            self.scroll_frames = []
             command = [a.helix, str(self.path)]
             if a.tuios:
                 tuios('new', name, '--detach')
@@ -95,6 +116,9 @@ with tempfile.TemporaryDirectory(prefix='helix-keys-') as temp:
                     break
                 self.output += data
                 self.stream.feed(data)
+                marker = re.search(r'ROW_(\d{4})', '\n'.join(self.screen.display))
+                if marker and (not self.scroll_frames or self.scroll_frames[-1] != int(marker[1])):
+                    self.scroll_frames.append(int(marker[1]))
                 if b'\x1b[?6n' in data:
                     os.write(self.fd, b'\x1b[?1;1R')
                 if b'\x1b[6n' in data:
@@ -121,6 +145,128 @@ with tempfile.TemporaryDirectory(prefix='helix-keys-') as temp:
 
     editors = []
     try:
+        e = Editor('smooth-scroll', ''.join(f'ROW_{i:04d}\n' for i in range(200)))
+        editors.append(e)
+        def scroll_top():
+            return int(re.search(r'ROW_(\d{4})', '\n'.join(e.screen.display))[1])
+        e.keys(b':test-half-down\r')
+        half = scroll_top()
+        assert half > 5, ('Native half-page baseline failed', half)
+        e.keys(b'gk')
+        e.scroll_frames.clear()
+        os.write(e.fd, b'\x1b[6~')
+        e.pump(.45)
+        assert scroll_top() == half, ('Smooth page distance differs from native half-page', half, scroll_top(), e.scroll_frames, '\n'.join(e.screen.display))
+        assert len(set(e.scroll_frames)) >= 4, ('No intermediate animation frames', e.scroll_frames)
+        e.keys(b'gk')
+        os.write(e.fd, b'\x1b[6~')
+        e.pump(.035)
+        os.write(e.fd, b'\x1b[6~')
+        e.pump(.45)
+        assert scroll_top() == 2*half, ('Repeated pages lost distance', scroll_top(), half)
+        e.keys(b'gk')
+        os.write(e.fd, b'\x1b[6~')
+        e.pump(.035)
+        os.write(e.fd, b'\x1b[5~')
+        e.pump(.45)
+        assert scroll_top() == 0, ('Reversing did not cancel accumulated distance', scroll_top())
+        os.write(e.fd, b'\x1b[6~')
+        e.pump(.035)
+        e.keys(b'l')
+        stopped = scroll_top()
+        e.pump(.3)
+        assert scroll_top() == stopped, 'Scrolling continued after cursor input'
+        e.keys(b'gk')
+        os.write(e.fd, b'\x1b[6~')
+        e.pump(.025)
+        os.write(e.fd, b'2')
+        e.pump(.35)
+        e.keys(b'l')
+        e.keys(b'iX')
+        e.keys(b'\x1b')
+        assert 'ROXW_' in e.save(), 'Animation clobbered a numeric prefix'
+        e.close()
+
+        file_text = ''.join(f'ROW_{i:04d}\n' for i in range(400))
+        e = Editor('smooth-file', file_text)
+        editors.append(e)
+        def file_top():
+            return int(re.search(r'ROW_(\d{4})', '\n'.join(e.screen.display))[1])
+        e.keys(b':test-file-end\r')
+        end_top = file_top()
+        assert end_top > 300, ('Native EOF fixture did not scroll', '\n'.join(e.screen.display))
+        e.keys(b':test-file-start\r')
+        e.scroll_frames.clear()
+        e.keys(b'gj')
+        e.pump(.25)
+        assert file_top() == end_top, ('Animated EOF differs from native', file_top(), end_top)
+        assert len(set(e.scroll_frames)) >= 4, ('File end was not animated', e.scroll_frames)
+        e.keys(b'Nu')
+        assert file_top() == 0, 'Intermediate frames polluted the jumplist'
+        e.keys(b':test-file-end\r')
+        e.scroll_frames.clear()
+        e.keys(b'gk')
+        e.pump(.25)
+        assert file_top() == 0 and len(set(e.scroll_frames)) >= 4, 'File start was not animated'
+        e.keys(b':test-file-end\r')
+        os.write(e.fd, b'gk')
+        e.pump(.025)
+        e.keys(b'iTOP')
+        e.keys(b'\x1b')
+        assert e.save() == 'TOP'+file_text, 'Fast edit acted on an intermediate file position'
+        e.keys(b'u')
+        e.keys(b':test-file-start\r')
+        e.keys(b':test-extend-end\r')
+        e.keys(b'd')
+        expected_selection = e.save()
+        e.keys(b'u')
+        e.keys(b':test-file-start\r')
+        e.keys(b'Gj')
+        e.pump(.25)
+        e.keys(b'd')
+        assert e.save() == expected_selection, 'G j did not preserve native selection bounds'
+        e.close()
+
+        e = Editor('smooth-large-file', ''.join(f'LARGE_{i:06d}\n' for i in range(20000)))
+        editors.append(e)
+        started = time.monotonic()
+        e.keys(b'gj')
+        e.pump(.25)
+        e.keys(b'iEND')
+        e.keys(b'\x1b')
+        assert e.save().endswith('END\n'), 'Large-file jump did not reach EOF'
+        assert time.monotonic()-started < 2, 'File animation scales with line count'
+        e.close()
+
+        for mode, enter in [('normal', b''), ('select', b'v')]:
+            e = Editor('line-select-'+mode, 'one\ntwo\nthree\n')
+            editors.append(e)
+            if enter:
+                e.keys(enter)
+            e.keys(b'x')
+            e.keys(b'd')
+            assert e.save() == 'two\nthree\n', ('x line selection failed', mode)
+            e.keys(b'u')
+            e.keys(b'j')
+            if enter:
+                e.keys(enter)
+            e.keys(b'X')
+            e.keys(b'd')
+            assert e.save() == 'one\nthree\n', ('X line selection failed', mode)
+            e.close()
+
+        e = Editor('keybinding-search', 'one\n')
+        editors.append(e)
+        e.keys(b'\x10')
+        e.pump(.4)
+        e.keys(b'select_line_below')
+        assert 'select_line_below' in '\n'.join(e.screen.display) and 'bindings' in '\n'.join(e.screen.display), ('Ctrl+P keybinding search missing', '\n'.join(e.screen.display))
+        e.keys(b'\x15')
+        e.keys(b'%bindings x')
+        assert 'select_line_below' in '\n'.join(e.screen.display), 'Binding-column search missing'
+        e.keys(b'\x1b')
+        e.close()
+
         e = Editor('undo', '')
         editors.append(e)
         e.keys(b'iaaa')
@@ -128,17 +274,19 @@ with tempfile.TemporaryDirectory(prefix='helix-keys-') as temp:
         assert e.path.read_text() == '', 'Shifted save unexpectedly wrote the file'
         e.keys(b'bbb')
         e.keys(b'\x1b')
-        e.keys(b'u')
-        assert e.save() == 'aaa\n', 'Undo checkpoint rescue failed'
+        e.keys(b'\x1a')
+        result = e.save()
+        assert result == 'aaa\n', ('Undo checkpoint rescue failed', result, '\n'.join(e.screen.display))
         e.close()
 
         e = Editor('jump', 'zero\none\ntwo\nthree\n')
         editors.append(e)
-        e.keys(b'ggj')
+        e.keys(b'gk')
+        e.keys(b'j')
         e.keys(b'\x1b[83;6u')
         e.keys(b'jj')
         e.keys(b'\x1b[83;6u')
-        e.keys(b'\x0f')
+        e.keys(b'Nu')
         e.keys(b'iMARK')
         e.keys(b'\x1b')
         assert e.save().splitlines()[1] == 'MARKone', 'Jumplist rescue failed'
@@ -147,7 +295,7 @@ with tempfile.TemporaryDirectory(prefix='helix-keys-') as temp:
         e = Editor('flip', 'abcd\n')
         editors.append(e)
         e.keys(b'vll')
-        e.keys(b' m;')
+        e.keys(b'G;')
         e.keys(b';iZ')
         e.keys(b'\x1b')
         assert e.save() == 'Zabcd\n', 'Selection flip rescue failed'
@@ -156,9 +304,100 @@ with tempfile.TemporaryDirectory(prefix='helix-keys-') as temp:
         e = Editor('noyank', 'abcd\n')
         editors.append(e)
         e.keys(b'yl')
-        e.keys(b' md')
+        e.keys(b'd')
         e.keys(b'p')
         assert e.save() == 'acad\n', 'No-yank deletion changed the register'
+        e.close()
+
+        for mode, select_keys, expected in [('normal', b'', 'acad\n'), ('select', b'vl', 'ada\n')]:
+            e = Editor('delete-'+mode, 'abcd\n')
+            editors.append(e)
+            e.keys(b'yl'+select_keys)
+            e.keys(b'\x1b[3~')
+            e.keys(b'p')
+            assert e.save() == expected, ('Delete changed the yank register', mode)
+            e.close()
+
+        for mode, select_keys in [('normal', b''), ('select', b'v')]:
+            e = Editor('enter-'+mode, 'original\n')
+            editors.append(e)
+            e.keys(select_keys+b'\r')
+            e.keys(b'below')
+            e.keys(b'\x1b')
+            e.keys(b'gk')
+            if select_keys:
+                e.keys(select_keys)
+            e.keys(b'\x1b[13;2u')
+            e.keys(b'above')
+            e.keys(b'\x1b')
+            assert e.save() == 'above\noriginal\nbelow\n', ('Enter/Shift+Enter failed', mode)
+            e.close()
+
+        e = Editor('file-bounds', 'first\nmiddle\nlast\n')
+        editors.append(e)
+        e.keys(b'gj')
+        e.keys(b'iEND')
+        e.keys(b'\x1b')
+        e.save()
+        e.keys(b'gk')
+        e.keys(b'iTOP')
+        e.keys(b'\x1b')
+        assert e.save() == 'TOPfirst\nmiddle\nlast\nEND\n', 'g k/j file bounds failed'
+        e.keys(b'u')
+        result=e.save()
+        assert result == 'first\nmiddle\nlast\nEND\n', ('u undo alias failed', result)
+        e.keys(b'U')
+        assert e.save() == 'TOPfirst\nmiddle\nlast\nEND\n', 'U redo alias failed'
+        e.close()
+
+        # Direction-first units, containing units, and start/insert compose.
+        for name, text, packets, expected in [
+            ('word', 'alpha beta.foo gamma\n', [b'w', b'IX'], 'alpha betaX.foo gamma\n'),
+            ('WORD', 'alpha beta.foo gamma\n', [b'W', b'IX'], 'alpha beta.fooX gamma\n'),
+            ('word-unicode', 'alpha 日本語.foo gamma\n', [b'w', b'IX'], 'alpha 日本語X.foo gamma\n'),
+            ('word-combining', 'alpha café.foo gamma\n', [b'w', b'IX'], 'alpha caféX.foo gamma\n'),
+            ('WORD-back', 'alpha beta.foo gamma\n', [b'2W', b'E', b'IX'], 'alpha beta.fooX gamma\n'),
+            ('word-back', 'alpha beta gamma\n', [b'w', b'e', b'iX'], 'Xalpha beta gamma\n'),
+            ('word-start', 'alpha beta gamma\n', [b'w', b'b', b'iX'], 'alpha Xbeta gamma\n'),
+            ('WORD-start', 'alpha beta.foo gamma\n', [b'W', b'B', b'iX'], 'alpha Xbeta.foo gamma\n'),
+            ('containing', 'SUPER next\n', [b'2l', b'tw', b'd'], ' next\n'),
+        ]:
+            e = Editor(name, text)
+            editors.append(e)
+            for packet in packets:
+                e.keys(packet)
+            e.keys(b'\x1b')
+            result = e.save()
+            assert result == expected, (name, result, '\n'.join(e.screen.display))
+            e.close()
+
+        e = Editor('multi-start', 'alpha beta\n')
+        editors.append(e)
+        e.keys(b'\x01')
+        e.keys(b'G/alpha|beta\r')
+        e.keys(b'b')
+        e.keys(b'iX')
+        e.keys(b'\x1b')
+        assert e.save() == 'Xalpha Xbeta\n', 'Word-start operation lost multicursors'
+        e.close()
+
+        e = Editor('prefix-count', 'alpha beta gamma delta\n')
+        editors.append(e)
+        e.keys(b'2gw')
+        e.keys(b'iX')
+        e.keys(b'\x1b')
+        assert e.save() == 'alpha beta Xgamma delta\n', 'Count affected the cursor adjustment'
+        e.close()
+
+        e = Editor('prefix-code', '1\n')
+        editors.append(e)
+        e.keys(b'\x1b[71;6u')  # Ctrl+Shift+G, then number, next.
+        e.keys(b'nw')
+        result=e.save()
+        assert result == '2\n', ('Ctrl+Shift+G number increment failed', result, '\n'.join(e.screen.display))
+        e.keys(b'\x1b[71;6u')
+        e.keys(b'ne')
+        assert e.save() == '1\n', 'Ctrl+Shift+G number decrement failed'
         e.close()
 
         e = Editor('words', '')
@@ -167,7 +406,8 @@ with tempfile.TemporaryDirectory(prefix='helix-keys-') as temp:
         e.keys(b'\x1b[127;5u')
         e.keys(b'\x1b')
         assert e.save().strip() == 'aa bb', 'Ctrl+Backspace rescue failed'
-        e.keys(b'ggi')
+        e.keys(b'gk')
+        e.keys(b'i')
         e.keys(b'\x1b[3;5~')
         e.keys(b'\x1b')
         result = e.save()
@@ -195,4 +435,4 @@ with tempfile.TemporaryDirectory(prefix='helix-keys-') as temp:
             os.close(e.fd)
         if a.tuios:
             tuios('kill-server')
-print('PASS: save, undo checkpoint, jumplist, selection flip, no-yank register, word deletion, split/focus, insert rescue, close')
+print('PASS: directional prefixes, word movement/extension, save, undo checkpoint, jumplist, selection flip, no-yank register, word deletion, split/focus, insert rescue, close')

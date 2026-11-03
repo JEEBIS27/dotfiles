@@ -7,7 +7,11 @@ in
     enable = true;
     package = steel.editor;
     defaultEditor = true;
-    settings = builtins.fromTOML (builtins.readFile ../files/helix/config.toml);
+    settings = import ../packages/helix-steel/keymap.nix {
+      inherit lib;
+      settings = builtins.fromTOML (builtins.readFile ../files/helix/config.toml);
+      inherit (import ../files/helix/key-layout.nix) directionKeys;
+    };
     languages = let
       parsed = builtins.fromTOML (builtins.readFile ../files/helix/languages.toml);
     in lib.recursiveUpdate parsed {
@@ -30,6 +34,10 @@ in
     # Vue is the only server/formatter integration beyond bundled defaults.
     vtsls vue-language-server prettierd
   ];
+
+  # Keep the legacy path and latexmk's automatic XDG lookup in sync.
+  xdg.configFile."tex/.latexmkrc".source = ../files/tex/latexmkrc;
+  xdg.configFile."latexmk/latexmkrc".source = ../files/tex/latexmkrc;
 
   xdg.configFile."helix/init.scm".text = builtins.replaceStrings
     [ "@fish@" ] [ "${config.jeebis.shell.package}/bin/fish" ]

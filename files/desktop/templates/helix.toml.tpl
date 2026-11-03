@@ -3,6 +3,12 @@
 "ui.text" = { fg = "{{ foreground }}" }
 "ui.text.focus" = { fg = "{{ bright_foreground }}" }
 "ui.cursor" = { fg = "{{ background }}", bg = "{{ accent }}" }
+"ui.cursor.normal" = { fg = "{{ background }}", bg = "{{ accent }}" }
+"ui.cursor.insert" = { fg = "{{ background }}", bg = "{{ green }}" }
+"ui.cursor.select" = { fg = "{{ background }}", bg = "{{ magenta }}" }
+"ui.cursor.primary.normal" = { fg = "{{ background }}", bg = "{{ accent }}" }
+"ui.cursor.primary.insert" = { fg = "{{ background }}", bg = "{{ green }}" }
+"ui.cursor.primary.select" = { fg = "{{ background }}", bg = "{{ magenta }}" }
 "ui.cursor.match" = { fg = "{{ cyan }}" }
 "ui.linenr" = { fg = "{{ muted }}" }
 "ui.linenr.selected" = { fg = "{{ accent }}" }
@@ -43,10 +49,11 @@
 "warning" = { fg = "{{ yellow }}" }
 "info" = { fg = "{{ blue }}" }
 "hint" = { fg = "{{ cyan }}" }
-"ui.selection" = { bg = "{{ selection_background }}" }
+"ui.selection" = { fg = "{{ bright_foreground }}", bg = "{{ mix background accent 35% }}" }
+"ui.selection.primary" = { fg = "{{ bright_foreground }}", bg = "{{ mix background accent 45% }}" }
 "ui.menu.selected" = { bg = "{{ selection_background }}" }
 "ui.text.inactive" = { bg = "{{ selection_background }}" }
-"ui.cursorline.primary" = { bg = "{{ selection_background }}" }
+"ui.cursorline.primary" = { bg = "{{ lighter_background }}" }
 "diagnostic.error" = { underline = { color = "{{ red }}", style = "curl" } }
 "diagnostic.warning" = { underline = { color = "{{ yellow }}", style = "curl" } }
 "diagnostic.info" = { underline = { color = "{{ blue }}", style = "curl" } }

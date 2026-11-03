@@ -6,6 +6,11 @@ tiled = true
 layout = "bsp"
 start_in_terminal_mode = true
 
+# Independent desktop clients can show different Tabs of the same session.
+# Keep the shared PTYs stable when input moves between differently sized windows.
+[daemon]
+window_size = "smallest"
+
 [appearance]
 preferred_shell = "@fish@"
 theme = ""
@@ -45,7 +50,7 @@ new_workspace = ["alt+shift+n", "ctrl+alt+shift+g"]
 prefix_split_vertical = ["alt+enter", "ctrl+alt+enter"]
 prefix_split_horizontal = ["alt+shift+enter", "ctrl+alt+shift+enter"]
 prefix_close_window = ["alt+w", "ctrl+alt+w"]
-kill_session_quit = ["alt+shift+w"]
+kill_session_quit = []
 toggle_zoom = ["alt+shift+f", "ctrl+alt+shift+f"]
 next_window = ["ctrl+alt+tab", "ctrl+alt+pgdown"]
 prev_window = ["ctrl+alt+shift+tab", "ctrl+alt+pgup"]
@@ -68,7 +73,7 @@ open_settings = ["alt+,", "ctrl+alt+shift+,"]
 reload_config = ["alt+shift+,", "ctrl+alt+,"]
 toggle_help = ["alt+/"]
 prefix_inbox = ["ctrl+alt+i"]
-close_workspace = ["alt+shift+d"]
+close_workspace = ["alt+shift+w", "alt+shift+d"]
 terminal_focus_left = ["alt+h", "alt+left", "ctrl+alt+h", "ctrl+alt+left"]
 resize_pane_left_5 = ["alt+shift+h", "alt+shift+left", "ctrl+alt+shift+h", "ctrl+alt+shift+left"]
 terminal_focus_down = ["alt+j", "alt+down", "ctrl+alt+j", "ctrl+alt+down"]

@@ -11,6 +11,7 @@ in pkgs.runCommand "jeebis-shell" { nativeBuildInputs = [ pkgs.bash pkgs.python3
   cp ${source}/ShellConfig.js "$out/plugins/ShellConfig.js"
   # Keep the customized Agent widget alongside the managed shell plugins.
   cp -R ${../vendor/desktop-runtime}/shell/plugins/agents "$out/plugins/jeebis.agents"
+  cp -R ${../vendor/desktop-runtime}/shell/plugins/lock "$out/plugins/jeebis.lock"
   chmod -R u+w "$out"
   ${pkgs.python3}/bin/python3 - "$out/plugins/jeebis.agents/manifest.json" <<'PYTHON'
   import json, sys
@@ -20,6 +21,21 @@ in pkgs.runCommand "jeebis-shell" { nativeBuildInputs = [ pkgs.bash pkgs.python3
   manifest["id"] = "jeebis.agents"
   manifest["omarchy"] = {"clonedFrom": "omarchy.agents"}
   path.write_text(json.dumps(manifest, indent=2) + "\n")
+  PYTHON
+  ${pkgs.python3}/bin/python3 - "$out/plugins/jeebis.lock" <<'PYTHON'
+  import json, sys
+  from pathlib import Path
+  root = Path(sys.argv[1])
+  path = root / "manifest.json"
+  manifest = json.loads(path.read_text())
+  manifest["id"] = "jeebis.lock"
+  manifest["omarchy"]["clonedFrom"] = "omarchy.lock"
+  path.write_text(json.dumps(manifest, indent=2) + "\n")
+  path = root / "Service.qml"
+  text = path.read_text().replace('stateHome + "/omarchy/current/background"', '(Quickshell.env("XDG_STATE_HOME") || stateHome) + "/jeebis-theme/current/lock-wallpaper"')
+  # Before first theme refresh, use the existing desktop background.
+  text = text.replace('command: ["readlink", "-f", root.currentBackgroundLink]', 'command: ["bash", "-c", ' + json.dumps('if [ -f "$1" ]; then readlink -f "$1"; else readlink -f "$HOME/.local/state/omarchy/current/background"; fi') + ', "_", root.currentBackgroundLink]')
+  path.write_text(text)
   PYTHON
   # Reproduce upstream's shared-file injection without running its installer.
   for target in wallpapers wallpaper-shuffle; do

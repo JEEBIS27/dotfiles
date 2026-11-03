@@ -1,14 +1,15 @@
 --- a/internal/app/os.go
 +++ b/internal/app/os.go
-@@ -1905,6 +1905,7 @@
+@@ -1905,6 +1905,8 @@
  	// forceTerminalMode is OSOptions.StartInTerminalMode: applyStartupPreferences
  	// enters terminal mode once a pane is focused, for any session.
  	forceTerminalMode bool
 +	startWorkspace    int
++	independentView   bool
  	// layoutInstant places the next layout without animation. See
  	// applyStartupTiling and layoutAnimationDuration.
  	layoutInstant bool
-@@ -2014,7 +2015,7 @@
+@@ -2014,7 +2016,7 @@
  type nestedSwitchError struct{ inside, target string }
  
  func (e *nestedSwitchError) Error() string {
@@ -17,7 +18,7 @@
  }
  
  // SwitchToSession detaches from the current daemon session and attaches to another.
-@@ -2030,7 +2031,7 @@
+@@ -2030,7 +2032,7 @@
  		return fmt.Errorf("not in daemon mode")
  	}
  	if targetSession == "" {
@@ -26,7 +27,7 @@
  	}
  	// A switch the person made ends a rail click that waits for another
  	// machine. See host_open.go.
-@@ -2079,8 +2080,8 @@
+@@ -2079,8 +2081,8 @@
  	m.QueueClientEvent(ClientEvent{Type: "agent-mail-load"})
  
  	m.MarkAllDirty()
@@ -458,20 +459,23 @@
  			name := msg.TapeArgs[0]
 --- a/internal/app/factory.go
 +++ b/internal/app/factory.go
-@@ -70,6 +70,8 @@
+@@ -70,6 +70,10 @@
  	// StartInTerminalMode starts the client in terminal mode on the focused
  	// pane, whatever [startup] says and whether the session is new or not.
  	StartInTerminalMode bool
 +	// StartWorkspace selects a role workspace on local attach. Zero restores the session.
 +	StartWorkspace int
++	// IndependentView keeps this client on its own tab and focused pane.
++	IndependentView bool
  
  	// NumWorkspaces sets the number of workspaces (default: 9).
  	NumWorkspaces int
-@@ -226,6 +228,7 @@
+@@ -226,6 +230,8 @@
  		LearnMode:         opts.LearnMode,
  		ShowKeys:          opts.ShowKeys,
  		forceTerminalMode: opts.StartInTerminalMode,
 +		startWorkspace:    opts.StartWorkspace,
++		independentView:   opts.IndependentView,
  		RecentKeys:        []KeyEvent{},
  		KeyHistoryMaxSize: 5,
  
@@ -512,29 +516,32 @@
  			}
 --- a/cmd/tuios/main.go
 +++ b/cmd/tuios/main.go
-@@ -451,6 +451,7 @@
+@@ -451,6 +451,8 @@
  	attachCmd.Flags().BoolVar(&attachHold, "hold", false, "After a failure, wait for enter before the command exits")
  	attachCmd.Flags().BoolVar(&attachForce, "force", false, "Attach even from a pane of the same session")
  	attachCmd.Flags().BoolVarP(&attachDetachOthers, "detach-others", "d", false, "Detach every other client of the session, as tmux attach -d does")
++	attachCmd.Flags().BoolVar(&attachIndependentView, "independent-view", false, "Keep this client on its own tab and focused pane")
 +	attachCmd.Flags().IntVar(&attachWorkspace, "workspace", 0, "Select workspace 1-9 on attach (0 restores the session)")
  	attachCmd.Flags().BoolVar(&attachTerminalMode, "terminal-mode", false, "Start in terminal mode, whatever startup.start_in_terminal_mode says")
  	registerHostNameCompletion(attachCmd, "host")
  
 --- a/cmd/tuios/session_commands.go
 +++ b/cmd/tuios/session_commands.go
-@@ -28,6 +28,7 @@
+@@ -28,6 +28,8 @@
  // terminal mode on the focused pane, whatever [startup] says and whether the
  // session is new or not. A popup that runs tuios attach can use it.
  var attachTerminalMode bool
 +var attachWorkspace int
++var attachIndependentView bool
  
  func runAttach(sessionName string, createIfMissing bool) error {
  	// First of all, because the refusal is the whole answer: a client in a pane
-@@ -513,6 +514,7 @@
+@@ -513,6 +515,8 @@
  		SessionName:     client.SessionName(),
  		// Only a local attach asks for it, and only with --terminal-mode.
  		StartInTerminalMode: host == "" && attachTerminalMode,
 +		StartWorkspace:      attachWorkspace,
++		IndependentView:     host == "" && attachIndependentView,
  		AttachedHost:        host,
  		// One writer for the terminal: frames, kitty and sixel sequences all
  		// serialize on it. Left nil, the passthroughs open their own /dev/tty
@@ -2015,7 +2022,37 @@
  
  	// Mark that we restored from state. This prevents the first resize from retiling
  	// and allows the layout to be preserved as the user left it.
-@@ -1944,7 +1944,7 @@
+@@ -536,6 +536,29 @@
+ 	// TUIClient.AcceptState.
+ 	if m.DaemonClient != nil && !m.DaemonClient.AcceptState(state) {
+ 		return nil
++	}
++	// Desktop windows share panes and layout, but choose their own tab and
++	// focus. Copy the snapshot: other consumers must still see the daemon's
++	// original view. A local pane-creation intent may adopt its new focus.
++	if m.independentView {
++		local := *state
++		local.CurrentWorkspace = m.CurrentWorkspace
++		local.WorkspaceFocus = maps.Clone(state.WorkspaceFocus)
++		if local.WorkspaceFocus == nil {
++			local.WorkspaceFocus = make(map[int]string)
++		}
++		for ws, idx := range m.WorkspaceFocus {
++			if idx >= 0 && idx < len(m.Windows) {
++				local.WorkspaceFocus[ws] = m.Windows[idx].ID
++			}
++		}
++		if sourceID != "" || !m.daemonWindowIntent {
++			local.FocusedWindowID = ""
++			if pane := m.GetFocusedWindow(); pane != nil {
++				local.FocusedWindowID = pane.ID
++			}
++		}
++		state = &local
+ 	}
+ 	fromPeer := sourceID != ""
+ 
+@@ -1944,7 +1967,7 @@
  	m.LogInfo("[SETUP] SetupPTYOutputHandlers: setting up handlers for %d windows", len(m.Windows))
  
  	for i, w := range m.Windows {
@@ -2024,7 +2061,7 @@
  		if w.DaemonMode && w.PTYID != "" {
  			m.wireDaemonPTY(w, func() { m.subscribeToPTY(w, m.RestoredStreamSeq[w.PTYID]) })
  		}
-@@ -2153,7 +2153,7 @@
+@@ -2153,7 +2176,7 @@
  		return
  	}
  
@@ -2033,7 +2070,7 @@
  
  	for _, w := range m.Windows {
  		if w.DaemonMode && w.PTYID != "" && w.Workspace == workspace {
-@@ -2200,7 +2200,7 @@
+@@ -2200,7 +2223,7 @@
  		return
  	}
  

@@ -13,26 +13,26 @@ Steelの可変状態は`$XDG_DATA_HOME/jeebis-helix-steel`（未指定時は
 
 | 拡張 | 用途 | 操作 |
 | --- | --- | --- |
-| flash.hx | 画面内ラベルジャンプ | Space u f / Space u F（後方） |
-| steel-pty | 埋め込み端末 | Ctrl+T / Space u t |
-| helix-config/recentf | 最近使ったファイル | Space u r |
-| microscope.hx | 拡張picker（ディレクトリ探索） | Space u p |
-| matte.hx | 分割のズームと中央寄せ | Space u z / Space u m |
-| notify.hx | 拡張が使う通知基盤 | `:notify メッセージ` / Space u n（通知へ） |
-| moka.hx | ステータスライン | 有効。バッファラインはSpace u bで有効、Space u Bで無効 |
+| flash.hx | 画面内ラベルジャンプ | Ctrl+G u f / Ctrl+G u F（後方） |
+| steel-pty | 埋め込み端末 | Ctrl+T / Ctrl+G u t |
+| helix-config/recentf | 最近使ったファイル | Ctrl+G u r |
+| microscope.hx | 拡張picker（ディレクトリ探索） | Ctrl+G u p |
+| matte.hx | 分割のズームと中央寄せ | Ctrl+G u z / Ctrl+G u m |
+| notify.hx | 拡張が使う通知基盤 | `:notify メッセージ` / Ctrl+G u n（通知へ） |
+| moka.hx | ステータスライン | 有効。バッファラインはCtrl+G u bで有効、Ctrl+G u Bで無効 |
 | Yazi公式方式の連携 | ファイル選択後に同じHelixで開く | Ctrl+Y / `:yazi` |
 
 Helixから開いたYaziでは、Enterで現在のviewに開き、Ctrl+Enterで左右分割、
 Ctrl+Shift+Enterで上下分割して開く。ディレクトリでは中へ移動する。
 通常のYazi起動では分割操作を追加しない。
 
-端末の追加・切替・非表示・終了はSpace u T / s / h / q。
+端末の追加・切替・非表示・終了はCtrl+G u T / s / h / q。
 端末は画面中央に幅5/6・高さ3/4の角丸フロートで表示する。Ctrl+Tは端末内でも
 表示・非表示を切り替え、実行中のシェルと作業ディレクトリを保持する。
-端末からエディターへフォーカスだけ戻すにはShift+Tab。Ctrl+Escでも端末を隠せる。
+端末からエディターへフォーカスだけ戻すにはShift+Tab。Ctrl+Escはfishの画面消去へ渡す。
 RGB色と既定色の復元は端末拡張のパッチで補正する。
-Altは引き続きTUIOSに予約する。既存のSpace m退避メニューは保持。
-Ctrl+Y/ Ctrl+TおよびSpace uは、固定したHelixの編集モードで未割当のキーを使う。
+Altは引き続きTUIOSに予約する。本文のキー体系は[Helixのキー体系](helix-keybindings.md)を参照。
+Ctrl+Y/ Ctrl+TおよびCtrl+G uは、本文の編集モードから拡張を呼び出す。
 picker内などの固定UIには従来の操作が残る。
 
 ## 再現範囲
@@ -76,7 +76,7 @@ Home Manager世代のビルド、`nix flake check --no-build`、Python/Lua/TOML/
 直接起動と専用TUIOS daemon経由で検証した。
 実際のRio画面でのIME・画像・テーマ切替は未確認。手元では次を確認する。
 
-1. `hx --version`、日本語入力、Ctrl+S、Ctrl+Shift+S、Space mの退避操作。
+1. `hx --version`、日本語入力、Ctrl+S、Ctrl+Shift+S、g/Gの方向移動と選択。
 2. 7つの拡張の起動・Escで戻る操作。Ctrl+Tの端末でコマンド実行とShift+Tab。
 3. Ctrl+Yで選択・複数選択・キャンセル。未保存bufferが変更されないこと。
 4. 空白・引用符・日本語を含むファイル名が正しく開くこと。

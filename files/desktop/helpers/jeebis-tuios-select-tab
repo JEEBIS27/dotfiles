@@ -1,0 +1,96 @@
+#!/usr/bin/env python3
+"""Reserve an unused view of a role Tab, or resume one whose window closed."""
+import fcntl,hashlib,json,os,re,subprocess,sys,time
+from pathlib import Path
+
+def process_start(pid):
+    try:
+        fields=Path(f'/proc/{pid}/stat').read_text().rpartition(')')[2].split()
+        return None if fields[0]=='Z' else fields[19]
+    except (OSError,IndexError):
+        return None
+
+def view_directory(state,session):
+    return Path(state)/'views'/hashlib.sha256((os.environ.get('TUIOS_SERVER','')+'\0'+session).encode()).hexdigest()[:24]
+
+def yazi_exited(window):
+    state=os.environ.get('XDG_RUNTIME_DIR',os.environ.get('XDG_STATE_HOME',str(Path.home()/'.local/state')))
+    state=Path(state)/'jeebis-tuios'
+    state.mkdir(parents=True,exist_ok=True)
+    with (state/'launch.lock').open('a') as lock:
+        fcntl.flock(lock,fcntl.LOCK_EX)
+        panes=json.loads(subprocess.check_output(['tuios','list-windows','--all','--json']))['panes']
+        pane=next((p for p in panes if p['window_id']==window),None)
+        if pane is None or not re.fullmatch(r'Yazi(?: [2-9][0-9]*)?',pane.get('workspace_name','')):
+            return
+        session,ws=pane['session'],pane['workspace']
+        tabs=json.loads(subprocess.check_output(['tuios','list-workspaces','-s',session,'--json']))['workspaces']
+        used={t.get('name') for t in tabs if t['workspace']!=ws}
+        name='Terminal-Yazi'
+        n=2
+        while name in used:
+            name=f'Terminal-Yazi {n}';n+=1
+        subprocess.run(['tuios','call','set-workspace-name',json.dumps(dict(session=session,workspace=ws,name=name))],check=True,stdout=subprocess.DEVNULL)
+        file=view_directory(state,session)/f'{ws}.json'
+        if file.exists():
+            item=json.loads(file.read_text())
+            item.update(role='terminal-yazi',ordinal=n-1)
+            pending=file.with_suffix('.tmp');pending.write_text(json.dumps(item));pending.chmod(0o600)
+            os.replace(pending,file)
+
+def select():
+    state,session,role,label,preferred,owner=sys.argv[1:]
+    preferred,owner=int(preferred),int(owner)
+    directory=view_directory(state,session)
+    directory.mkdir(parents=True,exist_ok=True,mode=0o700)
+    tabs=json.loads(subprocess.check_output(['tuios','list-workspaces','-s',session,'--json']))['workspaces']
+    metadata={}
+    for file in directory.glob('*.json'):
+        try:
+            item=json.loads(file.read_text())
+            metadata[int(file.stem)]=item
+        except (ValueError,OSError,KeyError):
+            pass
+    live={ws:m for ws,m in metadata.items() if m.get('owner') and process_start(m['owner'])==m.get('start') and m.get('start') is not None}
+    clients=json.loads(subprocess.check_output(['tuios','list-clients','--json']))
+    known={m['owner'] for m in live.values()}
+    # Pre-update/manual clients have no lease. Never borrow any occupied Tab
+    # while such a window could still be displaying it.
+    unknown=any(c.get('session')==session and c.get('pid') not in known and process_start(c.get('pid')) is not None for c in clients)
+    busy=set(live)
+    if unknown:
+        busy.update(t['workspace'] for t in tabs if t['window_count'])
+    pattern=re.compile(re.escape(label)+r'(?: ([2-9][0-9]*))?$',re.I)
+    candidates=[];ordinals=set()
+    for tab in tabs:
+        ws=tab['workspace'];meta=metadata.get(ws,{})
+        match=pattern.fullmatch(tab.get('name') or '')
+        same=meta.get('role')==role or match is not None
+        if same:
+            ordinal=meta.get('ordinal') or (int(match[1]) if match and match[1] else 1)
+            ordinals.add(ordinal)
+            if ws not in busy:
+                candidates.append((meta.get('last_used',0),ws,ordinal,tab))
+    if candidates:
+        _,ws,ordinal,tab=max(candidates,key=lambda t:(t[0],-t[1]))
+        name=tab.get('name') or (label if ordinal==1 else f'{label} {ordinal}')
+    else:
+        available=[t for t in tabs if t['workspace'] not in busy and not t['window_count'] and not t.get('name')]
+        if not available:
+            raise RuntimeError('No unused Tab is available; close an unused Tab instead of sharing a working terminal.')
+        tab=min(available,key=lambda t:(t['workspace']!=preferred,t['workspace']))
+        ws=tab['workspace'];ordinal=next(n for n in range(1,100) if n not in ordinals)
+        name=label if ordinal==1 else f'{label} {ordinal}'
+    start=process_start(owner)
+    if start is None:raise RuntimeError('The launcher exited before its Tab could be reserved')
+    record=dict(role=role,ordinal=ordinal,owner=owner,start=start,last_used=time.time())
+    pending=directory/f'{ws}.{owner}.tmp';pending.write_text(json.dumps(record));pending.chmod(0o600)
+    os.replace(pending,directory/f'{ws}.json')
+    print(json.dumps(dict(workspace=ws,name=name,rename=not bool(tab.get('name')),create=not bool(tab['window_count']))))
+
+if __name__=='__main__':
+    try:
+        if len(sys.argv)==3 and sys.argv[1]=='--yazi-exited':yazi_exited(sys.argv[2])
+        else:select()
+    except (RuntimeError,subprocess.CalledProcessError,KeyError,ValueError) as error:
+        print(f'TUIOS: {error}',file=sys.stderr);sys.exit(1)

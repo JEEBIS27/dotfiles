@@ -1,7 +1,7 @@
 { config, ... }:
 
 {
-  imports = [ ./modules/common.nix ./modules/apps.nix ./modules/editor.nix ./modules/app-files.nix ./modules/desktop.nix ./modules/mounts.nix ./modules/input-method-files.nix ];
+  imports = [ ./modules/common.nix ./modules/apps.nix ./modules/editor.nix ./modules/app-files.nix ./modules/desktop.nix ./modules/desktop-preferences.nix ./modules/mounts.nix ./modules/input-method-files.nix ];
 
   # Only PC hosts import this module and the desktop theme generator.
   jeebis.shell.themeDirectory = config.jeebis.desktop.themeDirectory;

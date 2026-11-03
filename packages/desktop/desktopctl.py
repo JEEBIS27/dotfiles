@@ -1,6 +1,7 @@
 """Shared desktop actions. Only the host adapters know distribution commands."""
 import argparse,base64,fcntl,json,os,re,shlex,shutil,subprocess,sys,tempfile,time
 from pathlib import Path
+from theme_assets import preset_assets, palette_colors, publish, VIDEOS
 
 parser=argparse.ArgumentParser()
 parser.add_argument('--config',required=True)
@@ -64,24 +65,55 @@ def wallpaper(action,values):
  temporary=current/'.background';temporary.unlink(missing_ok=True);temporary.symlink_to(path);temporary.replace(current/'background')
  return shell_ipc('background','set',str(path))
 
+def sync_appearance(preset, source):
+ home, lock = preset_assets(preset,cfg['backgrounds'])
+ if opt.plan:return
+ colors=palette_colors(source)
+ metadata={'name':preset['name'],'palette':preset['palette'],'wallpaper':str(home),'lockWallpaper':str(lock)}
+ publish(STATE/'jeebis-theme',colors,lock,metadata)
+ if cfg.get('loginAssets'):
+  public=Path(cfg['loginAssets'])
+  if not public.is_dir():raise ValueError('login assets directory missing; apply the NixOS configuration first')
+  publish(public,colors,lock,metadata)
+
+def start_home_media(path):
+ suffix=path.suffix.lower()
+ if suffix in VIDEOS or suffix=='.gif':
+  return shell_ipc('ruixen.wallpaper','playGif' if suffix=='.gif' else 'playVideo',str(path),str(int(time.time()*1000)))
+
 def theme(action,values):
+ if action in ['set','refresh'] and not opt.plan:
+  current=current_directory();current.mkdir(parents=True,exist_ok=True)
+  with (current/'appearance.lock').open('w') as lock:
+   fcntl.flock(lock,fcntl.LOCK_EX)
+   return apply_theme(action,values)
+ return apply_theme(action,values)
+
+def apply_theme(action,values):
  presets={item['name']:item for item in cfg['presets']};themes=Path(cfg['themes'])
  current=current_directory()
  namefile=current/'theme.name';initializing=action=='init'
  if initializing:
-  if (current/'theme/colors.toml').exists():return
+  if (current/'theme/colors.toml').exists():return theme('refresh',[])
   action='set';values=['tokyonight']
  if action=='catalog':
   for item in cfg['presets']:
-   print('\x1f'.join([item['name'],item['name'].title(),str(Path(cfg['backgrounds'])/item['wallpaper']),'custom']))
+   print('\x1f'.join([item['name'],item['name'].title(),str(preset_assets(item,cfg['backgrounds'])[1]),'custom']))
   return
  if action=='list':print('\n'.join(presets));return
  if action=='current':print(namefile.read_text().strip() if namefile.exists() else 'tokyonight');return
- if action=='show':
+ if action in ['show','refresh']:
   name=values[0] if values else (namefile.read_text().strip() if namefile.exists() else 'tokyonight')
-  if name not in presets:raise ValueError('unknown preset: '+name)
+  if name=='tokyo-night':name='tokyonight'
+  if name not in presets:
+   if action=='refresh':return
+   raise ValueError('unknown preset: '+name)
   preset=presets[name]
-  print(json.dumps({'name':name,'palette':str(themes/(preset['palette']+'.toml')),'wallpaper':str(Path(cfg['backgrounds'])/preset['wallpaper'])},ensure_ascii=False,indent=2));return
+  home,lock=preset_assets(preset,cfg['backgrounds'])
+  if action=='refresh':
+   source=current/'theme/colors.toml'
+   return sync_appearance(preset,source if source.exists() else themes/(preset['palette']+'.toml'))
+  print(json.dumps({'name':name,'palette':str(themes/(preset['palette']+'.toml')),'wallpaper':str(home),'lockWallpaper':str(lock)},ensure_ascii=False,indent=2));return
  if action in ['menu','pick']:
   names='\n'.join(presets)+'\n'
   r=call([command('fuzzel'),'--dmenu','--prompt','Theme: '],input=names,text=True,stdout=subprocess.PIPE)
@@ -100,13 +132,16 @@ def theme(action,values):
    return theme('set',[next_preset()])
  if action!='set' or len(values)!=1 or values[0] not in presets:raise ValueError('theme set requires one known preset')
  preset=presets[values[0]]
- if not re.fullmatch('[a-zA-Z0-9_-]+',preset['palette']) or Path(preset['wallpaper']).name!=preset['wallpaper']:raise ValueError('invalid preset path')
- source=themes/(preset['palette']+'.toml');wallpaper=Path(cfg['backgrounds'])/preset['wallpaper']
+ if not re.fullmatch('[a-zA-Z0-9_-]+',preset['palette']):raise ValueError('invalid preset path')
+ source=themes/(preset['palette']+'.toml');home_wallpaper,lock_wallpaper=preset_assets(preset,cfg['backgrounds'])
+ wallpaper=lock_wallpaper if home_wallpaper.suffix.lower() in VIDEOS|{'.gif'} else home_wallpaper
  if not source.is_file() or not wallpaper.is_file():raise ValueError('preset palette or wallpaper is missing')
  if not initializing:stop_wallpaper_media()
  if cfg['backend']=='omarchy':
   call(['omarchy','theme','set',values[0]])
-  return call(['omarchy','theme','bg','set',str(wallpaper)])
+  call(['omarchy','theme','bg','set',str(wallpaper)])
+  sync_appearance(preset,source)
+  return start_home_media(home_wallpaper)
  if opt.plan:return call(['render-theme',str(source),str(current/'theme'),str(wallpaper)])
  current.mkdir(parents=True,exist_ok=True)
  with (current/'theme.lock').open('w') as lock:
@@ -129,6 +164,7 @@ def theme(action,values):
    if old.exists():shutil.rmtree(old)
   finally:
    if staging.exists():shutil.rmtree(staging)
+ sync_appearance(preset,source)
  rio_dir=Path(os.environ.get('XDG_CONFIG_HOME',HOME/'.config'))/'rio'
  if rio_dir.is_dir():os.utime(rio_dir,None)
  if cfg.get('helixReload'):call([cfg['helixReload']])
@@ -138,7 +174,9 @@ def theme(action,values):
  except subprocess.CalledProcessError:pass
  colors=base64.b64encode((current/'theme/colors.toml').read_bytes()).decode()
  style=base64.b64encode((current/'theme/shell.toml').read_bytes()).decode()
- if backgrounds:return shell_ipc('background','themeTransition',old_background,str(backgrounds[0]),str(backgrounds[0]),colors,style)
+ if backgrounds:
+  shell_ipc('background','themeTransition',old_background,str(backgrounds[0]),str(backgrounds[0]),colors,style)
+  return start_home_media(home_wallpaper)
  return shell_ipc('shell','applyTheme',colors,style)
 
 def native_legacy(name,a):

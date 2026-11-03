@@ -12,9 +12,15 @@ let
     name = "omarchy/themes/${preset.name}/colors.toml";
     value.source = coreSource + "/themes/${preset.palette}.toml";
   }) presetDefinitions);
+  baseShellConfig = builtins.fromJSON (builtins.readFile ../files/desktop/jeebis-shell.json);
+  shellConfig = baseShellConfig // {
+    plugins = (baseShellConfig.plugins or []) ++ [ { id = "jeebis.lock"; } ];
+    disabledPlugins = lib.unique ((baseShellConfig.disabledPlugins or []) ++ [ "omarchy.lock" ]);
+  };
   hostConfigDir = if native then "jeebis-desktop" else "omarchy";
   json = pkgs.writeText "jeebis-desktop-host.json" (builtins.toJSON {
     backend = cfg.backend;
+    loginAssets = if native then "/var/lib/jeebis-theme" else null;
     runtime = toString runtime;
     backgrounds = "${coreSource}/backgrounds";
     themes = "${coreSource}/themes";
@@ -24,7 +30,7 @@ let
     helixReload = "${personalHelpers}/jeebis-helix-reload";
     omarchyCycle = "${../packages/desktop}/omarchy-theme-cycle.sh";
     commands = {
-      terminal = "jeebis-terminal"; browser = if native then "chromium" else "helium"; editor = config.home.sessionVariables.EDITOR;
+      terminal = "jeebis-terminal"; browser = "helium"; editor = config.home.sessionVariables.EDITOR;
     };
   });
   templates = pkgs.runCommand "jeebis-theme-templates" { } ''
@@ -122,7 +128,10 @@ in
           return table.concat(argv, " ")
         end
         function M.bootstrap() dofile(${builtins.toJSON (if native then "${runtime}/default/hypr/bootstrap.lua" else "/usr/share/omarchy/default/hypr/bootstrap.lua")}) end
-        function M.defaults() require("default.hypr.omarchy") end
+        function M.defaults()
+          require("default.hypr.omarchy")
+          ${lib.optionalString native ''hl.config({ input = { kb_layout = "jp", kb_model = "jp106" } })''}
+        end
         function M.toggles() require("default.hypr.toggles") end
         function M.bind(...) return o.bind(...) end
         return M
@@ -130,7 +139,7 @@ in
       "jeebis/motion.lua".source = jeebisShell + /hyprland/jeebis-motion.lua;
       "jeebis/curvature.lua".source = jeebisShell + /hyprland/jeebis-curvature.lua;
       "${hostConfigDir}/plugins".source = jeebisShell + /plugins;
-      "${hostConfigDir}/shell.json".source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/Git/home-manager/files/desktop/jeebis-shell.json";
+      "${hostConfigDir}/shell.json".text = builtins.toJSON shellConfig;
     }
     // lib.optionalAttrs (!native) (presetFiles // {
       "omarchy/themed/palette.lua.tpl".source = templates + /palette.lua.tpl;
@@ -145,6 +154,7 @@ in
     home.file.".local/bin/jeebis-helix-reload" = { source = personalHelpers + /jeebis-helix-reload; executable = true; };
     home.file.".local/bin/jeebis-terminal" = { source = personalHelpers + /jeebis-terminal; executable = true; };
     home.file.".local/bin/jeebis-tuios" = { source = personalHelpers + /jeebis-tuios; executable = true; };
+    home.file.".local/bin/jeebis-tuios-select-tab" = { source = personalHelpers + /jeebis-tuios-select-tab; executable = true; };
     home.file.".local/bin/jeebis-tuios-edit-config" = { source = personalHelpers + /jeebis-tuios-edit-config; executable = true; };
     home.file.".local/bin/jeebis-tuios-worktree" = { source = personalHelpers + /jeebis-tuios-worktree; executable = true; };
     home.file.".local/bin/jeebis-codex-tuios" = { source = personalHelpers + /jeebis-codex-tuios; executable = true; };
@@ -173,6 +183,11 @@ in
         run install -m644 ${../files/hypr/monitors.lua} "$HOME/.config/hypr/monitors.lua"
       fi
     '';
+      refreshDesktopAppearance = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+        if [ -f "${themeDir}/colors.toml" ]; then
+          run ${package}/bin/jeebis-desktop theme refresh
+        fi
+      '';
     } // lib.optionalAttrs native {
       initializeDesktopTheme = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
         run ${package}/bin/jeebis-desktop theme init

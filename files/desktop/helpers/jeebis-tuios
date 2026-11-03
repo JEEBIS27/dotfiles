@@ -4,9 +4,9 @@ set -euo pipefail
 # normal config home so shells and other applications retain their settings.
 attach_session() {
   if [[ ${JEEBIS_TUIOS_CODEX:-} == 1 ]]; then
-    exec env -u JEEBIS_TUIOS_CODEX XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}/tuios-codex" tuios attach "$@"
+    exec env -u JEEBIS_TUIOS_CODEX XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}/tuios-codex" tuios attach --independent-view "$@"
   fi
-  exec tuios attach "$@"
+  exec tuios attach --independent-view "$@"
 }
 role=${JEEBIS_TUIOS_ROLE:-}
 if [[ -z $role ]]; then
@@ -36,7 +36,7 @@ case $role in
   codex) role_workspace=3; role_name=Codex ;;
   hx) role_workspace=4; role_name=Helix ;;
   btop) role_workspace=5; role_name=btop ;;
-  *) role_workspace=6; role_name=Other ;;
+  *) role_workspace=6; role_name=$role ;;
 esac
 # Outside Hyprland, use one shared main session as well.
 [[ -n $desktop_session ]] || desktop_session=main
@@ -65,18 +65,20 @@ if [[ -z $session ]]; then
   params=$(jq -nc --arg session "$session" '{session:$session, workspace:1, name:"Terminal"}')
   tuios call set-workspace-name "$params" >/dev/null
 fi
-# Reuse the role's workspace, including its existing working directory and panes.
-workspace_info=$(tuios list-workspaces -s "$session" --json | jq -ec --argjson ws "$role_workspace" '.workspaces[] | select(.workspace == $ws)')
-count=$(jq -r '.window_count' <<<"$workspace_info")
-if [[ -z $(jq -r '.name // empty' <<<"$workspace_info") ]]; then
+# A live GUI window owns its Tab. A closed window leaves the Tab available
+# for resuming; opening another window never takes over an occupied Tab.
+selection=$(jeebis-tuios-select-tab "$state_dir" "$session" "$role" "$role_name" "$role_workspace" "$$")
+role_workspace=$(jq -er '.workspace' <<<"$selection")
+role_name=$(jq -er '.name' <<<"$selection")
+if [[ $(jq -r '.rename' <<<"$selection") == true ]]; then
   params=$(jq -nc --arg session "$session" --arg name "$role_name" --argjson workspace "$role_workspace" '{session:$session, workspace:$workspace, name:$name}')
   tuios call set-workspace-name "$params" >/dev/null
 fi
-if [[ $count == 0 ]]; then
+if [[ $(jq -r '.create' <<<"$selection") == true ]]; then
   if [[ $# -gt 0 ]]; then
-    tuios new-window "$role" -s "$session" --workspace "$role_workspace" --no-focus --cwd "$PWD" -- "$@"
+    tuios new-window "$role_name" -s "$session" --workspace "$role_workspace" --no-focus --cwd "$PWD" -- "$@"
   else
-    tuios new-window Terminal -s "$session" --workspace "$role_workspace" --no-focus --cwd "$PWD"
+    tuios new-window "$role_name" -s "$session" --workspace "$role_workspace" --no-focus --cwd "$PWD"
   fi
 fi
 flock -u "$session_lock"

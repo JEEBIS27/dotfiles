@@ -48,7 +48,9 @@
         steel = import ./packages/helix-steel { pkgs = appPkgs; };
       in {
         just = appPkgs.just;
+        matlab-nix = import ./packages/matlab.nix { pkgs = nixpkgs.legacyPackages.${system}; };
         home-manager = home-manager.packages.${system}.home-manager;
+        helium = import ./packages/helium.nix { pkgs = nixpkgs.legacyPackages.${system}; };
         mozkey-fcitx5 = import ./packages/mozkey-fcitx5.nix { pkgs = appPkgs; };
         helix-steel = steel.editor;
         helix-steel-plugins = steel.plugins;

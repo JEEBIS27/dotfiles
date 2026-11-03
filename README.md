@@ -28,7 +28,7 @@ PC構成は `x86_64-linux`・ユーザー `jeebis`・配置先 `~/Git/home-manag
 | シェル・CLI | Zsh、TUIOS、Sheldon、Yazi、Git、fzf、ripgrep、eza、bat、zoxide |
 | エディター | Helix（既定）、共通LSP・フォーマッター、Neovim（代替） |
 | デスクトップ | Hyprland、Quickshell + jeebis-shell、Rio + TUIOS、固定テーマと壁紙 |
-| NixOS用アプリ・サービス | Chromium、Nautilus、Fcitx5 / Mozkey、音声・Bluetooth・電源管理 |
+| NixOS用アプリ・サービス | Helium、Nautilus、Fcitx5 / Mozkey、音声・Bluetooth・電源管理 |
 | クラウドマウント | rclone（Google Drive / OneDrive、認証は別途） |
 
 Omarchyでは既存のデスクトップ・IME本体を使用する。Rio本体はOmarchyのパッケージ管理、TUIOSはHome Managerで導入する。[パッケージ一覧](docs/managed-items.md)を参照。

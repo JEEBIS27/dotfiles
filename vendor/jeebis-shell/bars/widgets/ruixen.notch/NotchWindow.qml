@@ -1260,6 +1260,7 @@ PanelWindow {
             Layout.fillHeight: true
 
             DashboardContent {
+              rotationController: panel.notchRoot.displayRotation
               anchors.fill: parent
               visible: panel.dashboardTab === 0
               shell: panel.notchRoot.shell

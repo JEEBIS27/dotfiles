@@ -19,6 +19,7 @@ suites=(
   "$script_dir/looknfeel-choice-persist.sh"
   "$script_dir/curvature-half-option.sh"
   "$script_dir/notch-kanban-gui.sh"
+  "$script_dir/display-rotation.sh"
   "$script_dir/shelf-plugin.sh"
   "$script_dir/docs-links.sh"
   "$script_dir/notch-theme-switcher.sh"
