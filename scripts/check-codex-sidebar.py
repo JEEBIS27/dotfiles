@@ -77,21 +77,32 @@ with tempfile.TemporaryDirectory(prefix='tuios-independent-') as temp:
   db.executescript('CREATE TABLE projects(id TEXT,name TEXT,position INT); CREATE TABLE project_roots(project_id TEXT,path TEXT,position INT); CREATE TABLE threads(id TEXT,title TEXT,name TEXT,cwd TEXT,project_id TEXT,is_pinned INT,updated_at INT,archived INT,thread_source TEXT);')
   db.execute('insert into projects values(?,?,?)',('p','Project from GUI',0))
   db.execute('insert into threads values(?,?,?,?,?,?,?,?,?)',('11111111-1111-4111-8111-111111111111','Chat sidebar fixture',None,str(root),'p',1,1,0,'user'));db.commit();db.close()
+  agents_file=root/'agents.json';agents_file.write_text(json.dumps({'agents':[]}))
+  shim=root/'bin/tuios';shim.unlink()
+  shim.write_text('#!/usr/bin/env python3\nimport os,sys\nfrom pathlib import Path\nif sys.argv[1:2]==["list-agents"]: print(Path('+repr(str(root/'agents.json'))+').read_text())\nelse: os.execv('+repr(binary)+', ["tuios",*sys.argv[1:]])\n');shim.chmod(0o755)
   (root/'TREE.txt').write_text('fixture')
   fake=root/'bin/codex';fake.write_text('#!/bin/sh\nprintf \'FAKE_CODEX:%s\\n\' "$*"\nexec /bin/sh\n');fake.chmod(0o755)
   normal=launch('desktop');os.write(normal['fd'],b'\x1bb')
   wait(lambda:'TREE.txt' in text(normal))
+  sidebar_state=root/'state/tuios/sidebar.json';sidebar_state.parent.mkdir(exist_ok=True)
+  sidebar_state.write_text(json.dumps({'collapsed':True}))
   codex=launch('codex','codex',profile=True)
   wait(lambda:'Project from GUI' in text(codex) and 'Chat sidebar fixture' in text(codex))
   os.write(codex['fd'],b'echo ORIGINAL_CODEX_MARKER\r');wait(lambda:'ORIGINAL_CODEX_MARKER' in text(codex))
   assert 'TREE.txt' not in text(codex)
   assert 'Chat sidebar fixture' not in text(normal)
   os.write(codex['fd'],b'\x1bu');pump(.4)
+  assert any(cell.bg=='9fc5ff' and cell.fg=='101521' for row in codex['screen'].buffer.values() for cell in row.values()), 'Missing high-contrast selection colours'
   os.write(codex['fd'],b'\r');pump(.4)
   assert 'Chat sidebar fixture' not in text(codex),text(codex)
   os.write(codex['fd'],b'\r');wait(lambda:'Chat sidebar fixture' in text(codex))
+  assert '●' not in text(codex)
+  agents_file.write_text(json.dumps({'agents':[dict(harness_id='codex',foreground='codex',agent_session_id='11111111-1111-4111-8111-111111111111',state='working')]}))
+  wait(lambda:'●' in text(codex))
+  os.write(codex['fd'],b'\x1b[B');pump(.4)
+  assert any(cell.data=='●' and cell.fg=='164a88' and cell.bg=='9fc5ff' for row in codex['screen'].buffer.values() for cell in row.values()), 'State dot must remain distinct on selected row'
   before=len(windows())
-  os.write(codex['fd'],b'\x1b[B\r')
+  os.write(codex['fd'],b'\r')
   wait(lambda:'FAKE_CODEX:resume 11111111' in text(codex))
   assert len(windows())==before+1,windows()
   save(codex,'chat-resumed')
@@ -118,7 +129,24 @@ with tempfile.TemporaryDirectory(prefix='tuios-independent-') as temp:
   wait(lambda:'FAKE_CODEX:resume 11111111' in text(codex))
   assert len(windows())==count,windows()
   save(codex,'mouse-resume-existing')
-  print('PASS: project fold, keyboard/mouse chat resume, chat reuse, new Codex Tab and Codex-only four-key Tab navigation')
+  agents_file.write_text(json.dumps({'agents':[]}))
+  wait(lambda:'●' not in text(codex))
+  previous={w['window_id'] for w in windows()}
+  os.write(codex['fd'],b'\x1bu<');pump(.3)
+  os.write(codex['fd'],b'\x1b');pump(.3)
+  os.write(codex['fd'],b'\x1bb');pump(.3)
+  close(codex)
+  reopened=launch('codex','codex',profile=True)
+  wait(lambda:'Project from GUI' in text(reopened) and 'FAKE_CODEX:' in text(reopened))
+  current={w['window_id'] for w in windows()}
+  assert previous < current and len(current)==len(previous)+1, windows()
+  tabs=json.loads(run('list-workspaces','-s','desktop-1','--json'))['workspaces']
+  assert any(t.get('name','').startswith('Terminal-Codex') for t in tabs),tabs
+  for _ in range(4):
+   os.write(reopened['fd'],b'\x1b[6;3~');pump(.4)
+   assert 'ORIGINAL_CODEX_MARKER' not in text(reopened), 'Retired terminal included in Codex navigation'
+  save(reopened,'codex-reopened-with-sidebar')
+  print('PASS: active-only coloured Agent dots, high-contrast selection, sidebar expanded on startup/reopen, exited Codex shell preserved and fresh Codex started; chat operations and Codex Tab navigation')
 
  finally:
   for i,c in enumerate(clients):

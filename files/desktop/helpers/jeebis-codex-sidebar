@@ -3,6 +3,8 @@
 import json
 import os
 import sqlite3
+import subprocess
+import re
 import sys
 import unicodedata
 from collections import defaultdict
@@ -68,6 +70,25 @@ def read_chats(home):
     return result
 
 
+def active_chats():
+    try:
+        result=subprocess.run(['tuios','list-agents','--all-sessions','--json'],capture_output=True,text=True,timeout=.8)
+        if result.returncode:return {}
+        agents=json.loads(result.stdout).get('agents',[])
+    except (OSError,ValueError,subprocess.TimeoutExpired):
+        return {}
+    states={}
+    priority={'needs_input':5,'errored':4,'working':3,'waiting':3,'idle':2,'done':1,'unknown':0}
+    for agent in agents:
+        if 'codex' not in (agent.get('foreground') or '').lower():continue
+        thread=agent.get('agent_session_id')
+        if not thread:
+            match=re.fullmatch(r'Codex ([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})',agent.get('name') or '')
+            if match:thread=match[1]
+        state=agent.get('state') or 'unknown'
+        if thread and state in priority and priority[state]>=priority.get(states.get(thread),-1):states[thread]=state
+    return states
+
 def main():
     home=Path(os.environ.get('CODEX_HOME',str(Path.home()/'.codex'))).expanduser().resolve()
     try:groups=read_chats(home)
@@ -77,12 +98,13 @@ def main():
         print('チャットはありません');return
     # Older attached clients keep readable text until they are reopened.
     if sys.argv[1:]==['--rows'] and os.environ.get('TUIOS_CODEX_INTERACTIVE')=='1':
+        active=active_chats()
         for name,chats in groups:
             group=chats[0]['group']
             print('@codex:'+json.dumps(dict(kind='project',id=group,label=name),ensure_ascii=False))
             for chat in chats:
                 label=('★ ' if chat['pinned'] else '')+chat['label']
-                print('@codex:'+json.dumps(dict(kind='chat',id=chat['id'],label=label,cwd=chat['cwd'],group=group),ensure_ascii=False))
+                print('@codex:'+json.dumps(dict(kind='chat',id=chat['id'],label=label,cwd=chat['cwd'],group=group,state=active.get(chat['id'],'')),ensure_ascii=False))
         return
     for index,(name,chats) in enumerate(groups):
         if index:print()
