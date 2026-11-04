@@ -218,7 +218,11 @@ function __jeebis_prompt_environment_labels
                 set icon ''
                 set_color 87af87
         end
-        printf '%s[%s %s]' "$separator" "$icon" "$environment"
+        if contains -- --compact $argv
+            printf '%s[%s]' "$separator" "$icon"
+        else
+            printf '%s[%s %s]' "$separator" "$icon" "$environment"
+        end
         set separator ' '
     end
     test -n "$separator"; and set_color normal
@@ -278,7 +282,7 @@ end
 function fish_right_prompt
     # On the compact command row, fish reserves space for the typed command.
     if contains -- --final-rendering $argv
-        __jeebis_prompt_environment_labels
+        __jeebis_prompt_environment_labels --compact
     end
 end
 
