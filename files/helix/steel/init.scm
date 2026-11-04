@@ -445,7 +445,7 @@
 (define (jeebis-select-inner) (jeebis-selector-surround #t))
 (define (jeebis-selector-delimiter char)
   (cond [(equal? char #\)) #\(] [(equal? char #\]) #\[] [(equal? char #\}) #\{]
-        [(member char '(#\( #\[ #\{ #\" #\' #\` #\<)) char] [else #f]))
+        [(member char '(#\( #\[ #\{ #\" #\' #\`)) char] [else #f]))
 (define (jeebis-selector-continue char)
   (cond [(equal? char #\t) (jeebis-select-larger)]
         [(equal? char #\T) (jeebis-select-smaller)]
