@@ -51,6 +51,34 @@ function __jeebis_prompt_path --argument-names current previous
     string replace --regex '^'(string escape --style=regex -- "$HOME")'($|/)' '~$1' -- "$current"
 end
 
+# Report activated environments only, without starting language/tool processes.
+function __jeebis_prompt_environment_names
+    if test -n "$IN_NIX_SHELL"
+        set -l label nix
+        if test -n "$name"; and not contains -- "$name" shell nix-shell
+            set label "nix:$name"
+        end
+        string replace --all --regex '[[:cntrl:]]' '' -- "$label"
+    end
+    if test -n "$VIRTUAL_ENV"
+        set -l label (string trim -- "$VIRTUAL_ENV_PROMPT")
+        set label (string replace --regex '^\((.*)\)$' '$1' -- "$label")
+        if test -z "$label"; or contains -- "$label" .venv venv env .env
+            set label (path basename -- "$VIRTUAL_ENV")
+            if contains -- "$label" .venv venv env .env
+                set label (path basename -- (path dirname -- "$VIRTUAL_ENV"))
+            end
+        end
+        string replace --all --regex '[[:cntrl:]]' '' -- "venv:$label"
+    end
+    if test -n "$CONDA_PREFIX"; and test "$CONDA_SHLVL" != 0
+        set -l label "$CONDA_DEFAULT_ENV"
+        test -n "$label"; or set label (path basename -- "$CONDA_PREFIX")
+        string match --quiet '*/*' -- "$label"; and set label (path basename -- "$label")
+        string replace --all --regex '[[:cntrl:]]' '' -- "conda:$label"
+    end
+end
+
 function __jeebis_prompt_refresh --on-event fish_prompt
     # TUIOS can tell us whether the full context is still on the visible screen.
     # Failure to inspect it is handled conservatively by printing full context.
@@ -177,6 +205,21 @@ function fish_prompt
         else
             __jeebis_git_label "$__jeebis_prompt_branch" "$__jeebis_prompt_dirty"
         end
+    end
+    for environment in (__jeebis_prompt_environment_names)
+        set -l icon
+        switch "$environment"
+            case nix 'nix:*'
+                set icon ''
+                set_color 7aa2f7
+            case 'venv:*'
+                set icon ''
+                set_color e5c07b
+            case 'conda:*'
+                set icon ''
+                set_color 87af87
+        end
+        printf ' [%s %s]' "$icon" "$environment"
     end
     set_color normal
     if contains -- --final-rendering $argv

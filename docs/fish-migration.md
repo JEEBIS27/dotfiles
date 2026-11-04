@@ -68,3 +68,17 @@ eza呼び出しの待ち時間は80msまでとし、出力はSGRの色・装飾�
 `scripts/check-fish-path-colors.py --fish /path/to/fish --eza /path/to/eza`は、
 一時HOMEとPTYで入力行を描画し、代表的な種別・色指定・無効化・置換の非実行を確認する。
 実行にはPythonの`pyte`と`pexpect`が必要。
+
+## プロンプトの開発環境表示
+
+有効な環境を、パス・Git情報の後ろへ`[ nix:名前]`（青）、`[ venv:名前]`（黄）、`[ conda:名前]`（緑）で表示する。
+アイコンはNerd FontsのNixOS・Python・Anacondaマークを使う。
+Nixとvenvなどを併用している場合は併記し、実行済みの行にもその時点の環境名を残す。
+環境が無効なときは表示しない。プロジェクトに設定ファイルがあるだけでは表示しない。
+
+Nixは`IN_NIX_SHELL`と`name`、Pythonは`VIRTUAL_ENV`と`VIRTUAL_ENV_PROMPT`、
+Condaは`CONDA_PREFIX`・`CONDA_DEFAULT_ENV`・`CONDA_SHLVL`から判定する。
+Nixの名前がない場合は`[ nix]`、Python環境名が`.venv`などの汎用名の場合は親ディレクトリ名を使う。
+`IN_NIX_SHELL`を設定しない`nix shell`などは自動検出の対象外。
+言語処理系や環境管理コマンドはプロンプト表示時に起動しない。
+`VIRTUAL_ENV_DISABLE_PROMPT`と`CONDA_DISABLE_FISH_PROMPT`で管理ツール側の二重表示を抑止する。
