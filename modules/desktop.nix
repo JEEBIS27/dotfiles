@@ -2,6 +2,7 @@
 let
   cfg = config.jeebis.desktop;
   native = cfg.backend == "nixos";
+  rotation = import ../packages/display-rotation.nix { pkgs = appPkgs; };
   quickshell = import ../packages/quickshell.nix { pkgs = appPkgs; };
   runtime = import ../packages/desktop/runtime.nix { pkgs = appPkgs; };
   themeDir = "${config.xdg.stateHome}/${if native then "jeebis-desktop" else "omarchy"}/current/theme";
@@ -193,7 +194,13 @@ in
         run ${package}/bin/jeebis-desktop theme init
       '';
     };
-    systemd.user.services = lib.optionalAttrs native {
+    systemd.user.services = {
+      jeebis-display-rotation = {
+        Unit = { Description = "Automatic display rotation, including the locked session"; After = [ "wayland-session-waitenv.service" ]; PartOf = [ "graphical-session.target" ]; };
+        Service = { ExecStart = "${rotation}/bin/jeebis-display-rotation session ${config.xdg.configHome}/${hostConfigDir}/plugins/ShellConfig.js"; Restart = "on-failure"; RestartSec = 3; };
+        Install.WantedBy = [ "graphical-session.target" ];
+      };
+    } // lib.optionalAttrs native {
       jeebis-sleep-lock = {
         Unit = { Description = "Lock shared desktop before suspend"; After = [ "jeebis-desktop.service" ]; PartOf = [ "graphical-session.target" ]; };
         Service = { ExecStart = "${package}/bin/jeebis-desktop legacy omarchy-system-sleep-monitor"; Restart = "always"; RestartSec = 2; };

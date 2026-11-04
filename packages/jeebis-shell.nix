@@ -12,6 +12,8 @@ in pkgs.runCommand "jeebis-shell" { nativeBuildInputs = [ pkgs.bash pkgs.python3
   # Keep the customized Agent widget alongside the managed shell plugins.
   cp -R ${../vendor/desktop-runtime}/shell/plugins/agents "$out/plugins/jeebis.agents"
   cp -R ${../vendor/desktop-runtime}/shell/plugins/lock "$out/plugins/jeebis.lock"
+  chmod u+w "$out/plugins/jeebis.lock"
+  cp ${../files/desktop/lock/JeebisAstronautLockView.qml} "$out/plugins/jeebis.lock/JeebisAstronautLockView.qml"
   chmod -R u+w "$out"
   ${pkgs.python3}/bin/python3 - "$out/plugins/jeebis.agents/manifest.json" <<'PYTHON'
   import json, sys
@@ -32,11 +34,13 @@ in pkgs.runCommand "jeebis-shell" { nativeBuildInputs = [ pkgs.bash pkgs.python3
   manifest["omarchy"]["clonedFrom"] = "omarchy.lock"
   path.write_text(json.dumps(manifest, indent=2) + "\n")
   path = root / "Service.qml"
-  text = path.read_text().replace('stateHome + "/omarchy/current/background"', '(Quickshell.env("XDG_STATE_HOME") || stateHome) + "/jeebis-theme/current/lock-wallpaper"')
+  text = path.read_text().replace("LockView {", "JeebisAstronautLockView {")
+  text = text.replace('stateHome + "/omarchy/current/background"', '"${pkgs.sddm-astronaut}/share/sddm/themes/sddm-astronaut-theme/Backgrounds/astronaut.png"')
   # Before first theme refresh, use the existing desktop background.
   text = text.replace('command: ["readlink", "-f", root.currentBackgroundLink]', 'command: ["bash", "-c", ' + json.dumps('if [ -f "$1" ]; then readlink -f "$1"; else readlink -f "$HOME/.local/state/omarchy/current/background"; fi') + ', "_", root.currentBackgroundLink]')
   path.write_text(text)
   PYTHON
+  substituteInPlace "$out/plugins/jeebis.lock/JeebisAstronautLockView.qml" --replace-fail '@ASTRONAUT_THEME@' '${pkgs.sddm-astronaut}/share/sddm/themes/sddm-astronaut-theme'
   # Reproduce upstream's shared-file injection without running its installer.
   for target in wallpapers wallpaper-shuffle; do
     cp ${source}/ruixen.wallpaper/WallpaperRotationState.qml "$out/plugins/ruixen.launcher/extensions/$target/"

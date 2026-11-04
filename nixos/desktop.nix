@@ -1,14 +1,13 @@
 { appPkgs, pkgs, lib, ... }:
 let
+  rotation = import ../packages/display-rotation.nix { pkgs = appPkgs; };
+  greeterConfig = pkgs.writeText "jeebis-greeter.lua" ''
+    hl.config({ misc = { disable_hyprland_logo = true, disable_splash_rendering = true }, animations = { enabled = false } })
+    hl.on("hyprland.start", function() hl.exec_cmd("${rotation}/bin/jeebis-display-rotation greeter") end)
+  '';
   mozkey = import ../packages/mozkey-fcitx5.nix { pkgs = appPkgs; };
   helium = import ../packages/helium.nix { inherit pkgs; };
-  astronaut = (pkgs.sddm-astronaut.override { embeddedTheme = "astronaut"; }).overrideAttrs (old: {
-    installPhase = old.installPhase + ''
-      chmod u+w "$out/share/sddm/themes/sddm-astronaut-theme/Themes" "$out/share/sddm/themes/sddm-astronaut-theme/Backgrounds"
-      ln -s /var/lib/jeebis-theme/current/sddm.conf "$out/share/sddm/themes/sddm-astronaut-theme/Themes/astronaut.conf.user"
-      ln -s /var/lib/jeebis-theme/current/lock-wallpaper "$out/share/sddm/themes/sddm-astronaut-theme/Backgrounds/jeebis"
-    '';
-  });
+  astronaut = pkgs.sddm-astronaut.override { embeddedTheme = "astronaut"; };
   fish = import ../packages/fish.nix { pkgs = appPkgs; };
 in
 {
@@ -34,6 +33,7 @@ in
   # UWSM session so user services receive the Wayland session environment.
   services.displayManager.sddm.enable = lib.mkDefault true;
   services.displayManager.sddm.wayland.enable = lib.mkDefault true;
+  services.displayManager.sddm.wayland.compositorCommand = "${appPkgs.hyprland}/bin/Hyprland --config ${greeterConfig}";
   systemd.tmpfiles.rules = [ "d /var/lib/jeebis-theme 0755 jeebis users -" ];
   services.displayManager.sddm.theme = "sddm-astronaut-theme";
   services.displayManager.sddm.extraPackages = with pkgs.kdePackages; [

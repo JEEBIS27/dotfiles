@@ -120,6 +120,15 @@ def transition_ipc(method, *args):
 def prepare_transition(monitor, transform, config):
     if not config.get("animation", False):
         return None
+    # Only capture when the lock service explicitly confirms an unlocked session.
+    try:
+        lock = json.loads(run("omarchy-shell", "lock", "status"))
+        unlocked = lock is False or (isinstance(lock, dict) and lock.get("locked") is False
+                                    and not any(lock.get(key) for key in ("requested", "secure", "sessionLocked")))
+        if not unlocked:
+            return None
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
+        return None
     token = uuid.uuid4().hex
     try:
         angle = "180" if transform > monitor["transform"] else "-180"
@@ -144,7 +153,8 @@ def prepare_transition(monitor, transform, config):
 
 
 def apply(monitor, transform, config):
-    token = prepare_transition(monitor, transform, config)
+    locked = "LOCK" in monitor.get("solitaryBlockedBy", [])
+    token = None if locked else prepare_transition(monitor, transform, config)
     success = False
     try:
         devices = config.get("touchDevices", [])
