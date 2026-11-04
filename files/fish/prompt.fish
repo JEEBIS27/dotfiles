@@ -179,13 +179,7 @@ function __jeebis_postexec --on-event fish_postexec
     set -g __jeebis_prompt_ready 0
 end
 
-function fish_prompt
-    if test "$__jeebis_prompt_ready" != 1; or test "$__jeebis_prompt_pwd" != "$PWD"
-        __jeebis_prompt_refresh
-    end
-    if set -q TUIOS_WINDOW_ID
-        printf '\e]133;A\a'
-    end
+function __jeebis_prompt_header
     __jeebis_prompt_pill '' "$__jeebis_prompt_time"
     set_color blue
     if contains -- --final-rendering $argv
@@ -206,6 +200,11 @@ function fish_prompt
             __jeebis_git_label "$__jeebis_prompt_branch" "$__jeebis_prompt_dirty"
         end
     end
+    set_color normal
+end
+
+function __jeebis_prompt_environment_labels
+    set -l separator ''
     for environment in (__jeebis_prompt_environment_names)
         set -l icon
         switch "$environment"
@@ -219,7 +218,32 @@ function fish_prompt
                 set icon ''
                 set_color 87af87
         end
-        printf ' [%s %s]' "$icon" "$environment"
+        printf '%s[%s %s]' "$separator" "$icon" "$environment"
+        set separator ' '
+    end
+    test -n "$separator"; and set_color normal
+end
+
+function fish_prompt
+    if test "$__jeebis_prompt_ready" != 1; or test "$__jeebis_prompt_pwd" != "$PWD"
+        __jeebis_prompt_refresh
+    end
+    if set -q TUIOS_WINDOW_ID
+        printf '\e]133;A\a'
+    end
+    set -l header (__jeebis_prompt_header $argv | string collect)
+    printf '%s' "$header"
+    if not contains -- --final-rendering $argv
+        set -l environments (__jeebis_prompt_environment_labels | string collect)
+        if test -n "$environments"
+            set -l columns 80
+            set -q COLUMNS; and set columns $COLUMNS
+            # Leave the final column unused to avoid terminal auto-wrap.
+            set -l padding (math "$columns - 1 - $(string length --visible -- "$header") - $(string length --visible -- "$environments")")
+            if test $padding -ge 1
+                printf '%*s%s' $padding '' "$environments"
+            end
+        end
     end
     set_color normal
     if contains -- --final-rendering $argv
@@ -252,6 +276,10 @@ function fish_prompt
 end
 
 function fish_right_prompt
+    # On the compact command row, fish reserves space for the typed command.
+    if contains -- --final-rendering $argv
+        __jeebis_prompt_environment_labels
+    end
 end
 
 function __jeebis_list_on_cd --on-variable PWD
