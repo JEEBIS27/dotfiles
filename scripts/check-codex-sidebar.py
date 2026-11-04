@@ -101,6 +101,10 @@ with tempfile.TemporaryDirectory(prefix='tuios-independent-') as temp:
   wait(lambda:'●' in text(codex))
   os.write(codex['fd'],b'\x1b[B');pump(.4)
   assert any(cell.data=='●' and cell.fg=='164a88' and cell.bg=='9fc5ff' for row in codex['screen'].buffer.values() for cell in row.values()), 'State dot must remain distinct on selected row'
+  selected=next(i for i,row in enumerate(codex['screen'].display) if '●' in row[:28])
+  cells=codex['screen'].buffer[selected]
+  assert all(cells[x].bg=='9fc5ff' for x in range(27)), 'Selection background must cover badge, chat name and trailing spaces'
+  assert all(cells[x].fg=='101521' for x in range(5,25)), 'Selected chat name must retain the selection foreground after the badge'
   before=len(windows())
   os.write(codex['fd'],b'\r')
   wait(lambda:'FAKE_CODEX:resume 11111111' in text(codex))

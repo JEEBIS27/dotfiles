@@ -3508,7 +3508,15 @@
  	"strings"
  	"time"
  
-@@ -30,6 +31,12 @@
+@@ -8,6 +9,7 @@
+ 	"github.com/Gaurav-Gosain/tuios/internal/config"
+ 	"github.com/Gaurav-Gosain/tuios/internal/overlay"
+ 	"github.com/Gaurav-Gosain/tuios/internal/terminal"
++	"github.com/charmbracelet/x/ansi"
+ )
+ 
+ // The rail's custom section: the rows a command of the user's printed.
+@@ -30,6 +32,12 @@
  
  // railCustomState is the model's side of the section.
  type railCustomState struct {
@@ -3521,7 +3529,7 @@
  	// on records whether the engine was built with the section's command,
  	// so the per-message sync can tell a layout change from a frame.
  	on bool
-@@ -109,13 +116,59 @@
+@@ -109,13 +117,66 @@
  	if text == "" {
  		return nil
  	}
@@ -3575,7 +3583,14 @@
 +					ink = color.RGBA{57, 70, 88, 255}
 +				}
 +			}
-+			body = strings.Replace(body, "●", sidebarStyle(bg, ink).Render("●"), 1)
++			// Do not nest a reset-bearing badge inside a styled string: its
++			// reset would leave the following name on the terminal's ground.
++			// Each segment owns its foreground and background explicitly.
++			if before, after, ok := strings.Cut(body, "●"); ok {
++				style := sidebarStyle(bg, fg).Bold(st.Cursor)
++				padding := max(cw-ansi.StringWidth(body), 0)
++				return style.Render(before) + sidebarStyle(bg, ink).Bold(st.Cursor).Render("●") + style.Render(after+strings.Repeat(" ", padding))
++			}
 +		}
 +		return sidebarStyle(bg, fg).Bold(st.Cursor).Width(cw).Render(body)
 +	}
