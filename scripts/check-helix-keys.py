@@ -26,6 +26,7 @@ class TerminalScreen(pyte.Screen):
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--helix', default=shutil.which('hx'))
+parser.add_argument('--boolswitcher', type=Path, default=Path.home()/'.local/share/jeebis-helix-steel/cogs/boolswitcher.hx')
 parser.add_argument('--tuios', help='Test through a private TUIOS daemon as well')
 a = parser.parse_args()
 assert a.helix, 'Pass --helix /path/to/hx'
@@ -50,7 +51,7 @@ for mode in ['normal', 'select', 'insert']:
         assert keys['b'] == ':jeebis-word-start' and keys['B'] == ':jeebis-WORD-start'
         assert keys['i'] == 'insert_mode' and keys['I'] == 'append_mode'
         assert keys['D'] == 'delete_selection' and keys['C'] == 'change_selection'
-        assert keys['a'] == 'select_all' and keys['V'] == ':jeebis-line-mode'
+        assert keys['C-a'] == 'select_all' and keys['V'] == ':jeebis-line-mode'
         assert keys['q'] == ':write-quit' and keys['Q'] == ':quit!'
         assert keys['G'][';'] == 'flip_selections'
         assert keys['G']['e'] == 'extend_prev_word_start'
@@ -68,6 +69,9 @@ with tempfile.TemporaryDirectory(prefix='helix-keys-') as temp:
     (conf/'init.scm').write_text(motions + '\n' + smooth + '\n(define (test-half-down) (motion.half_page_down))\n(define (test-file-start) (motion.goto_file_start) (motion.align_view_top))\n(define (test-file-end) (motion.goto_file_end) (motion.align_view_bottom))\n(define (test-extend-end) (motion.extend_to_file_end))\n')
 
     (conf/'themes/Desktop.toml').write_text('inherits = "default"\n')
+    cogs = root/'data/jeebis-helix-steel/cogs'
+    cogs.mkdir(parents=True)
+    (cogs/'boolswitcher.hx').symlink_to(a.boolswitcher.resolve())
     (root/'runtime').mkdir(mode=0o700)
     env = {k: v for k, v in os.environ.items() if not k.startswith(('TUIOS', 'HERDR', 'TMUX'))}
     env.update(HOME=str(root), XDG_CONFIG_HOME=str(root/'config'),
@@ -360,7 +364,7 @@ with tempfile.TemporaryDirectory(prefix='helix-keys-') as temp:
             ('word-back', 'alpha beta gamma\n', [b'w', b'e', b'iX'], 'Xalpha beta gamma\n'),
             ('word-start', 'alpha beta gamma\n', [b'w', b'b', b'iX'], 'alpha Xbeta gamma\n'),
             ('WORD-start', 'alpha beta.foo gamma\n', [b'W', b'B', b'iX'], 'alpha Xbeta.foo gamma\n'),
-            ('containing', 'SUPER next\n', [b'2l', b'tw', b'd'], ' next\n'),
+            ('containing', 'SUPER next\n', [b'2l', b't', b'd'], ' next\n'),
         ]:
             e = Editor(name, text)
             editors.append(e)
