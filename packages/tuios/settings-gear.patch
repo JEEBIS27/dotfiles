@@ -1,15 +1,19 @@
 --- a/internal/app/os.go
 +++ b/internal/app/os.go
-@@ -1905,6 +1905,8 @@
+@@ -1904,7 +1904,11 @@
+ 	scratchReturnMode Mode
  	// forceTerminalMode is OSOptions.StartInTerminalMode: applyStartupPreferences
  	// enters terminal mode once a pane is focused, for any session.
- 	forceTerminalMode bool
-+	startWorkspace    int
-+	independentView   bool
+-	forceTerminalMode bool
++	forceTerminalMode    bool
++	startWorkspace       int
++	independentView      bool
++	pendingViewPaneIDs   map[string]bool
++	pendingViewWorkspace int
  	// layoutInstant places the next layout without animation. See
  	// applyStartupTiling and layoutAnimationDuration.
  	layoutInstant bool
-@@ -2014,7 +2016,7 @@
+@@ -2014,7 +2018,7 @@
  type nestedSwitchError struct{ inside, target string }
  
  func (e *nestedSwitchError) Error() string {
@@ -18,7 +22,7 @@
  }
  
  // SwitchToSession detaches from the current daemon session and attaches to another.
-@@ -2030,7 +2032,7 @@
+@@ -2030,7 +2034,7 @@
  		return fmt.Errorf("not in daemon mode")
  	}
  	if targetSession == "" {
@@ -27,7 +31,7 @@
  	}
  	// A switch the person made ends a rail click that waits for another
  	// machine. See host_open.go.
-@@ -2079,8 +2081,8 @@
+@@ -2079,8 +2083,8 @@
  	m.QueueClientEvent(ClientEvent{Type: "agent-mail-load"})
  
  	m.MarkAllDirty()
@@ -490,7 +494,21 @@
  		ws = m.CurrentWorkspace
  	}
  	// A preselection belongs to the pane focused now, and the window it is
-@@ -685,7 +685,7 @@
+@@ -676,6 +676,13 @@
+ 		// know the session's window set, so the state it holds must not be
+ 		// pushed. See SyncStateToDaemon.
+ 		m.daemonWindowIntent = true
++		if m.independentView {
++			m.pendingViewWorkspace = m.CurrentWorkspace
++			m.pendingViewPaneIDs = make(map[string]bool, len(m.Windows))
++			for _, w := range m.Windows {
++				m.pendingViewPaneIDs[w.ID] = true
++			}
++		}
+ 	}
+ 	return m
+ }
+@@ -685,7 +692,7 @@
  	newID := createID()
  	title := fmt.Sprintf("Terminal %s", newID[:8])
  
@@ -499,7 +517,7 @@
  
  	x, y, width, height := m.NewWindowPlacement()
  
-@@ -806,6 +806,10 @@
+@@ -806,6 +813,10 @@
  // two apart is whether any client ever placed those windows: see
  // sessionUnarranged.
  func (m *OS) applyStartupPreferences() {
@@ -510,7 +528,7 @@
  	// Asked for on the command line, so it holds for a session that is
  	// already arranged too, and without a config.
  	if m.forceTerminalMode {
-@@ -1016,10 +1020,10 @@
+@@ -1016,10 +1027,10 @@
  				// A stack that lost its open pane opens its next member,
  				// which the retile below gives a tile.
  				m.openOrphanStacks()
@@ -2091,7 +2109,7 @@
  
  	// Mark that we restored from state. This prevents the first resize from retiling
  	// and allows the layout to be preserved as the user left it.
-@@ -537,6 +538,35 @@
+@@ -537,6 +538,71 @@
  	if m.DaemonClient != nil && !m.DaemonClient.AcceptState(state) {
  		return nil
  	}
@@ -2116,18 +2134,54 @@
 +				local.WorkspaceFocus[ws] = m.Windows[idx].ID
 +			}
 +		}
-+		if sourceID != "" || !m.daemonWindowIntent {
-+			local.FocusedWindowID = ""
-+			if pane := m.GetFocusedWindow(); pane != nil {
-+				local.FocusedWindowID = pane.ID
++		// Focus is client-local, including creation and removal. A server
++		// push may arrive before the new pane; retain the request until its
++		// pane actually appears, rather than consuming it on the first push.
++		present := make(map[string]bool)
++		for _, pane := range state.Windows {
++			if pane.Workspace == m.CurrentWorkspace && !pane.Minimized {
++				present[pane.ID] = true
 +			}
 +		}
++		local.FocusedWindowID = ""
++		if pane := m.GetFocusedWindow(); pane != nil && present[pane.ID] {
++			local.FocusedWindowID = pane.ID
++		}
++		if m.pendingViewPaneIDs != nil {
++			for _, pane := range state.Windows {
++				if pane.Workspace == m.pendingViewWorkspace && !m.pendingViewPaneIDs[pane.ID] {
++					if pane.Workspace == m.CurrentWorkspace && present[pane.ID] {
++						local.FocusedWindowID = pane.ID
++						local.FocusHistory = session.RecordFocus(local.FocusHistory, pane.Workspace, pane.ID)
++					}
++					m.pendingViewPaneIDs = nil
++					break
++				}
++			}
++		}
++		if local.FocusedWindowID == "" {
++			for _, id := range local.FocusHistory[m.CurrentWorkspace] {
++				if present[id] {
++					local.FocusedWindowID = id
++					break
++				}
++			}
++			if local.FocusedWindowID == "" {
++				for _, pane := range state.Windows {
++					if present[pane.ID] {
++						local.FocusedWindowID = pane.ID
++						break
++					}
++				}
++			}
++		}
++
 +		state = &local
 +	}
  	fromPeer := sourceID != ""
  
  	// The daemon now holds what arrived here, which is not necessarily what
-@@ -735,7 +765,7 @@
+@@ -735,7 +801,7 @@
  	// A scratch group on the screen stays while the session is still on the
  	// workspace it was shown over. The tiling mode the push carries is that
  	// workspace's. See BuildSessionState.
@@ -2136,7 +2190,7 @@
  		if m.CurrentWorkspace == max(m.scratchBase, 1) {
  			m.scratchBaseTiling = m.AutoTiling
  			m.CurrentWorkspace, m.AutoTiling = previousWorkspace, true
-@@ -761,6 +791,7 @@
+@@ -761,6 +827,7 @@
  			}
  		}
  	}
@@ -2144,7 +2198,7 @@
  	focusAfter := ""
  	if m.FocusedWindow >= 0 {
  		focusAfter = m.Windows[m.FocusedWindow].ID
-@@ -1183,6 +1214,9 @@
+@@ -1183,6 +1250,9 @@
  // happens once the sync has been applied. See the StateSyncMsg case in
  // update.go.
  func (m *OS) adoptSidebarState(state *session.SessionState) {
@@ -2154,7 +2208,7 @@
  	// The width is deliberately not taken. It is this viewer's preference, not
  	// the session's: it says how much of this screen the rail may have, and it
  	// already has a home of its own in the sidebar state file, whose whole
-@@ -1227,6 +1261,9 @@
+@@ -1227,6 +1297,9 @@
  	// client's content region, so a peer's rectangle carries nothing this client
  	// could want. See popupRect.
  	adoptGeometry := !ws.Unplaced && !ws.Zoomed && !ws.Popup
@@ -2164,7 +2218,7 @@
  	// A pane the pointer is dragging belongs to the pointer until the drop.
  	// See LiveWindowDrag. The daemon's rectangle is not taken as the slot
  	// either: it can lag this client's own layout, and the slot the drop uses
-@@ -1806,6 +1843,9 @@
+@@ -1806,6 +1879,9 @@
  // syncDaemonPTYDimensions is SyncDaemonPTYDimensions with the announcements already held.
  func (m *OS) syncDaemonPTYDimensions() {
  	for _, w := range m.Windows {
@@ -2174,7 +2228,7 @@
  		if w.DaemonMode && w.DaemonResizeFunc != nil {
  			termWidth := w.ContentWidth()
  			termHeight := w.ContentHeight()
-@@ -1944,7 +1984,7 @@
+@@ -1944,7 +2020,7 @@
  	m.LogInfo("[SETUP] SetupPTYOutputHandlers: setting up handlers for %d windows", len(m.Windows))
  
  	for i, w := range m.Windows {
@@ -2183,7 +2237,7 @@
  		if w.DaemonMode && w.PTYID != "" {
  			m.wireDaemonPTY(w, func() { m.subscribeToPTY(w, m.RestoredStreamSeq[w.PTYID]) })
  		}
-@@ -1969,6 +2009,9 @@
+@@ -1969,6 +2045,9 @@
  		return m.DaemonClient.WritePTY(ptyID, data)
  	}
  	window.DaemonResizeFunc = func(width, height int) error {
@@ -2193,7 +2247,7 @@
  		return m.DaemonClient.ResizePTY(ptyID, width, height)
  	}
  
-@@ -2153,7 +2196,7 @@
+@@ -2153,7 +2232,7 @@
  		return
  	}
  
@@ -2202,7 +2256,7 @@
  
  	for _, w := range m.Windows {
  		if w.DaemonMode && w.PTYID != "" && w.Workspace == workspace {
-@@ -2200,7 +2243,7 @@
+@@ -2200,7 +2279,7 @@
  		return
  	}
  
