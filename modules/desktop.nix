@@ -158,6 +158,7 @@ in
     home.file.".local/bin/jeebis-tuios-select-tab" = { source = personalHelpers + /jeebis-tuios-select-tab; executable = true; };
     home.file.".local/bin/jeebis-tuios-edit-config" = { source = personalHelpers + /jeebis-tuios-edit-config; executable = true; };
     home.file.".local/bin/jeebis-tuios-worktree" = { source = personalHelpers + /jeebis-tuios-worktree; executable = true; };
+    home.file.".local/bin/jeebis-codex-sidebar" = { source = personalHelpers + /jeebis-codex-sidebar; executable = true; };
     home.file.".local/bin/jeebis-codex-tuios" = { source = personalHelpers + /jeebis-codex-tuios; executable = true; };
     home.file.".local/bin/jeebis-chatgpt-new-window" = { source = personalHelpers + /jeebis-chatgpt-new-window; executable = true; };
     home.file.".local/bin/jeebis-theme-cycle" = { text = "#!${pkgs.runtimeShell}\nexec ${cfg.command} theme cycle\n"; executable = true; };

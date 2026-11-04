@@ -10,9 +10,9 @@
 | Alt+Shift+H/J/K/L、Alt+Shift+矢印 | ペインを5単位リサイズ | TUIOSの5単位リサイズ |
 | Alt+Enter / Shift+Enter | 左右 / 上下分割 | TUIOSのvertical / horizontal split |
 | Alt+N | Herdrタブ / tmuxウィンドウ | TUIOS新規ウィンドウ（ペイン） |
-| Alt+Shift+N | 新規Tab / Workspace | TUIOSの最初の空Tabにペイン作成 |
+| Alt+Shift+N | 新規Tab / Workspace | 最初の空Tabに作成。Codexタブ中はCodexを起動 |
 | Alt+1〜9 | タブ / ウィンドウ選択 | 現TabのTUIOSウィンドウ選択 |
-| Alt+Tab / Alt+Shift+Tab | 次 / 前タブ | 次 / 前TUIOS Tab |
+| Alt+Tab / Alt+Shift+Tab | 次 / 前タブ | 次 / 前TUIOS Tab。Codexタブ中はCodexだけを巡回 |
 | Alt+PageDown / PageUp | 次 / 前タブ | 同上、端末側のFキー変換不要 |
 | Alt+Shift+PageDown / PageUp | 次 / 前Tab | ペインがある次 / 前Tab |
 | Alt+F | WezTermの画面検出→コピー→検索 | TUIOS `copy_mode_search_backward`、1操作で検索 |
@@ -23,7 +23,7 @@
 | Alt+S（Alt+Gも可） | Tab検索 | TUIOS Tab選択 |
 | Alt+Shift+S | Workspace検索 | 内蔵検索でEnter切替・Delete削除確認 |
 | Alt+E → H/J/K/L、矢印 | ペイン交換 | TUIOS prefix→方向交換 |
-| Alt+B | Herdrサイドバー | TUIOS Workspace・エージェントrail |
+| Alt+B | サイドバー | 通常はファイルツリー、Codex用はプロジェクト別チャット一覧 |
 | Alt+O | 通知対象へ移動 | TUIOSの最新メッセージ対象へ移動 |
 | Alt+D | デタッチ | TUIOSデタッチ、プロセスを保持 |
 | Alt+W | ペインを閉じる | TUIOSウィンドウを閉じる |
@@ -135,6 +135,13 @@ UIは旧SessionをWorkspace、旧WorkspaceをTabと呼ぶ。Alt+SはTab検索、
 ## 複数のRioウィンドウ
 
 各Rioは選択中のTabとフォーカスを独立して保持する。Codexを開いても、既存Terminalの表示は切り替わらない。
+Alt+Bのサイドバー開閉・折り畳み、フォーカス履歴、横スクロール位置、スクラッチの表示も各Rioで保持する。サイドバーの初期表示は起動プロファイルに従う。各Tabは表示しているRio自身の画面とサイドバーの幅に合わせ、他のRioのサイドバー用の余白を残さない。
 同じ役割のTabが別ウィンドウで使用中なら、新しいTabを `Terminal 2`、`Terminal 3` のように追加する。
 ウィンドウを閉じて使用中でなくなったTabは、次回の同じ役割の起動で再利用する。
 役割のTab番号は空き状況によって変わるため、Alt+Sの名前で選ぶ。既存の作業やディレクトリは上書きしない。
+
+Codex用サイドバーはローカルのCodexメタデータを読み取り専用で参照し、GUIのプロジェクト名・チャット名・ピン留めを5秒ごとに一覧表示する。アーカイブ済みチャットと内部レビュー用スレッドは表示しない。通常のTerminalはAlt+Bで現在のペインのファイルツリーを開く。
+
+Codexの一覧はクリックで操作できる。Alt+Uで一覧にフォーカスし、上下で選択、Enterでチャット再開またはプロジェクト折り畳み、左右で展開・折り畳み、Escでペインへ戻る。チャットは新しいTabで `codex resume` し、同じチャットがすでに開いていればそのTabへ移動する。既存のペインは上書きしない。
+
+Codexタブ中はAlt+Tab / Alt+Shift+Tab / Alt+PgUp / Alt+PgDnでCodexタブだけを巡回する。Alt+Shift+Nで新しいCodexタブを作成する。通常のTerminalタブからの巡回と新規作成は従来どおり。

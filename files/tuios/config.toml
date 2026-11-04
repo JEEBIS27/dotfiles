@@ -27,12 +27,12 @@ dim_unfocused = 0
 shared_borders = true
 
 [appearance.sidebar]
-# Herdr-like agent rail; omit files, git and the general terminal list.
+# Normal terminals show the focused pane's file tree when Alt+B opens the rail.
 enabled = false
 position = "left"
 # Match the 16-column rail used on half-width windows, also at full width.
 width = 16
-sections = "agents"
+sections = "files"
 show_glyphs = true
 
 [scratch]

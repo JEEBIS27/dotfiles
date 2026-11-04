@@ -24,12 +24,23 @@
 
     "rio/themes/Desktop.toml".source = config.lib.file.mkOutOfStoreSymlink "${config.jeebis.desktop.themeDirectory}/rio.toml";
     "tuios/config.toml".text = "include = [\"defaults.toml\", \"?local.toml\"]\n";
-    # Client-only Codex profile: share all regular settings, show the agent rail.
+    # Client-only Codex profile: GUI project names and chats, not the file tree.
     "tuios-codex/tuios/config.toml".text = ''
       include = ["../../tuios/config.toml"]
       [appearance.sidebar]
       enabled = true
-      width = 16
+      width = 28
+      sections = "custom"
+      [appearance.sidebar.custom]
+      title = "Chats"
+      command = "jeebis-codex-sidebar --rows"
+      refresh = "5s"
+      [appearance.sidebar.left]
+      sections = "custom"
+      [appearance.sidebar.right]
+      sections = "custom"
+      [keybindings.global]
+      focus_sidebar = ["alt+u"]
     '';
 
 

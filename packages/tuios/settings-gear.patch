@@ -481,6 +481,15 @@
  
 --- a/internal/app/os_window.go
 +++ b/internal/app/os_window.go
+@@ -653,7 +653,7 @@
+ 	// Inside a scratch group the window goes on the group's workspace,
+ 	// which is never the session's current one.
+ 	ws := 0
+-	if m.InScratchView() {
++	if m.InScratchView() || m.independentView {
+ 		ws = m.CurrentWorkspace
+ 	}
+ 	// A preselection belongs to the pane focused now, and the window it is
 @@ -685,7 +685,7 @@
  	newID := createID()
  	title := fmt.Sprintf("Terminal %s", newID[:8])
@@ -674,7 +683,7 @@
  		Width:      workspaceSwitcherWidth,
  		MaxVisible: workspaceSwitcherRows,
  		Search:     true,
-@@ -31,11 +31,25 @@
+@@ -31,12 +31,26 @@
  		Count:      len(filtered),
  		Selected:   m.WorkspaceSwitcherSelected,
  		Scroll:     &m.WorkspaceSwitcherScroll,
@@ -684,7 +693,7 @@
  			{Key: overlay.EnterGlyph, Label: "go"},
  			{Key: "ctrl+r", Label: "rename"},
  			{Key: "esc", Label: "close"},
-+		},
+ 		},
 +		DetailFor: func(width int) []string {
 +			if len(filtered) == 0 {
 +				return nil
@@ -698,9 +707,10 @@
 +				details = append(details, overlay.Truncate("Directory: "+w.Directories, width))
 +			}
 +			return details
- 		},
++		},
  		RenderRow: func(i int, selected bool, rowBg color.Color, pal overlay.Palette, width int) string {
  			return workspaceSwitcherRow(filtered[i], selected, rowBg, pal, width)
+ 		},
 @@ -66,5 +80,8 @@
  		left += overlay.Style(rowBg).Foreground(labelColor).Bold(selected).
  			Render("  " + overlay.Truncate(printableTitle(w.Name), max(width-12, 1)))
@@ -1676,7 +1686,58 @@
  	}
 --- a/internal/app/pane_view.go
 +++ b/internal/app/pane_view.go
-@@ -567,7 +567,7 @@
+@@ -81,6 +81,9 @@
+ // client, or, under latest, its agreed left and right reserve is not this
+ // client's own chrome (see reserveDiffers).
+ func (m *OS) widthDiffers() bool {
++	if m.independentView {
++		return false
++	}
+ 	if !m.windowSizeAware() {
+ 		return false
+ 	}
+@@ -88,11 +91,17 @@
+ 		return true
+ 	}
+ 	own, agreed, ok := m.reserveDiffers()
++	if m.independentView && ok {
++		return own.Left != agreed.Left || own.Right != agreed.Right
++	}
+ 	return ok && (own.Left > agreed.Left || own.Right > agreed.Right)
+ }
+ 
+ // heightDiffers is widthDiffers for the height.
+ func (m *OS) heightDiffers() bool {
++	if m.independentView {
++		return false
++	}
+ 	if !m.windowSizeAware() {
+ 		return false
+ 	}
+@@ -100,6 +109,9 @@
+ 		return true
+ 	}
+ 	own, agreed, ok := m.reserveDiffers()
++	if m.independentView && ok {
++		return own.Top != agreed.Top || own.Bottom != agreed.Bottom
++	}
+ 	return ok && (own.Top > agreed.Top || own.Bottom > agreed.Bottom)
+ }
+ 
+@@ -118,6 +130,12 @@
+ // the new reserve. Under smallest and largest the agreed reserve is the
+ // largest, so it is never less than a client's own, and nothing changes.
+ func (m *OS) reserveDiffers() (own, agreed session.LayoutReserve, ok bool) {
++	// Independent desktop viewers keep their own chrome even at the same
++	// terminal size. Map the shared pane box into each viewer's own margins.
++	if m.independentView && m.DaemonClient != nil && m.DaemonClient.ViewChrome() &&
++		m.EffectiveWidth > 0 && m.EffectiveHeight > 0 {
++		return m.OwnLayoutReserve(), m.SessionReserve, true
++	}
+ 	// With no size from the daemon yet (an empty session's attach carries
+ 	// none), there is no agreed box to lay out around, and the floor stays.
+ 	if m.DaemonClient == nil || m.DaemonClient.SessionWindowSize() != config.WindowSizeLatest ||
+@@ -567,7 +585,7 @@
  			arrows.WriteString(g)
  		}
  	}
@@ -2004,7 +2065,15 @@
  		return shotCopyAsText, ""
 --- a/internal/app/session.go
 +++ b/internal/app/session.go
-@@ -429,7 +429,7 @@
+@@ -258,6 +258,7 @@
+ // This is called when attaching to an existing session.
+ // The caller must set up PTY output handlers after calling this.
+ func (m *OS) RestoreFromState(state *session.SessionState) error {
++	m.codexAdoptThreads(state)
+ 	if state == nil {
+ 		m.LogInfo("[RESTORE] RestoreFromState: state is nil")
+ 		return nil
+@@ -429,7 +430,7 @@
  				m.WorkspaceTrees[ws] = tree
  				if tree != nil {
  					ids := tree.GetAllWindowIDs()
@@ -2013,7 +2082,7 @@
  				}
  			}
  		}
-@@ -477,7 +477,7 @@
+@@ -477,7 +478,7 @@
  	m.applyPopupRects(false)
  
  	m.MarkAllDirty()
@@ -2022,17 +2091,22 @@
  
  	// Mark that we restored from state. This prevents the first resize from retiling
  	// and allows the layout to be preserved as the user left it.
-@@ -536,6 +536,29 @@
- 	// TUIClient.AcceptState.
+@@ -537,6 +538,35 @@
  	if m.DaemonClient != nil && !m.DaemonClient.AcceptState(state) {
  		return nil
-+	}
+ 	}
++	m.codexAdoptThreads(state)
 +	// Desktop windows share panes and layout, but choose their own tab and
 +	// focus. Copy the snapshot: other consumers must still see the daemon's
 +	// original view. A local pane-creation intent may adopt its new focus.
 +	if m.independentView {
 +		local := *state
 +		local.CurrentWorkspace = m.CurrentWorkspace
++		local.FocusHistory = session.CloneFocusHistory(m.FocusHistory)
++		local.ScrollStrip = nil // the scrolling viewport belongs to this viewer
++		if m.InScratchView() {
++			local.AutoTiling = m.AutoTiling
++		}
 +		local.WorkspaceFocus = maps.Clone(state.WorkspaceFocus)
 +		if local.WorkspaceFocus == nil {
 +			local.WorkspaceFocus = make(map[int]string)
@@ -2049,10 +2123,58 @@
 +			}
 +		}
 +		state = &local
- 	}
++	}
  	fromPeer := sourceID != ""
  
-@@ -1944,7 +1967,7 @@
+ 	// The daemon now holds what arrived here, which is not necessarily what
+@@ -735,7 +765,7 @@
+ 	// A scratch group on the screen stays while the session is still on the
+ 	// workspace it was shown over. The tiling mode the push carries is that
+ 	// workspace's. See BuildSessionState.
+-	if session.IsScratchWorkspace(previousWorkspace) {
++	if session.IsScratchWorkspace(previousWorkspace) && !m.independentView {
+ 		if m.CurrentWorkspace == max(m.scratchBase, 1) {
+ 			m.scratchBaseTiling = m.AutoTiling
+ 			m.CurrentWorkspace, m.AutoTiling = previousWorkspace, true
+@@ -761,6 +791,7 @@
+ 			}
+ 		}
+ 	}
++	m.codexFocusOpenedPane()
+ 	focusAfter := ""
+ 	if m.FocusedWindow >= 0 {
+ 		focusAfter = m.Windows[m.FocusedWindow].ID
+@@ -1183,6 +1214,9 @@
+ // happens once the sync has been applied. See the StateSyncMsg case in
+ // update.go.
+ func (m *OS) adoptSidebarState(state *session.SessionState) {
++	if m.independentView {
++		return // folding the rail is a local display choice too
++	}
+ 	// The width is deliberately not taken. It is this viewer's preference, not
+ 	// the session's: it says how much of this screen the rail may have, and it
+ 	// already has a home of its own in the sidebar state file, whose whole
+@@ -1227,6 +1261,9 @@
+ 	// client's content region, so a peer's rectangle carries nothing this client
+ 	// could want. See popupRect.
+ 	adoptGeometry := !ws.Unplaced && !ws.Zoomed && !ws.Popup
++	if m.independentView && w.Workspace == m.CurrentWorkspace && ws.Workspace == m.CurrentWorkspace {
++		adoptGeometry = false // this viewer lays out the Tab against its own chrome
++	}
+ 	// A pane the pointer is dragging belongs to the pointer until the drop.
+ 	// See LiveWindowDrag. The daemon's rectangle is not taken as the slot
+ 	// either: it can lag this client's own layout, and the slot the drop uses
+@@ -1806,6 +1843,9 @@
+ // syncDaemonPTYDimensions is SyncDaemonPTYDimensions with the announcements already held.
+ func (m *OS) syncDaemonPTYDimensions() {
+ 	for _, w := range m.Windows {
++		if m.independentView && w.Workspace != m.CurrentWorkspace {
++			continue
++		}
+ 		if w.DaemonMode && w.DaemonResizeFunc != nil {
+ 			termWidth := w.ContentWidth()
+ 			termHeight := w.ContentHeight()
+@@ -1944,7 +1984,7 @@
  	m.LogInfo("[SETUP] SetupPTYOutputHandlers: setting up handlers for %d windows", len(m.Windows))
  
  	for i, w := range m.Windows {
@@ -2061,7 +2183,17 @@
  		if w.DaemonMode && w.PTYID != "" {
  			m.wireDaemonPTY(w, func() { m.subscribeToPTY(w, m.RestoredStreamSeq[w.PTYID]) })
  		}
-@@ -2153,7 +2176,7 @@
+@@ -1969,6 +2009,9 @@
+ 		return m.DaemonClient.WritePTY(ptyID, data)
+ 	}
+ 	window.DaemonResizeFunc = func(width, height int) error {
++		if m.independentView && window.Workspace != m.CurrentWorkspace {
++			return nil
++		}
+ 		return m.DaemonClient.ResizePTY(ptyID, width, height)
+ 	}
+ 
+@@ -2153,7 +2196,7 @@
  		return
  	}
  
@@ -2070,7 +2202,7 @@
  
  	for _, w := range m.Windows {
  		if w.DaemonMode && w.PTYID != "" && w.Workspace == workspace {
-@@ -2200,7 +2223,7 @@
+@@ -2200,7 +2243,7 @@
  		return
  	}
  
@@ -2232,7 +2364,54 @@
  					if cfg := m.sidebarSessionConfig(edge); cfg != nil && cfg.SessionWorkspace > 0 {
 --- a/internal/app/sidebar_keyboard.go
 +++ b/internal/app/sidebar_keyboard.go
-@@ -604,7 +604,7 @@
+@@ -128,6 +128,9 @@
+ // SidebarCursorMove steps the cursor by delta over the nav rows, clamped to the
+ // ends (no wrap, matching a scroll that stops at the top and bottom).
+ func (m *OS) SidebarCursorMove(delta int) {
++	if m.codexMoveCursor(delta) {
++		return
++	}
+ 	if len(m.SidebarNav) == 0 {
+ 		return
+ 	}
+@@ -146,8 +149,16 @@
+ // down and up. With the tree gone there is nothing left to expand, and the keys
+ // that walked its depth are the natural pair for walking the sections. The
+ // config action names stay, so an older config file still resolves both keys.
+-func (m *OS) SidebarCursorExpand()   { m.sidebarStepSection(1) }
+-func (m *OS) SidebarCursorCollapse() { m.sidebarStepSection(-1) }
++func (m *OS) SidebarCursorExpand() {
++	if !m.codexSetProjectFolded(false) {
++		m.sidebarStepSection(1)
++	}
++}
++func (m *OS) SidebarCursorCollapse() {
++	if !m.codexSetProjectFolded(true) {
++		m.sidebarStepSection(-1)
++	}
++}
+ 
+ // sidebarStepSection moves the cursor to the first row of the next (delta 1) or
+ // previous (delta -1) section that has rows, stopping at the ends.
+@@ -178,6 +189,8 @@
+ // control that belongs to none.
+ func sidebarSectionOfKind(kind sidebarRowKind) sidebarSection {
+ 	switch kind {
++	case sidebarRowCodex:
++		return sidebarSectionCustom
+ 	case sidebarRowSession, sidebarRowHostSession, sidebarRowHostNew, sidebarRowHostSignIn, sidebarRowGlobalNew, sidebarRowHost, sidebarRowRepo:
+ 		return sidebarSectionSessions
+ 	case sidebarRowWindow:
+@@ -225,6 +238,8 @@
+ 		return false
+ 	}
+ 	switch row.Kind {
++	case sidebarRowCodex:
++		return m.codexActivate(row.WindowID)
+ 	case sidebarRowWindow, sidebarRowAgent:
+ 		m.sidebarFocusWindow(sidebarRowHit{
+ 			Kind:        row.Kind,
+@@ -604,7 +619,7 @@
  // rail did before the picker existed.
  func (m *OS) SidebarNewSession() {
  	if !m.SidebarCanCreateSession() {
@@ -2241,7 +2420,7 @@
  		return
  	}
  	m.clearSidebarReturn() // the new session is where the user asked to end up
-@@ -636,7 +636,7 @@
+@@ -636,7 +651,7 @@
  // landed; see SessionCreatedMsg.
  func (m *OS) SidebarNewGlobalSession() {
  	if !m.SidebarCanCreateSession() {
@@ -2250,7 +2429,7 @@
  		return
  	}
  	m.clearSidebarReturn()
-@@ -667,7 +667,7 @@
+@@ -667,7 +682,7 @@
  // silently acts on the wrong session is worse than one that says it cannot.
  func (m *OS) SidebarNewWindow(sessionID string) {
  	if sessionID != "" && sessionID != m.sidebarCurrentSessionID() {
@@ -2259,7 +2438,7 @@
  		return
  	}
  	m.clearSidebarReturn() // the new pane is where the user asked to end up
-@@ -714,7 +714,7 @@
+@@ -714,7 +729,7 @@
  		m.OpenSessionAccentPicker(row.SessionID)
  		return
  	}
@@ -2424,10 +2603,9 @@
  	case RenameSession:
  		if label := m.SessionLabel(m.RenameTargetID); label != "" {
 -			return "rename session " + label
--		}
--		return "rename session"
 +			return "rename workspace " + label
-+		}
+ 		}
+-		return "rename session"
 +		return "rename workspace"
  	case RenameWorkspace:
 -		return "rename workspace " + m.RenameTargetID
@@ -2446,7 +2624,7 @@
  		return
  	}
  	m.SwitchToWorkspace(m.lastWorkspace)
-@@ -61,7 +61,7 @@
+@@ -61,17 +61,18 @@
  	case m.FocusedWindow < 0 || m.FocusedWindow >= len(m.Windows):
  		return
  	case ws == 0:
@@ -2455,7 +2633,19 @@
  		return
  	}
  	m.MoveWindowToWorkspaceAndFollow(m.FocusedWindow, ws)
-@@ -126,7 +126,7 @@
+ }
+ 
+ func (m *OS) cycleWorkspace(step int) {
++	codexOnly := m.IsCodexTab(m.CurrentWorkspace)
+ 	n := m.NumWorkspaces
+ 	for i := 1; i < n; i++ {
+ 		ws := ((m.CurrentWorkspace-1+step*i)%n+n)%n + 1
+-		if m.GetWorkspaceWindowCount(ws) > 0 {
++		if m.GetWorkspaceWindowCount(ws) > 0 && (!codexOnly || m.IsCodexTab(ws)) {
+ 			m.SwitchToWorkspace(ws)
+ 			return
+ 		}
+@@ -126,7 +127,7 @@
  		// intent does: a push that leaves the pane out is reconciled by the
  		// daemon, and holding one back would lose the next switch.
  		if err := m.DaemonClient.SendNewWindowFrom(workspace, cwdFrom, sshFrom); err != nil {
@@ -2464,7 +2654,7 @@
  			return
  		}
  		if m.paneRequests == nil {
-@@ -194,7 +194,7 @@
+@@ -194,7 +195,7 @@
  // switchToWorkspaceHeld is switchToWorkspace with the announcements already held.
  func (m *OS) switchToWorkspaceHeld(workspace, focusTarget int) {
  	if (workspace < 1 || workspace > m.NumWorkspaces) && !session.IsScratchWorkspace(workspace) {
@@ -2473,7 +2663,7 @@
  		return
  	}
  
-@@ -215,7 +215,7 @@
+@@ -215,7 +216,7 @@
  		m.lastWorkspace = oldWorkspace
  	}
  	windowsInNew := m.GetWorkspaceWindowCount(workspace)
@@ -2482,7 +2672,7 @@
  
  	// Clear all animations BEFORE switching to prevent windows from getting stuck
  	// mid-animation. A pane left at an interpolated rectangle keeps it until
-@@ -229,7 +229,7 @@
+@@ -229,7 +230,7 @@
  		// Anything else in flight belongs to a workspace that is leaving the
  		// screen, so there is nothing left for it to animate.
  		m.Animations = m.Animations[:0]
@@ -2491,7 +2681,7 @@
  	}
  
  	// Save current workspace focus and layout
-@@ -300,7 +300,7 @@
+@@ -300,7 +301,7 @@
  	// If no window to focus in new workspace, set focus to -1
  	if !focusedSet {
  		m.FocusedWindow = -1
@@ -2500,7 +2690,7 @@
  		// Exit terminal mode when switching to empty workspace
  		if m.Mode == TerminalMode {
  			// Record mode switch for tape recording
-@@ -308,7 +308,7 @@
+@@ -308,7 +309,7 @@
  				m.TapeRecorder.RecordModeSwitch(tape.CommandTypeWindowManagementMode)
  			}
  			m.Mode = WindowManagementMode
@@ -2509,7 +2699,7 @@
  		}
  	} else {
  		// Record the preserved mode after workspace switch (for consistent playback)
-@@ -330,7 +330,7 @@
+@@ -330,7 +331,7 @@
  	// splits (the BSP tree, the master-stack ratios and splits), so the
  	// retile lays the custom layout out again in the new box.
  	if m.AutoTiling && (!m.WorkspaceHasCustom[workspace] || m.tiledLayoutStale()) {
@@ -2518,7 +2708,7 @@
  		m.TileVisibleWorkspaceWindows()
  	} else {
  		m.settleBorderMode(workspace)
-@@ -415,7 +415,7 @@
+@@ -415,7 +416,7 @@
  		return
  	}
  	if workspace < 1 || workspace > m.NumWorkspaces {
@@ -2527,7 +2717,7 @@
  		return
  	}
  
-@@ -426,7 +426,7 @@
+@@ -426,7 +427,7 @@
  		return // Already in target workspace
  	}
  
@@ -2536,7 +2726,7 @@
  
  	// If window is moving away from the current visible workspace, unsubscribe from its PTY
  	if m.IsDaemonSession && m.DaemonClient != nil && oldWorkspace == m.CurrentWorkspace {
-@@ -439,14 +439,14 @@
+@@ -439,14 +440,14 @@
  
  	// If we moved the focused window, find next window to focus in current workspace
  	if windowIndex == m.FocusedWindow {
@@ -3135,8 +3325,14 @@
  		sessions,
 --- a/internal/input/prefix_tree_actions.go
 +++ b/internal/input/prefix_tree_actions.go
-@@ -110,7 +110,7 @@
+@@ -108,9 +108,13 @@
+ // workspaces.new_window_when_empty on, the switch has asked for that pane
+ // already.
  func handleNewWorkspace(msg tea.KeyPressMsg, o *app.OS) (*app.OS, tea.Cmd) {
++	if o.IsCodexTab(o.CurrentWorkspace) {
++		o.NewCodexTab()
++		return o, nil
++	}
  	ws := o.NewWorkspaceTarget()
  	if ws == 0 {
 -		o.ShowNotification("Every workspace has a pane", "info", o.Settings.NotificationDuration)
@@ -3144,3 +3340,389 @@
  		return o, nil
  	}
  	o.SwitchToWorkspace(ws)
+--- a/internal/app/sidebar_mouse.go
++++ b/internal/app/sidebar_mouse.go
+@@ -55,6 +55,9 @@
+ func (m *OS) ToggleSidebar() {
+ 	on := !m.Settings.SidebarEnabled
+ 	m.setSidebarShown(on)
++	if m.independentView {
++		m.sidebarSession = sidebarVisibility(on)
++	}
+ 	// The [appearance.sidebar] table, not the legacy flat key: the migration
+ 	// folds the flat key in only when the table leaves enabled unset, and the
+ 	// table sets it whenever the file came from a first run, so a toggle
+@@ -144,7 +147,7 @@
+ // sidebarOpsOn reports whether showing the rail is session state:
+ // the daemon keeps it, and a toggle goes to the daemon as an op.
+ func (m *OS) sidebarOpsOn() bool {
+-	return m.IsDaemonSession && m.DaemonClient != nil && m.DaemonClient.SidebarOps()
++	return !m.independentView && m.IsDaemonSession && m.DaemonClient != nil && m.DaemonClient.SidebarOps()
+ }
+ 
+ // sidebarVisibility is the session's word for a rail that is shown or not.
+@@ -194,6 +197,14 @@
+ // hide the rail on every client. A caller that sets the rail's own option
+ // passes changed, and settleChrome sends that change to the session.
+ func (m *OS) keepSessionSidebar(changed bool) {
++	if m.independentView {
++		if changed || m.sidebarSession == "" {
++			m.sidebarSession = sidebarVisibility(m.Settings.SidebarEnabled)
++		} else {
++			m.Settings.SidebarEnabled = m.sidebarSession == session.SidebarShown || m.SidebarRevealedForFocus
++		}
++		return
++	}
+ 	if changed || !m.sidebarOpsOn() || m.sidebarSession == "" {
+ 		return
+ 	}
+@@ -212,6 +223,12 @@
+ 	if m.DaemonClient != nil {
+ 		m.layoutGenApplied = m.DaemonClient.SessionLayoutGeneration()
+ 	}
++	if m.independentView {
++		if m.sidebarSession == "" {
++			m.sidebarSession = sidebarVisibility(m.Settings.SidebarEnabled)
++		}
++		return
++	}
+ 	m.sidebarSeeded = false
+ 	m.sidebarSession = ""
+ 	if state != nil {
+@@ -226,6 +243,9 @@
+ // hidden by every sync that arrives while it is open. It reports whether the
+ // rail changed, which moves the panes' box.
+ func (m *OS) adoptSidebarVisibility(state *session.SessionState) bool {
++	if m.independentView {
++		return false
++	}
+ 	if !m.sidebarOpsOn() {
+ 		m.sidebarSession = ""
+ 		return false
+@@ -422,6 +442,10 @@
+ 	}
+ 
+ 	switch hit.Kind {
++	case sidebarRowCodex:
++		if m.codexActivate(hit.WindowID) {
++			m.ExitSidebarFocus()
++		}
+ 	case sidebarRowWindow, sidebarRowAgent:
+ 		m.sidebarFocusWindow(hit)
+ 	case sidebarRowAgentFilter:
+--- a/internal/app/os_geometry.go
++++ b/internal/app/os_geometry.go
+@@ -515,9 +515,12 @@
+ // axis it takes the session's reserve as it is. Floored by its own chrome
+ // there, it would lay the panes out in a box no other client uses.
+ func (m *OS) paneReserve() session.LayoutReserve {
++	if m.independentView {
++		return m.OwnLayoutReserve()
++	}
+ 	own := m.OwnLayoutReserve()
+ 	r := own.Max(m.SessionReserve)
+-	if m.DaemonClient == nil || m.DaemonClient.SessionWindowSize() != config.WindowSizeLatest ||
++	if m.DaemonClient == nil || (!m.independentView && m.DaemonClient.SessionWindowSize() != config.WindowSizeLatest) ||
+ 		!m.DaemonClient.ViewChrome() {
+ 		return r
+ 	}
+--- a/internal/app/sidebar_custom.go
++++ b/internal/app/sidebar_custom.go
+@@ -30,6 +30,12 @@
+ 
+ // railCustomState is the model's side of the section.
+ type railCustomState struct {
++	codexFolded           map[string]bool
++	codexThreads          map[string]string
++	codexPending          string
++	codexPendingAt        time.Time
++	codexOpeningWorkspace int
++	codexOpeningName      string
+ 	// on records whether the engine was built with the section's command,
+ 	// so the per-message sync can tell a layout change from a frame.
+ 	on bool
+@@ -109,6 +115,20 @@
+ 	if text == "" {
+ 		return nil
+ 	}
++	if rows := m.codexRows(); len(rows) > 0 {
++		labels := make([]string, 0, len(rows))
++		for _, row := range rows {
++			prefix := "    "
++			if row.Kind == "project" {
++				prefix = "▾ "
++				if m.railCustom.codexFolded[row.ID] {
++					prefix = "▸ "
++				}
++			}
++			labels = append(labels, prefix+row.Label)
++		}
++		return labels
++	}
+ 	return strings.Split(text, "\n")
+ }
+ 
+--- a/internal/app/render_sidebar.go
++++ b/internal/app/render_sidebar.go
+@@ -133,6 +133,7 @@
+ 	// Activating it opens or shuts the rows. It carries the pane's session
+ 	// and window. See SidebarToggleSubagents.
+ 	sidebarRowSubagentToggle
++	sidebarRowCodex
+ )
+ 
+ // sidebarAddGlyph is the mark both add controls wear. One cell, so it costs a
+@@ -2191,7 +2192,13 @@
+ 			if idx >= len(customRows) {
+ 				break
+ 			}
+-			st := m.railRowState(idx == hoverRow[sidebarSectionCustom], false)
++			cursor := false
++			if rows := m.codexRows(); idx < len(rows) {
++				row := rows[idx]
++				cursor = isCursor(sidebarRowCodex, "", row.ID)
++				recordHit(sidebarRowCodex, "", row.ID, -1, 1)
++			}
++			st := m.railRowState(idx == hoverRow[sidebarSectionCustom], cursor)
+ 			lines = append(lines, compose(st.mark(pal, m.sidebarCustomRow(customRows[idx], cw, pal, st))))
+ 		}
+ 		if h := hidden[sidebarSectionCustom]; h > 0 {
+@@ -2596,6 +2603,12 @@
+ 	terminals []sidebarTerminalEntry, agents []sidebarAgentEntry, files []fileRowSpec,
+ ) (sidebarSection, int, bool) {
+ 	switch target.Kind {
++	case sidebarRowCodex:
++		for i, row := range m.codexRows() {
++			if row.ID == target.WindowID {
++				return sidebarSectionCustom, i, true
++			}
++		}
+ 	case sidebarRowSession:
+ 		for i, s := range sessions {
+ 			if s.Kind == sessiontree.KindSession && s.ID == target.SessionID {
+--- a/internal/app/dock_engine.go
++++ b/internal/app/dock_engine.go
+@@ -648,6 +648,7 @@
+ 	folder := rail.folder()
+ 	return append(env,
+ 		"TUIOS_RAIL_SECTION="+config.SidebarSectionCustom,
++		"TUIOS_CODEX_INTERACTIVE=1",
+ 		"TUIOS_RAIL_WIDTH="+strconv.Itoa(rail.Width),
+ 		"TUIOS_RAIL_HEIGHT="+strconv.Itoa(rail.Height),
+ 		"TUIOS_ACTIVE_PANE_ID="+rail.PaneID,
+--- a/internal/app/codex_sidebar.go
++++ b/internal/app/codex_sidebar.go
+@@ -0,0 +1,213 @@
++package app
++
++import (
++	"encoding/json"
++	"os"
++	"strings"
++	"time"
++
++	"github.com/Gaurav-Gosain/tuios/internal/session"
++	"github.com/google/uuid"
++)
++
++// codexRailRow is data from the configured local metadata reader. No row is
++// evaluated as a shell command: activation passes a validated UUID as argv.
++type codexRailRow struct {
++	Kind  string `json:"kind"`
++	ID    string `json:"id"`
++	Label string `json:"label"`
++	Cwd   string `json:"cwd"`
++	Group string `json:"group"`
++}
++
++func (m *OS) codexRows() []codexRailRow {
++	if strings.TrimSpace(m.railCustomConfig().Command) != "jeebis-codex-sidebar --rows" || m.dockEngine == nil {
++		return nil
++	}
++	var rows []codexRailRow
++	folded := false
++	for _, line := range strings.Split(m.dockEngine.Text(railCustomComponent), "\n") {
++		if !strings.HasPrefix(line, "@codex:") {
++			continue
++		}
++		var row codexRailRow
++		if json.Unmarshal([]byte(strings.TrimPrefix(line, "@codex:")), &row) != nil || row.ID == "" {
++			continue
++		}
++		row.Label = printableTitle(row.Label)
++		if row.Kind == "project" {
++			folded = m.railCustom.codexFolded[row.ID]
++			rows = append(rows, row)
++		} else if row.Kind == "chat" && !folded {
++			rows = append(rows, row)
++		}
++	}
++	return rows
++}
++func (m *OS) codexToggleProject(id string) {
++	if m.railCustom.codexFolded == nil {
++		m.railCustom.codexFolded = make(map[string]bool)
++	}
++	m.railCustom.codexFolded[id] = !m.railCustom.codexFolded[id]
++	m.railCustom.gen++
++	m.MarkAllDirty()
++}
++func (m *OS) codexActivate(id string) bool {
++	for _, row := range m.codexRows() {
++		if row.ID == id {
++			if row.Kind == "project" {
++				m.codexToggleProject(id)
++				return false
++			}
++			return m.openCodexTab(row)
++		}
++	}
++	return false
++}
++func (m *OS) codexMoveCursor(delta int) bool {
++	current, ok := m.sidebarCursorRow()
++	if !ok || current.Kind != sidebarRowCodex {
++		return false
++	}
++	rows := m.codexRows()
++	for i, row := range rows {
++		if row.ID == current.WindowID {
++			target := rows[max(0, min(len(rows)-1, i+delta))]
++			m.SidebarNav = append(m.SidebarNav, sidebarNavRow{Kind: sidebarRowCodex, WindowID: target.ID, WindowIndex: -1})
++			m.sidebarSetCursor(len(m.SidebarNav) - 1)
++			m.MarkAllDirty()
++			return true
++		}
++	}
++	return false
++}
++func (m *OS) codexSetProjectFolded(folded bool) bool {
++	row, ok := m.sidebarCursorRow()
++	if !ok || row.Kind != sidebarRowCodex {
++		return false
++	}
++	for _, r := range m.codexRows() {
++		if r.ID == row.WindowID {
++			id := r.ID
++			if r.Kind == "chat" {
++				id = r.Group
++			}
++			if m.railCustom.codexFolded[id] != folded {
++				m.codexToggleProject(id)
++			}
++			if folded {
++				m.SidebarNav = append(m.SidebarNav, sidebarNavRow{Kind: sidebarRowCodex, WindowID: id, WindowIndex: -1})
++				m.sidebarSetCursor(len(m.SidebarNav) - 1)
++			}
++			return true
++		}
++	}
++	return false
++}
++
++// Preserve conversation IDs reported by harness hooks as well as the stable
++// pane names used for chats opened from this sidebar.
++func (m *OS) codexAdoptThreads(state *session.SessionState) {
++	if state == nil {
++		return
++	}
++	m.railCustom.codexThreads = make(map[string]string)
++	for _, w := range state.Windows {
++		if w.AgentSessionHarness == "codex" && w.AgentSessionID != "" {
++			m.railCustom.codexThreads[w.ID] = w.AgentSessionID
++		}
++	}
++}
++func (m *OS) IsCodexTab(ws int) bool {
++	if strings.HasPrefix(m.WorkspaceNames[ws], "Codex") {
++		return true
++	}
++	for _, w := range m.Windows {
++		if w.Workspace == ws && !w.IsScratch && (w.AgentHarness == "codex" || w.ForegroundCmd == "codex" || strings.HasPrefix(w.CustomName, "Codex") || m.railCustom.codexThreads[w.ID] != "") {
++			return true
++		}
++	}
++	return false
++}
++func (m *OS) NewCodexTab() { m.openCodexTab(codexRailRow{Kind: "new", Label: "Codex"}) }
++func (m *OS) openCodexTab(row codexRailRow) bool {
++	if row.Kind == "chat" {
++		id, err := uuid.Parse(row.ID)
++		if err != nil || id.String() != row.ID {
++			return false
++		}
++		for i, w := range m.Windows {
++			if w.CustomName == "Codex "+row.ID || m.railCustom.codexThreads[w.ID] == row.ID {
++				m.switchToWorkspace(w.Workspace, i)
++				m.Mode = TerminalMode
++				return true
++			}
++		}
++	}
++	if m.railCustom.codexPending == row.ID+row.Kind && time.Since(m.railCustom.codexPendingAt) < 5*time.Second {
++		return false
++	}
++	ws := m.NewWorkspaceTarget()
++	if ws == 0 {
++		m.ShowNotification("Every tab has a pane", "info", 2*time.Second)
++		return false
++	}
++	cwd := row.Cwd
++	if cwd == "" {
++		if w := m.GetFocusedWindow(); w != nil {
++			cwd = w.Cwd
++		}
++	}
++	if info, err := os.Stat(cwd); err != nil || !info.IsDir() {
++		cwd, _ = os.UserHomeDir()
++	}
++	name := "Codex"
++	args := []string{"codex"}
++	label := "Codex"
++	if row.Kind == "chat" {
++		name += " " + row.ID
++		args = append(args, "resume", row.ID)
++		label += " · " + row.Label
++	}
++	// The private switch does not auto-create a shell in the empty Tab.
++	m.switchToWorkspace(ws, -1)
++	if m.WorkspaceNames == nil {
++		m.WorkspaceNames = make(map[int]string)
++	}
++	m.WorkspaceNames[ws] = label
++	if m.IsDaemonSession && m.DaemonClient != nil {
++		if err := m.DaemonClient.SendNewWindowIntent(cwd, ws, "", "NewWindow", append([]string{name}, args...)...); err != nil {
++			m.ShowNotification("Could not open Codex: "+err.Error(), "error", 3*time.Second)
++			return false
++		}
++		m.daemonWindowIntent = true
++		m.railCustom.codexOpeningWorkspace = ws
++		m.railCustom.codexOpeningName = name
++		m.queueSidebarCmd(labelVerbCmd(m.verbDialer(), "Name Codex tab", "set-workspace-name", map[string]any{"session": m.SessionName, "workspace": ws, "name": label}))
++	} else {
++		m.AddWindowIn(cwd, name, args...)
++	}
++	m.railCustom.codexPending = row.ID + row.Kind
++	m.railCustom.codexPendingAt = time.Now()
++	m.Mode = TerminalMode
++	m.MarkAllDirty()
++	return true
++}
++
++// A naming response can precede the new pane's state push. Empty intermediate
++// snapshots may leave input mode; enter it only once our requested pane exists.
++func (m *OS) codexFocusOpenedPane() {
++	ws := m.railCustom.codexOpeningWorkspace
++	if ws == 0 || ws != m.CurrentWorkspace {
++		return
++	}
++	for i, w := range m.Windows {
++		if w.Workspace == ws && w.CustomName == m.railCustom.codexOpeningName {
++			m.FocusedWindow = i
++			m.Mode = TerminalMode
++			m.railCustom.codexOpeningWorkspace = 0
++			m.railCustom.codexOpeningName = ""
++			return
++		}
++	}
++}
