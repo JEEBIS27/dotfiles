@@ -461,15 +461,46 @@
 (define (jeebis-selector-delimiter char)
   (cond [(equal? char #\)) #\(] [(equal? char #\]) #\[] [(equal? char #\}) #\{]
         [(member char '(#\( #\[ #\{ #\" #\' #\`)) char] [else #f]))
+(define (jeebis-select-pair char)
+  (define entries (map (lambda (entry) (jeebis-selector-pair entry char #f))
+                       (jeebis-selector-entries)))
+  (if (member #f entries) (target-misc.set-status! "No enclosing pair of that type")
+      (jeebis-selector-render entries 'whole
+        (motion.selection->primary-index (motion.current-selection-object)))))
+(define (jeebis-select-paren) (jeebis-select-pair #\())
+(define (jeebis-select-bracket) (jeebis-select-pair #\[))
+(define (jeebis-select-brace) (jeebis-select-pair #\{))
+(define (jeebis-select-quote) (jeebis-select-pair #\"))
+(define (jeebis-select-apostrophe) (jeebis-select-pair #\'))
+(define (jeebis-select-backtick) (jeebis-select-pair #\`))
+(define (jeebis-selection-escape)
+  (define origins
+    (cond [(jeebis-selector-valid?)
+            (list (map car (cadr *jeebis-selector*)) (list-ref *jeebis-selector* 3))]
+          [(and *jeebis-boundary-origins*
+                (equal? (car *jeebis-boundary-origins*) (jeebis-selection-signature)))
+            (cdr *jeebis-boundary-origins*)]
+          [else #f]))
+  (motion.normal_mode)
+  (if origins
+      (begin
+        (motion.set-current-selection-object! (motion.range->selection (jeebis-character-at (caar origins))))
+        (map (lambda (origin) (motion.push-range-to-selection! (jeebis-character-at origin))) (cdar origins))
+        (motion.set-current-selection-primary-index! (cadr origins)))
+      (motion.collapse_selection))
+  (set! *jeebis-selector* #f)
+  (set! *jeebis-wrapper-target* #f)
+  (set! *jeebis-boundary-origins* #f))
 (define (jeebis-selector-continue char)
   (cond [(equal? char #\t) (jeebis-select-larger)]
         [(equal? char #\T) (jeebis-select-inner)]
         [(equal? char #\s) (jeebis-select-boundary)]
         [(jeebis-selector-delimiter char)
-          (define entries (map (lambda (entry) (jeebis-selector-pair entry (jeebis-selector-delimiter char) #t))
+          (define entries (map (lambda (entry) (jeebis-selector-pair entry (jeebis-selector-delimiter char)
+                                 (equal? (list-ref *jeebis-selector* 2) 'whole)))
                                (cadr *jeebis-selector*)))
           (if (member #f entries) (target-misc.set-status! "No larger enclosing pair of that type")
-              (jeebis-selector-render entries (list-ref *jeebis-selector* 2) (list-ref *jeebis-selector* 3)))]
+              (jeebis-selector-render entries 'whole (list-ref *jeebis-selector* 3)))]
         [else
           ;; Keep explicit function targets reachable after the immediate t/s.
           (define old *jeebis-selector*)
@@ -488,6 +519,8 @@
         [(not (target-ui.key-event? event))
           (when (or (target-ui.mouse-event? event) (target-ui.paste-event? event)) (set! *jeebis-selector* #f))
           target-ui.event-result/ignore]
+        [(and (target-ui.key-event-escape? event) (= (target-ui.key-event-modifier event) 0))
+          (jeebis-selection-escape) target-ui.event-result/consume]
         [else
           (define char (target-ui.key-event-char event))
           (define mods (target-ui.key-event-modifier event))

@@ -30,7 +30,7 @@
 "R" = ":jeebis-replace-yank"
 "A-." = "no_op"
 "~" = "no_op"
-"`" = "no_op"
+"`" = ":jeebis-select-backtick"
 "A-`" = "no_op"
 "home" = "goto_line_start"
 "end" = "goto_line_end"
@@ -79,7 +79,7 @@
 "X" = "select_line_above"
 "A-x" = "no_op"
 "m" = "no_op"
-"[" = "no_op"
+"[" = ":jeebis-select-bracket"
 "]" = "no_op"
 "/" = "search"
 "?" = "no_op"
@@ -105,12 +105,12 @@
 "A-," = "no_op"
 "&" = "no_op"
 "_" = "no_op"
-"(" = "no_op"
+"(" = ":jeebis-select-paren"
 ")" = "no_op"
 "A-(" = "no_op"
 "A-)" = "no_op"
 "A-:" = "no_op"
-"esc" = ["normal_mode", "collapse_selection"]
+"esc" = ":jeebis-selection-escape"
 "C-b" = "buffer_picker"
 "pageup" = ":jeebis-smooth-page-up"
 "C-f" = "file_picker"
@@ -126,7 +126,7 @@
 "space" = "command_mode"
 "z" = ":jeebis-smart-increment"
 "Z" = ":jeebis-smart-decrement"
-"\"" = "no_op"
+"\"" = ":jeebis-select-quote"
 "|" = "no_op"
 "A-|" = "no_op"
 "!" = "no_op"
@@ -163,6 +163,10 @@
 "Y" = ["yank", "yank_to_clipboard"]
 
 "t" = ":jeebis-select-larger"
+
+"{" = ":jeebis-select-brace"
+
+"'" = ":jeebis-select-apostrophe"
 
 [keys.normal.n]
 "w" = ":jeebis-word-next"
@@ -366,7 +370,7 @@
 "R" = ":jeebis-replace-yank"
 "A-." = "no_op"
 "~" = "no_op"
-"`" = "no_op"
+"`" = ":jeebis-select-backtick"
 "A-`" = "no_op"
 "home" = "extend_to_line_start"
 "end" = "extend_to_line_end"
@@ -415,7 +419,7 @@
 "X" = "select_line_above"
 "A-x" = "no_op"
 "m" = "no_op"
-"[" = "no_op"
+"[" = ":jeebis-select-bracket"
 "]" = "no_op"
 "/" = "search"
 "?" = "no_op"
@@ -441,12 +445,12 @@
 "A-," = "no_op"
 "&" = "no_op"
 "_" = "no_op"
-"(" = "no_op"
+"(" = ":jeebis-select-paren"
 ")" = "no_op"
 "A-(" = "no_op"
 "A-)" = "no_op"
 "A-:" = "no_op"
-"esc" = ["normal_mode", "collapse_selection"]
+"esc" = ":jeebis-selection-escape"
 "C-b" = "buffer_picker"
 "pageup" = ":jeebis-smooth-page-up"
 "C-f" = "file_picker"
@@ -462,7 +466,7 @@
 "space" = "command_mode"
 "z" = ":jeebis-smart-increment"
 "Z" = ":jeebis-smart-decrement"
-"\"" = "no_op"
+"\"" = ":jeebis-select-quote"
 "|" = "no_op"
 "A-|" = "no_op"
 "!" = "no_op"
@@ -499,6 +503,10 @@
 "Y" = ["yank", "yank_to_clipboard"]
 
 "t" = ":jeebis-select-larger"
+
+"{" = ":jeebis-select-brace"
+
+"'" = ":jeebis-select-apostrophe"
 
 [keys.select.n]
 "w" = "extend_next_word_start"
