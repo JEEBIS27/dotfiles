@@ -1,0 +1,163 @@
+--- a/term.scm
++++ b/term.scm
+@@ -607,6 +607,66 @@
+ (define ctrl-l (string->key-event "C-l"))
+ 
+ ;; Event handler for the terminal.
++;; Translate Helix key events into terminal input instead of dropping Ctrl/Alt.
++(define (terminal-modifier? event flag)
++  (not (= 0 (bitwise-and (or (key-event-modifier event) 0) flag))))
++(define (terminal-csi-modifier event)
++  (+ 1 (if (terminal-modifier? event key-modifier-shift) 1 0)
++       (if (terminal-modifier? event key-modifier-alt) 2 0)
++       (if (terminal-modifier? event key-modifier-ctrl) 4 0)
++       (if (terminal-modifier? event key-modifier-super) 8 0)))
++(define (terminal-csi-u event code)
++  (string-append "\x1b;[" (number->string code) ";" (number->string (terminal-csi-modifier event)) "u"))
++(define (terminal-navigation event suffix)
++  (string-append "\x1b;[" (if (= (terminal-csi-modifier event) 1) "" (string-append "1;" (number->string (terminal-csi-modifier event)))) suffix))
++(define (terminal-tilde event code)
++  (string-append "\x1b;[" (number->string code)
++    (if (= (terminal-csi-modifier event) 1) "" (string-append ";" (number->string (terminal-csi-modifier event)))) "~"))
++(define (terminal-paste process text)
++  ;; Keep pasted newlines as editing input, not immediately executed commands.
++  (pty-process-send-command process (string-append "\x1b;[200~" text "\x1b;[201~")))
++(define (terminal-key-string event)
++  (define char (key-event-char event))
++  (define ctrl? (terminal-modifier? event key-modifier-ctrl))
++  (define alt? (terminal-modifier? event key-modifier-alt))
++  (define shift? (terminal-modifier? event key-modifier-shift))
++  (define modified? (or ctrl? alt? (terminal-modifier? event key-modifier-super)))
++  (cond
++    [(key-event-escape? event) (if modified? (terminal-csi-u event 27) "\x1b;")]
++    [(key-event-backspace? event) (if modified? (terminal-csi-u event 127) "\x7f;")]
++    [(key-event-enter? event) (if (or modified? shift?) (terminal-csi-u event 13) "\r")]
++    [(key-event-tab? event) (cond [modified? (terminal-csi-u event 9)] [shift? "\x1b;[Z"] [else "\t"])]
++    [(key-event-up? event) (terminal-navigation event "A")]
++    [(key-event-down? event) (terminal-navigation event "B")]
++    [(key-event-right? event) (terminal-navigation event "C")]
++    [(key-event-left? event) (terminal-navigation event "D")]
++    [(key-event-home? event) (terminal-navigation event "H")]
++    [(key-event-end? event) (terminal-navigation event "F")]
++    [(key-event-insert? event) (terminal-tilde event 2)]
++    [(key-event-delete? event) (terminal-tilde event 3)]
++    [(key-event-page-up? event) (terminal-tilde event 5)]
++    [(key-event-page-down? event) (terminal-tilde event 6)]
++    [char
++      (define lower (char-downcase char))
++      (define code (char->integer lower))
++      (cond
++        [(and ctrl? (not shift?) (not (terminal-modifier? event key-modifier-super))
++              (or (and (>= code 97) (<= code 122)) (and (>= code 64) (<= code 95)) (equal? char #\space)))
++          (string-append (if alt? "\x1b;" "")
++            (string (integer->char (if (equal? char #\space) 0 (modulo code 32)))))]
++        [(or ctrl? (terminal-modifier? event key-modifier-super)) (terminal-csi-u event code)]
++        [else (string-append (if alt? "\x1b;" "") (string char))])]
++    [else
++      (let loop ([n 1] [codes '(11 12 13 14 15 17 18 19 20 21 23 24)])
++        (cond [(null? codes) #f]
++              [(key-event-F? event n)
++                (if (<= n 4)
++                    (if (= (terminal-csi-modifier event) 1)
++                        (string-append "\x1b;O" (list-ref '("P" "Q" "R" "S") (- n 1)))
++                        (terminal-navigation event (list-ref '("P" "Q" "R" "S") (- n 1))))
++                    (terminal-tilde event (car codes)))]
++              [else (loop (+ n 1) (cdr codes))]))]))
++
+ ;; This primarily focuses on forwarding the key events
+ ;; and the mouse events down to the underlying terminal
+ ;; instance. Care is taken to avoid extra allocations
+@@ -623,81 +683,24 @@
+     [(unbox (Terminal-focused? state))
+ 
+      (cond
+-       ;; Toggle from inside the PTY too; do not forward Ctrl+T to fish.
+-       [(and (equal? char #\t)
+-             (equal? (key-event-modifier event) key-modifier-ctrl))
++       ;; Ctrl+T belongs to the floating container; all other shortcuts go in.
++       [(and (equal? char #\t) (equal? (key-event-modifier event) key-modifier-ctrl))
+         (set-box! (Terminal-focused? state) #f)
+         (set-box! (Terminal-active state) #f)
+         (set-editor-clip-right! 0)
+         event-result/close]
+-
+-       ;; TODO: Add custom key bindings for this
+-       [(and char (equal? (event->key-event event) ctrl-l))
+-        (pty-process-send-command *pty-process* "clear\n")
++       [(paste-event? event)
++        (terminal-paste *pty-process* (paste-event-string event)) event-result/consume]
++       [(and char (equal? (char-downcase char) #\v)
++             (terminal-modifier? event key-modifier-ctrl)
++             (not (terminal-modifier? event key-modifier-alt)))
++        (terminal-paste *pty-process* (apply string-append (register->value #\+)))
+         event-result/consume]
+-
+-       ;; Backspace
+-       [(key-event-backspace? event)
+-
+-        (pty-process-send-command *pty-process* "\x7f;")
++       [(mouse-event? event) (handle-mouse-event state event *vte*)]
++       [(key-event? event)
++        (define input (terminal-key-string event))
++        (when input (pty-process-send-command *pty-process* input))
+         event-result/consume]
+-
+-       ;; Forward Ctrl+Esc to the shell's clear binding.
+-       [(key-event-escape? event)
+-        (if (equal? (key-event-modifier event) key-modifier-ctrl)
+-            (begin
+-              (pty-process-send-command *pty-process* "\x1b;[27;5u")
+-              event-result/consume)
+-            (begin
+-              (pty-process-send-command *pty-process* "\x1b;")
+-              event-result/consume))]
+-
+-       [(equal? char #\c)
+-
+-        (if (equal? (key-event-modifier event) key-modifier-ctrl)
+-            (begin
+-              (pty-process-send-command *pty-process* "\x03;")
+-              event-result/consume)
+-
+-            (begin
+-
+-              (pty-process-send-command-char *pty-process* char)
+-              event-result/consume))]
+-
+-       [(key-event-enter? event)
+-        (pty-process-send-command *pty-process* "\r")
+-        event-result/consume]
+-
+-       [(key-event-tab? event)
+-
+-        (if (equal? (key-event-modifier event) key-modifier-shift)
+-            (begin
+-              (set-box! (Terminal-focused? state) #f)
+-              event-result/consume)
+-
+-            (begin
+-              (pty-process-send-command *pty-process* "\x09;")
+-              event-result/consume))]
+-
+-       ;; TODO: Handle modifiers here
+-       [(key-event-up? event)
+-        (pty-process-send-command *pty-process* "\x1b;[A")
+-        event-result/consume]
+-       [(key-event-down? event)
+-        (pty-process-send-command *pty-process* "\x1b;[B")
+-        event-result/consume]
+-       [(key-event-right? event)
+-        (pty-process-send-command *pty-process* "\x1b;[C")
+-        event-result/consume]
+-       [(key-event-left? event)
+-        (pty-process-send-command *pty-process* "\x1b;[D")
+-        event-result/consume]
+-
+-       [char
+-        (pty-process-send-command-char *pty-process* char)
+-        event-result/consume]
+-
+-       [(mouse-event? event) (handle-mouse-event state event *vte*)]
+        [else event-result/ignore])]
+ 
+     [(mouse-event? event)

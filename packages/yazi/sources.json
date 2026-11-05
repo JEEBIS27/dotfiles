@@ -1,0 +1,14 @@
+{
+  "ucp": {
+    "owner": "simla33",
+    "repo": "ucp.yazi",
+    "rev": "5ef8203d9d061f57b444b2c031f3b6172b060a03",
+    "hash": "sha256-G6PiS+srbxNu30Vz9Q1k3thfuQySMuNpdtmwgf6CjQc="
+  },
+  "compress": {
+    "owner": "KKV9",
+    "repo": "compress.yazi",
+    "rev": "80e5268ec74c7ac17d4d739e13a9958cba4c70d3",
+    "hash": "sha256-9cdA8D/TtwHcLqrtoyIixA0YJmTs+c8FSNrjxp8CYI0="
+  }
+}

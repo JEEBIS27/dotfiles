@@ -96,3 +96,9 @@ Nixpkgs/flake.lock全体を更新する必要はない。
 
 参考: [Steelの導入](https://github.com/mattwparas/helix/blob/steel-event-system/STEEL.md)、
 [Yazi公式連携](https://yazi-rs.github.io/docs/tips/#file-tree-picker-in-helix)。
+
+### 端末入力と Yazi
+
+Ctrl+T の端末は Ctrl/Alt、修飾付き矢印、Delete、ファンクションキーを PTY へ転送する。Ctrl+T は表示切替、Ctrl+V / Ctrl+Shift+V は Helix のクリップボードから貼り付ける。端末のペーストイベントも bracketed paste で渡す。Ctrl+R などの具体的な動作は内部シェルの設定に従う。
+
+Yazi の Ctrl+Enter / Ctrl+Shift+Enter は、選択ファイルと分割方向を chooser 経由で直接 Helix に返す。通常のファイル関連付けを経由しない。全体のキーは [Yazi キーバインド](yazi-keybindings.md) を参照。

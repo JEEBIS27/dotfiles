@@ -59,6 +59,7 @@ let
     cp -r ${sources.pty} $out/steel-pty
     chmod -R u+w $out/steel-pty
     ${pkgs.patch}/bin/patch -d $out/steel-pty -p1 < ${./pty-floating.patch}
+    ${pkgs.patch}/bin/patch -d $out/steel-pty -p1 < ${./pty-input.patch}
     mkdir $out/recentf
     cp ${sources.recentf}/cogs/recentf.scm $out/recentf/
     cp -r ${sources.microscope} $out/microscope

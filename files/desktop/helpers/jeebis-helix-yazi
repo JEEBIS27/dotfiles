@@ -30,7 +30,7 @@ try:
             os.kill(editor_pid, signal.SIGSTOP)
             try:
                 result = subprocess.run(args, stdin=tty, stdout=tty, stderr=tty,
-                                        env=dict(os.environ, HELIX_YAZI_CHOOSER="1"))
+                                        env=dict(os.environ, HELIX_YAZI_CHOOSER="1", HELIX_YAZI_SELECTION=str(chooser)))
                 if result.returncode == 0 and chooser.exists():
                     state.write_bytes(chooser.read_bytes())
             finally:

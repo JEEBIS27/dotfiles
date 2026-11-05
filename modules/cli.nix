@@ -6,7 +6,7 @@
     # fish is supplied by programs.fish.
     neovim yazi
     eza bat delta dust fzf zoxide ripgrep fd
-    unzip _7zz stow jq
+    unzip _7zz zip gnutar gzip xz bzip2 zstd coreutils stow jq
     ffmpeg poppler-utils imagemagick mediainfo exiftool
     gcc gnumake pkg-config
   ];

@@ -1,4 +1,8 @@
 { config, lib, pkgs, ... }:
+let
+  yaziPlugins = builtins.mapAttrs (_: pin: pkgs.fetchFromGitHub pin)
+    (builtins.fromJSON (builtins.readFile ../packages/yazi/sources.json));
+in
 {
   # Change only this public setting; keep identity and credentials outside Nix.
   home.activation.deltaSharedTheme = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
@@ -91,7 +95,16 @@
     "yazi/flavors/tokyonight-night.yazi/preview.png".source = ../files/yazi/flavors/tokyonight-night.yazi/preview.png;
     "yazi/flavors/tokyonight-night.yazi/tmtheme.xml".source = ../files/yazi/flavors/tokyonight-night.yazi/tmtheme.xml;
     "yazi/plugins/helix-open.yazi/main.lua".source = ../files/yazi/plugins/helix-open.yazi/main.lua;
-    "yazi/keymap.toml".source = ../files/yazi/keymap.toml;
+    "yazi/keymap.toml".source = (pkgs.formats.toml { }).generate "yazi-keymap.toml"
+      (import ../packages/yazi/keymap.nix {
+        inherit lib;
+        settings = builtins.fromTOML (builtins.readFile ../files/yazi/keymap.toml);
+        inherit (import ../files/helix/key-layout.nix) directionKeys;
+      });
+    "yazi/plugins/unified-actions.yazi/main.lua".source = ../files/yazi/plugins/unified-actions.yazi/main.lua;
+    "yazi/plugins/archive-actions.yazi/main.lua".source = ../files/yazi/plugins/archive-actions.yazi/main.lua;
+    "yazi/plugins/ucp.yazi".source = yaziPlugins.ucp;
+    "yazi/plugins/compress.yazi".source = yaziPlugins.compress;
     "yazi/package.toml".source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/Git/home-manager/files/yazi/package.toml";
     "yazi/plugins/unified-layout.yazi/main.lua".source = ../files/yazi/plugins/unified-layout.yazi/main.lua;
     "yazi/plugins/unified-motions.yazi/main.lua".source = ../files/yazi/plugins/unified-motions.yazi/main.lua;
