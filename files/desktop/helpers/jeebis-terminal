@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # GUI terminals should negotiate their own color capability.
-unset NO_COLOR JEEBIS_TUIOS_ROLE
+unset NO_COLOR JEEBIS_TUIOS_ROLE JEEBIS_TUIOS_CODEX
 app_id=
 cwd=$PWD
 while [[ $# -gt 0 ]]; do
@@ -16,11 +16,17 @@ done
 args=()
 [[ -z $app_id ]] || args+=(--app-id "$app_id")
 args+=(--working-dir "$cwd")
-# A plain Rio uses its configured shell (resume the last TUIOS session), just like the app launcher.
-if [[ $# == 0 ]]; then exec rio "${args[@]}"; fi
+# Make every new Rio's child command explicit. Rio may already be running
+# with a Codex launch environment, so clean role flags inside the child too.
+child=(env -u JEEBIS_TUIOS_CODEX -u JEEBIS_TUIOS_ROLE)
+if [[ $# == 0 ]]; then
+  exec rio "${args[@]}" -e "${child[@]}" JEEBIS_TUIOS_ROLE=desktop jeebis-tuios
+fi
 case $app_id in
-  org.omarchy.yazi) export JEEBIS_TUIOS_ROLE=yazi ;;
-  org.omarchy.codex) export JEEBIS_TUIOS_ROLE=codex ;;
-  *) export JEEBIS_TUIOS_ROLE=$(basename -- "$1") ;;
+  org.omarchy.yazi) role=yazi ;;
+  org.omarchy.codex) role=codex ;;
+  *) role=$(basename -- "$1") ;;
 esac
-exec rio "${args[@]}" -e jeebis-tuios "$@"
+child+=("JEEBIS_TUIOS_ROLE=$role")
+[[ $role != codex ]] || child+=(JEEBIS_TUIOS_CODEX=1)
+exec rio "${args[@]}" -e "${child[@]}" jeebis-tuios "$@"

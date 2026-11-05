@@ -65,11 +65,13 @@ with tempfile.TemporaryDirectory(prefix='dotfiles-terminal-') as tmp:
     (root/'bin/rio').chmod(0o755)
     got = json.loads(subprocess.check_output([str(repo/'files/desktop/helpers/jeebis-terminal'),
         '--app-id=org.test.rio', '--cwd', tmp, '--', '/bin/echo', 'a b;$(literal)'], env=dict(env, NO_COLOR='1'), text=True))
-    assert got == ['--app-id', 'org.test.rio', '--working-dir', tmp, '-e', 'jeebis-tuios', '/bin/echo', 'a b;$(literal)'], got
+    assert got == ['--app-id', 'org.test.rio', '--working-dir', tmp, '-e', 'env', '-u', 'JEEBIS_TUIOS_CODEX', '-u', 'JEEBIS_TUIOS_ROLE', 'JEEBIS_TUIOS_ROLE=echo', 'jeebis-tuios', '/bin/echo', 'a b;$(literal)'], got
     # Normal startup must retain the package's Rio identity and configured shell.
     plain = json.loads(subprocess.check_output([str(repo/'files/desktop/helpers/jeebis-terminal'),
         '--cwd', tmp], env=env, text=True))
-    assert plain == ['--working-dir', tmp], plain
+    assert plain == ['--working-dir', tmp, '-e', 'env', '-u', 'JEEBIS_TUIOS_CODEX', '-u', 'JEEBIS_TUIOS_ROLE', 'JEEBIS_TUIOS_ROLE=desktop', 'jeebis-tuios'], plain
+    inherited = json.loads(subprocess.check_output([str(repo/'files/desktop/helpers/jeebis-terminal'),'--cwd',tmp],env=dict(env,JEEBIS_TUIOS_CODEX='1',JEEBIS_TUIOS_ROLE='codex'),text=True))
+    assert inherited == plain, inherited
     # Render every managed palette through the real shared theme generator.
     for palette in (repo/'files/desktop/themes').glob('*.toml'):
         theme = root/palette.stem
