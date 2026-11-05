@@ -43,8 +43,6 @@ in
       sections = "custom"
       [appearance.sidebar.right]
       sections = "custom"
-      [keybindings.global]
-      focus_sidebar = ["alt+u"]
     '';
 
 

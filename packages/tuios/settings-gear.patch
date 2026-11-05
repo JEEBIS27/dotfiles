@@ -3239,16 +3239,17 @@
  	"reload_config":             "Reload the config file",
  	"toggle_mouse":              "Turn mouse capture off or on (off: the terminal selects text)",
  	"cycle_layout":              "Cycle the layout: BSP, master-stack, scrolling",
-@@ -917,7 +917,7 @@
+@@ -917,7 +917,8 @@
  	"prefix_screenshot":         "Take a screenshot",
  	"prefix_command_palette":    "Open the command palette",
  	"prefix_file_search":        "Search files below the focused pane's directory",
 -	"prefix_toggle_sidebar":     "Toggle the session sidebar",
++	"toggle_sidebar_focus":      "Open/focus the sidebar, or close it and restore the pane",
 +	"prefix_toggle_sidebar":     "Toggle the workspace sidebar",
  	"prefix_toggle_other_rail":  "Toggle the opposite sidebar",
  	"prefix_toggle_spotlight":   "Toggle spotlight",
  	"prefix_explore":            "Focus/leave sidebar",
-@@ -930,9 +930,9 @@
+@@ -930,9 +931,9 @@
  	"prefix_review":             "Review the focused pane's changes",
  	"prefix_next_finished":      "Jump to the newest unseen finished turn",
  	"prefix_agents_settings":    "Open the Agents settings",
@@ -3261,7 +3262,7 @@
  	"prefix_layout":             "Enter layout prefix",
  
  	// Tape Prefix
-@@ -970,7 +970,7 @@
+@@ -970,7 +971,7 @@
  	// Global (window mode and terminal mode alike)
  	"command_palette": "Open the command palette",
  	"launcher":        "Open the app launcher",
@@ -3990,3 +3991,36 @@
 +	}
 +	return tea.Sequence(commands...)
 +}
+--- a/internal/input/actions.go
++++ b/internal/input/actions.go
+@@ -212,6 +212,7 @@
+ 	// per-row keys are not dispatcher actions: they route through HandleSidebarKey
+ 	// only while SidebarFocused, so they cannot fire on a pane.
+ 	d.Register("focus_sidebar", handleFocusSidebar)
++	d.Register("toggle_sidebar_focus", handleToggleFocusSidebar)
+ 
+ 	// Session navigation. Bound to chords, and allowed from terminal mode by
+ 	// isTerminalSafeAction, so walking sessions does not first cost an Esc.
+--- a/internal/input/sidebar_keyboard.go
++++ b/internal/input/sidebar_keyboard.go
+@@ -19,11 +19,17 @@
+ // if the rail already has it. One key that goes both ways, so exploring costs
+ // the same chord twice rather than a chord and an esc.
+ func handleToggleFocusSidebar(_ tea.KeyPressMsg, o *app.OS) (*app.OS, tea.Cmd) {
+-	if o.SidebarFocused {
++	if o.SidebarFocused && o.Settings.SidebarEnabled {
+ 		o.ExitSidebarFocus()
+-		return o, nil
++		if o.Settings.SidebarEnabled {
++			o.ToggleSidebar()
++		}
++	} else {
++		if !o.Settings.SidebarEnabled {
++			o.ToggleSidebar()
++		}
++		o.EnterSidebarFocus()
+ 	}
+-	o.EnterSidebarFocus()
+ 	return o, nil
+ }
+ 

@@ -11,7 +11,7 @@ with tempfile.TemporaryDirectory(prefix='tuios-independent-') as temp:
  root=Path(temp)
  for d in ['home','config/tuios','runtime','state','cache','data','bin']:(root/d).mkdir(parents=True)
  (root/'runtime').chmod(0o700)
- (root/'config/tuios/config.toml').write_text((repo/'files/tuios/config.toml').read_text().replace('@fish@','/bin/sh').replace('prefix_toggle_sidebar = ["alt+b"]','prefix_toggle_sidebar = ["alt+b"]\nfocus_sidebar = ["alt+u"]'))
+ (root/'config/tuios/config.toml').write_text((repo/'files/tuios/config.toml').read_text().replace('@fish@','/bin/sh'))
  (root/'config/tuios-codex/tuios').mkdir(parents=True)
  (root/'config/tuios-codex/tuios/config.toml').write_text('include = ["../../tuios/config.toml"]\n[appearance.sidebar]\nenabled = true\nwidth = 16\n')
  (root/'bin/tuios').symlink_to(binary)
@@ -97,7 +97,7 @@ with tempfile.TemporaryDirectory(prefix='tuios-independent-') as temp:
   # Sidebar visibility is a viewer preference, not shared session state.
   def marker_column(client,marker):
    return next(row.index(marker) for row in client['screen'].display if marker in row and 'printf' not in row)
-  os.write(terminal['fd'],b'\x1bb');pump(1)
+  os.write(terminal['fd'],b'\x1bB');pump(1)
   os.write(resumed['fd'],b'printf "SIDEBAR_PEER_UPDATE\\n"\r');pump(1)
   assert marker_column(terminal,'TERMINAL_ONE_MARKER')>0
   assert marker_column(resumed,'TERMINAL_TWO_MARKER')==0
@@ -117,19 +117,19 @@ with tempfile.TemporaryDirectory(prefix='tuios-independent-') as temp:
   assert marker_column(fresh,'FRESH_VIEW_MARKER')==0
   close(fresh)
   expanded=marker_column(terminal,'TERMINAL_ONE_MARKER')
-  os.write(terminal['fd'],b'\x1bu<');pump(.5)
+  os.write(terminal['fd'],b'\x1bb<');pump(.5)
   os.write(terminal['fd'],b'\x1b');pump(.5)
   os.write(resumed['fd'],b'printf "COLLAPSE_PEER_UPDATE\\n"\r');pump(1)
   assert 0<marker_column(terminal,'TERMINAL_ONE_MARKER')<expanded
   assert marker_column(resumed,'TERMINAL_TWO_MARKER')==0
-  os.write(terminal['fd'],b'\x1bu>');pump(.5)
+  os.write(terminal['fd'],b'\x1bb>');pump(.5)
   os.write(terminal['fd'],b'\x1b');pump(.5)
-  os.write(terminal['fd'],b'\x1bb');pump(1)
-  os.write(resumed['fd'],b'\x1bb');pump(1)
+  os.write(terminal['fd'],b'\x1bB');pump(1)
+  os.write(resumed['fd'],b'\x1bB');pump(1)
   os.write(terminal['fd'],b'printf "REVERSE_PEER_UPDATE\\n"\r');pump(1)
   assert marker_column(terminal,'TERMINAL_ONE_MARKER')==0
   assert marker_column(resumed,'TERMINAL_TWO_MARKER')>0
-  os.write(resumed['fd'],b'\x1bb');pump(1)
+  os.write(resumed['fd'],b'\x1bB');pump(1)
   # The Codex launch profile keeps its enabled rail, beside hidden normal rails.
   profile=launch('codex',profile=True)
   os.write(profile['fd'],b'printf "CODEX_PROFILE_MARKER\\n"\r')
