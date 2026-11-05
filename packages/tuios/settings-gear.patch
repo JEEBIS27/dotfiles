@@ -1,6 +1,6 @@
 --- a/internal/app/os.go
 +++ b/internal/app/os.go
-@@ -1904,7 +1904,11 @@
+@@ -1904,7 +1904,12 @@
  	scratchReturnMode Mode
  	// forceTerminalMode is OSOptions.StartInTerminalMode: applyStartupPreferences
  	// enters terminal mode once a pane is focused, for any session.
@@ -10,10 +10,11 @@
 +	independentView      bool
 +	pendingViewPaneIDs   map[string]bool
 +	pendingViewWorkspace int
++	closingTabPanes      map[int]map[string]bool
  	// layoutInstant places the next layout without animation. See
  	// applyStartupTiling and layoutAnimationDuration.
  	layoutInstant bool
-@@ -2014,7 +2018,7 @@
+@@ -2014,7 +2019,7 @@
  type nestedSwitchError struct{ inside, target string }
  
  func (e *nestedSwitchError) Error() string {
@@ -22,7 +23,7 @@
  }
  
  // SwitchToSession detaches from the current daemon session and attaches to another.
-@@ -2030,7 +2034,7 @@
+@@ -2030,7 +2035,7 @@
  		return fmt.Errorf("not in daemon mode")
  	}
  	if targetSession == "" {
@@ -31,7 +32,7 @@
  	}
  	// A switch the person made ends a rail click that waits for another
  	// machine. See host_open.go.
-@@ -2079,8 +2083,8 @@
+@@ -2079,8 +2084,8 @@
  	m.QueueClientEvent(ClientEvent{Type: "agent-mail-load"})
  
  	m.MarkAllDirty()
@@ -443,6 +444,15 @@
  				}
  				// After the count note, so the dock draws this one.
  				m.flushPiPNote()
+@@ -2140,7 +2140,7 @@
+ 			}
+ 		}
+ 		// Continue listening for more state syncs
+-		return m, tea.Batch(ListenForStateSync(m.StateSyncChan), m.refreshSidebarSessions())
++		return m, tea.Batch(ListenForStateSync(m.StateSyncChan), m.refreshSidebarSessions(), m.FinishClosedTabs())
+ 
+ 	case ScratchOpenedMsg:
+ 		m.handleScratchOpened(msg)
 @@ -2400,7 +2400,7 @@
  			// (e.g., when window was already at target position but PTY had stale dimensions)
  			m.SyncDaemonPTYDimensions()
@@ -534,7 +544,15 @@
  	// Asked for on the command line, so it holds for a session that is
  	// already arranged too, and without a config.
  	if m.forceTerminalMode {
-@@ -1016,10 +1033,10 @@
+@@ -899,6 +916,7 @@
+ 			// give, and until it does the snapshot here still has the window in
+ 			// it. See SyncStateToDaemon.
+ 			m.daemonWindowIntent = true
++			m.notePaneClose(m.Windows[i].Workspace, windowID)
+ 		}
+ 		return m
+ 	}
+@@ -1016,10 +1034,10 @@
  				// A stack that lost its open pane opens its next member,
  				// which the retile below gives a tile.
  				m.openOrphanStacks()
@@ -3872,4 +3890,103 @@
 +			return
 +		}
 +	}
++}
+--- a/internal/app/closed_tabs.go
++++ b/internal/app/closed_tabs.go
+@@ -0,0 +1,96 @@
++package app
++
++import (
++	"fmt"
++	"os/exec"
++	"strconv"
++
++	tea "charm.land/bubbletea/v2"
++	"github.com/Gaurav-Gosain/tuios/internal/session"
++)
++
++// Remember only explicit close requests. Detach/window-close never gets here.
++func (m *OS) notePaneClose(ws int, id string) {
++	if session.IsScratchWorkspace(ws) {
++		return
++	}
++	if m.closingTabPanes == nil {
++		m.closingTabPanes = make(map[int]map[string]bool)
++	}
++	if m.closingTabPanes[ws] == nil {
++		m.closingTabPanes[ws] = make(map[string]bool)
++	}
++	m.closingTabPanes[ws][id] = true
++}
++
++// FinishClosedTabs waits for the daemon to actually remove every requested
++// pane. A partial close preserves the tab; an empty explicit close ends it.
++func (m *OS) FinishClosedTabs() tea.Cmd {
++	var commands []tea.Cmd
++	currentClosed := false
++	for ws, requested := range m.closingTabPanes {
++		waiting, occupied := false, false
++		for _, w := range m.Windows {
++			if requested[w.ID] {
++				waiting = true
++			}
++			if w.Workspace == ws && !w.IsScratch {
++				occupied = true
++			}
++		}
++		if waiting {
++			continue
++		}
++		delete(m.closingTabPanes, ws)
++		if occupied {
++			continue
++		}
++		delete(m.WorkspaceNames, ws)
++		delete(m.FocusHistory, ws)
++		delete(m.WorkspaceFocus, ws)
++		if m.lastWorkspace == ws {
++			m.lastWorkspace = 0
++		}
++		currentClosed = currentClosed || m.CurrentWorkspace == ws
++		if m.IsDaemonSession && m.AttachedHost == "" {
++			name := m.SessionName
++			commands = append(commands, func() tea.Msg {
++				output, err := exec.Command("jeebis-tuios-select-tab", "--forget-empty-tab", name, strconv.Itoa(ws)).CombinedOutput()
++				if err != nil {
++					return NotificationMsg{Message: fmt.Sprintf("Could not remove closed tab: %v: %s", err, output), Type: "error"}
++				}
++				return nil
++			})
++		}
++	}
++	if currentClosed {
++		target := 0
++		if len(m.workspacePanes(m.lastWorkspace)) > 0 {
++			target = m.lastWorkspace
++		}
++		if target == 0 {
++			for ws := 1; ws <= m.NumWorkspaces; ws++ {
++				if len(m.workspacePanes(ws)) > 0 {
++					target = ws
++					break
++				}
++			}
++		}
++		if target != 0 {
++			m.switchToWorkspace(target, -1)
++			m.Mode = TerminalMode
++		} else if quit := m.DetachClient(); quit != nil {
++			commands = append(commands, quit)
++		} else {
++			commands = append(commands, tea.Quit)
++		}
++		// The deleted tab is not a destination for Alt+last-tab.
++		if m.GetWorkspaceWindowCount(m.lastWorkspace) == 0 {
++			m.lastWorkspace = 0
++		}
++	}
++	if len(commands) == 0 {
++		return nil
++	}
++	return tea.Sequence(commands...)
 +}
