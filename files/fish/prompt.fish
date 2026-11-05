@@ -162,7 +162,7 @@ function __jeebis_postexec --on-event fish_postexec
         set -g __jeebis_face '(-■д■-)ゞｸｲｯ'
         set -g __jeebis_color d7d75f
     else if string match -rq '^(l|eza)' -- "$command_name"
-        set -g __jeebis_face ']ก`-ωｰ́ )ｼﾞｰｯ'
+        set -g __jeebis_face ']ก`-ωｰ́ )ジｰｯ'
         set -g __jeebis_color 87afd7
     else if contains -- "$command_name" cd bd zd sd z zi cdi md / '~' - .. ... ....
         set -g __jeebis_face '≡( ⊂ ˆωˆ )⊃ '
