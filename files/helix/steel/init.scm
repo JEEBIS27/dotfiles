@@ -463,9 +463,8 @@
         [(member char '(#\( #\[ #\{ #\" #\' #\`)) char] [else #f]))
 (define (jeebis-selector-continue char)
   (cond [(equal? char #\t) (jeebis-select-larger)]
-        [(equal? char #\T) (jeebis-select-smaller)]
+        [(equal? char #\T) (jeebis-select-inner)]
         [(equal? char #\s) (jeebis-select-boundary)]
-        [(equal? char #\S) (jeebis-select-inner)]
         [(jeebis-selector-delimiter char)
           (define entries (map (lambda (entry) (jeebis-selector-pair entry (jeebis-selector-delimiter char) #t))
                                (cadr *jeebis-selector*)))
@@ -493,7 +492,7 @@
           (define char (target-ui.key-event-char event))
           (define mods (target-ui.key-event-modifier event))
           (if (and char (or (= mods 0) (= mods target-ui.key-modifier-shift))
-                   (or (member char '(#\t #\T #\s #\S #\f #\F #\m))
+                   (or (member char '(#\t #\T #\s #\f #\F #\m))
                        (jeebis-selector-delimiter char)))
               (begin (jeebis-selector-continue char) target-ui.event-result/consume)
               (begin (set! *jeebis-selector* #f) target-ui.event-result/ignore))])))))
