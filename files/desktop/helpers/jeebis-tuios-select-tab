@@ -103,13 +103,13 @@ def select():
             if ws not in busy:
                 candidates.append((meta.get('last_used',0),ws,ordinal,tab))
     if candidates:
-        _,ws,ordinal,tab=max(candidates,key=lambda t:(t[0],-t[1]))
+        _,ws,ordinal,tab=min(candidates,key=lambda t:(t[0],t[1]))
         name=tab.get('name') or (label if ordinal==1 else f'{label} {ordinal}')
     else:
-        available=[t for t in tabs if t['workspace'] not in busy and not t['window_count'] and not t.get('name')]
+        available=[t for t in tabs if t['workspace'] not in busy and not t['window_count']]
         if not available:
             raise RuntimeError('No unused Tab is available; close an unused Tab instead of sharing a working terminal.')
-        tab=min(available,key=lambda t:(t['workspace']!=preferred,t['workspace']))
+        tab=min(available,key=lambda t:(metadata.get(t['workspace'],{}).get('last_used',0),t['workspace']))
         ws=tab['workspace'];ordinal=next(n for n in range(1,100) if n not in ordinals)
         name=label if ordinal==1 else f'{label} {ordinal}'
     start=process_start(owner)
@@ -117,7 +117,7 @@ def select():
     record=dict(role=role,ordinal=ordinal,owner=owner,start=start,last_used=time.time())
     pending=directory/f'{ws}.{owner}.tmp';pending.write_text(json.dumps(record));pending.chmod(0o600)
     os.replace(pending,directory/f'{ws}.json')
-    print(json.dumps(dict(workspace=ws,name=name,rename=not bool(tab.get('name')),create=not bool(tab['window_count']))))
+    print(json.dumps(dict(workspace=ws,name=name,rename=tab.get('name')!=name,create=not bool(tab['window_count']))))
 
 if __name__=='__main__':
     try:

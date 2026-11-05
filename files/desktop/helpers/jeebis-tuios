@@ -67,7 +67,18 @@ if [[ -z $session ]]; then
 fi
 # A live GUI window owns its Tab. A closed window leaves the Tab available
 # for resuming; opening another window never takes over an occupied Tab.
-selection=$(jeebis-tuios-select-tab "$state_dir" "$session" "$role" "$role_name" "$role_workspace" "$$")
+if selection=$(jeebis-tuios-select-tab "$state_dir" "$session" "$role" "$role_name" "$role_workspace" "$$"); then
+  :
+else
+  status=$?
+  flock -u "$session_lock"
+  exec {session_lock}>&-
+  if [[ -t 0 ]]; then
+    printf '\nTUIOSのTabを確保できませんでした。全Tabが使用中の場合は、不要なTabを閉じてください。\nEnterでこのウィンドウを閉じます。'
+    read -r _ || true
+  fi
+  exit "$status"
+fi
 role_workspace=$(jq -er '.workspace' <<<"$selection")
 role_name=$(jq -er '.name' <<<"$selection")
 if [[ $(jq -r '.rename' <<<"$selection") == true ]]; then

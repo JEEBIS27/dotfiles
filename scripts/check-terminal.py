@@ -166,7 +166,8 @@ with tempfile.TemporaryDirectory(prefix='dotfiles-terminal-') as tmp:
                                env=env, capture_output=True, text=True, timeout=20)
             assert p.returncode != 0 and 'interactive terminal' in p.stderr, p.stderr
         assert windows('main')['total'] == 2
-        window_id = next(w['window_id'] for w in windows('main')['windows'] if w['workspace'] == 6)
+        app_workspace = next(w['workspace'] for w in json.loads(run('list-workspaces', '-s', 'main', '--json'))['workspaces'] if w['name'] == 'sh')
+        window_id = next(w['window_id'] for w in windows('main')['windows'] if w['workspace'] == app_workspace)
         eventually(lambda: 'launcher-marker' in run('capture-pane', '-s', 'main', '-w', window_id))
         # The worktree popup uses the native CLI without a nested client.
         git_repo = root/'repository'
