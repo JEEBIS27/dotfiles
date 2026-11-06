@@ -45,14 +45,20 @@ state_dir="${XDG_RUNTIME_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}}/jeebis-tuio
 mkdir -p "$state_dir"
 exec {session_lock}>"$state_dir/launch.lock"
 flock "$session_lock"
+# The parent keeps the launch lock, but child commands must not inherit it.
+# A cold start can daemonize here; an inherited fd would keep the lock alive
+# after an error or an interrupted launcher, blocking every subsequent launch.
+tuios_command() {
+  command tuios "$@" {session_lock}>&-
+}
 # Exit 3 means the daemon is stopped (the JSON may list saved sessions).
-if sessions=$(tuios list-sessions --json); then
+if sessions=$(tuios_command list-sessions --json); then
   :
 else
   status=$?
   [[ $status == 3 ]] || exit "$status"
-  tuios start-server >/dev/null || tuios list-sessions --json >/dev/null
-  sessions=$(tuios list-sessions --json)
+  tuios_command start-server >/dev/null || tuios_command list-sessions --json >/dev/null
+  sessions=$(tuios_command list-sessions --json)
 fi
 if [[ -n $desktop_session ]]; then
   session=$(jq -r --arg name "$desktop_session" '.[] | select(.name == $name) | .name' <<<"$sessions")
@@ -61,13 +67,13 @@ else
 fi
 if [[ -z $session ]]; then
   session=$desktop_session
-  tuios new "$session" --detach --cwd "$PWD"
+  tuios_command new "$session" --detach --cwd "$PWD"
   params=$(jq -nc --arg session "$session" '{session:$session, workspace:1, name:"Terminal"}')
-  tuios call set-workspace-name "$params" >/dev/null
+  tuios_command call set-workspace-name "$params" >/dev/null
 fi
 # A live GUI window owns its Tab. A closed window leaves the Tab available
 # for resuming; opening another window never takes over an occupied Tab.
-if selection=$(jeebis-tuios-select-tab "$state_dir" "$session" "$role" "$role_name" "$role_workspace" "$$"); then
+if selection=$(jeebis-tuios-select-tab "$state_dir" "$session" "$role" "$role_name" "$role_workspace" "$$" {session_lock}>&-); then
   :
 else
   status=$?
@@ -83,13 +89,13 @@ role_workspace=$(jq -er '.workspace' <<<"$selection")
 role_name=$(jq -er '.name' <<<"$selection")
 if [[ $(jq -r '.rename' <<<"$selection") == true ]]; then
   params=$(jq -nc --arg session "$session" --arg name "$role_name" --argjson workspace "$role_workspace" '{session:$session, workspace:$workspace, name:$name}')
-  tuios call set-workspace-name "$params" >/dev/null
+  tuios_command call set-workspace-name "$params" >/dev/null
 fi
 if [[ $(jq -r '.create' <<<"$selection") == true ]]; then
   if [[ $# -gt 0 ]]; then
-    tuios new-window "$role_name" -s "$session" --workspace "$role_workspace" --no-focus --cwd "$PWD" -- "$@"
+    tuios_command new-window "$role_name" -s "$session" --workspace "$role_workspace" --no-focus --cwd "$PWD" -- "$@"
   else
-    tuios new-window "$role_name" -s "$session" --workspace "$role_workspace" --no-focus --cwd "$PWD"
+    tuios_command new-window "$role_name" -s "$session" --workspace "$role_workspace" --no-focus --cwd "$PWD"
   fi
 fi
 flock -u "$session_lock"
