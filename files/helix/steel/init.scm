@@ -645,6 +645,16 @@
 (define (jeebis-smart-increment) (jeebis-smart-step #t))
 (define (jeebis-smart-decrement) (jeebis-smart-step #f))
 
+(define (jeebis-backspace)
+  (jeebis-before-motion)
+  (define edits (map (lambda (r)
+    (define cursor (jeebis-cursor r))
+    (define previous (motion.range->from
+      (jeebis-capture (motion.range cursor cursor) motion.move_char_left 1)))
+    (list previous cursor ""))
+    (motion.selection->ranges (motion.current-selection-object))))
+  (jeebis-replacements edits #f))
+
 (define *jeebis-yank-feedback* #f)
 (define *jeebis-yank-generation* 0)
 (define (jeebis-finish-yank)

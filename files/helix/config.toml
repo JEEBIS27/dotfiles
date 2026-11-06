@@ -15,6 +15,7 @@
 [keys]
 
 [keys.normal]
+"backspace" = ":jeebis-backspace"
 "h" = "move_char_left"
 "left" = "move_char_left"
 "j" = "move_visual_line_down"
@@ -355,6 +356,7 @@
 [keys.normal.C-g.u]
 
 [keys.select]
+"backspace" = ":jeebis-backspace"
 "h" = "extend_char_left"
 "left" = "extend_char_left"
 "j" = "extend_visual_line_down"
