@@ -67,10 +67,20 @@ jeebis-desktop wallpaper set /path/to/image.png
 
 共通パレットからGTKの色定義を生成し、NixOSではQt5/Qt6のFusion/qtctパレットも生成する。GTK/libadwaitaやQtアプリ独自の描画は完全一致を保証しない。起動済みアプリは配色反映に再起動が必要な場合がある。OmarchyのQtは既存GTK連携を維持する。
 
-SDDMとロック画面はAstronautの標準の壁紙・フォントを使用する。`lockWallpaper`で生成するアセットはAstronautの標準壁紙を上書きしない。NixOSではSDDM Astronautとログイン前の自動回転を宣言的に設定する。ユーザーのホームをログイン前に読み込ませず、`/var/lib/jeebis-theme/`へ選択した静止画と色設定を公開する。その画像と設定は他ユーザーからも読めるため、公開したくない画像をロック壁紙に指定しない。自動ログインは設定しない。SDDMを再起動せず、次に表示されるログイン画面から反映する。既存Omarchyへのシステム設定は、ビルド済みテーマと回転パッケージを引数に`sudo bash scripts/install-astronaut-login.sh <theme-store-path> <rotation-store-path>`で適用する。設定を退避し、SDDMは再起動しない。自動ログイン設定は保持する。
+SDDMとロック画面はAstronautの標準の壁紙・フォントを使用する。`lockWallpaper`で生成するアセットはAstronautの標準壁紙を上書きしない。NixOSではJeebis Login（Astronaut素材）とログイン前の自動回転を宣言的に設定する。ユーザーのホームをログイン前に読み込ませず、`/var/lib/jeebis-theme/`へ選択した静止画と色設定を公開する。その画像と設定は他ユーザーからも読めるため、公開したくない画像をロック壁紙に指定しない。自動ログインは設定しない。SDDMを再起動せず、次に表示されるログイン画面から反映する。既存Omarchyへのシステム設定は、ビルド済みJeebis Loginテーマと回転パッケージを引数に`sudo bash scripts/install-astronaut-login.sh <theme-store-path> <rotation-store-path>`で適用する。設定を退避し、SDDMは再起動しない。自動ログイン設定は保持する。
 
 生成物は`~/.local/state/jeebis-theme/current/`。GTK/Qtはこの共通出力を参照する。ホーム壁紙だけの変更はロック・ログイン壁紙を変えず、次にプリセットを選ぶとセットに戻る。
 
 検証: `python3 scripts/check-theme.py`。隔離HOMEとIPCモックを使い、両OSの生成・別壁紙・失敗時の副作用防止・動画/GIF呼出を確認する。画面表示と認証をこのテストで保証するものではない。
 
 ロック用ビューは`files/desktop/lock/JeebisAstronautLockView.qml`。SDDMそのものをロック解除に使わず、既存のセッションロック・パスワード・指紋認証を維持する。壁紙・フォントは[Nixで固定したAstronautテーマ](https://github.com/Keyitdev/sddm-astronaut-theme)を参照し、元パッケージのライセンスとクレジットを保持する。
+
+## ログイン画面の統一
+
+SDDMは`nix build .#jeebis-login-theme`で構築するJeebis Loginテーマを使う。`files/desktop/login/Main.qml`の時計・日付・中央ぼかし・入力欄・ボタンの位置と寸法は`JeebisAstronautLockView.qml`に合わせる。壁紙とOpen Sansはロックと同じappPkgsのAstronautを参照する。上流のライセンスとクレジットはパッケージ内に保持する。
+
+ログイン専用のユーザー選択・セッション選択・電源操作・画面キーボードは維持し、認証はSDDMの既存PAMへ委譲する。テーマ単体では指紋認証を有効にしない。ロック側の認証処理も変更しない。
+
+既存Omarchyでは上記インストーラーへ`jeebis-login-theme`のビルド結果を渡す。SDDMの再起動や現在のセッション終了は行わず、次回ログインから反映される。
+
+ログインUI検証: PySide6/Qt VirtualKeyboardのある環境で`python3 scripts/check-login-theme.py <theme-store-path>/share/sddm/themes/jeebis-login-theme`。ソフトウェア描画とモックSDDMで送信・失敗後の再入力と縦横描画を検証する。GPUのぼかしと実際の画面回転は別途実機確認が必要。実際のPAM認証は次回ログインで確認する。

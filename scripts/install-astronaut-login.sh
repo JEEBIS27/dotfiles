@@ -2,9 +2,9 @@
 # Install the managed greeter on an existing Arch/Omarchy host; never restart SDDM.
 set -euo pipefail
 if [[ ${EUID} -ne 0 ]]; then echo "Run with pkexec or sudo, passing the built theme and rotation package." >&2; exit 1; fi
-theme=${1:?Astronaut package required}
+theme=${1:?Jeebis login theme package required}
 rotation=${2:?Rotation package required}
-[[ $theme == /nix/store/* && -f $theme/share/sddm/themes/sddm-astronaut-theme/Main.qml ]]
+[[ $theme == /nix/store/* && -f $theme/share/sddm/themes/jeebis-login-theme/Main.qml ]]
 [[ $rotation == /nix/store/* && -x $rotation/bin/jeebis-display-rotation ]]
 backup=$(mktemp -d /var/lib/jeebis-login-backup.XXXXXXXX)
 cp -a /etc/sddm.conf "$backup/" 2>/dev/null || true
@@ -30,7 +30,7 @@ c=configparser.ConfigParser(interpolation=None);c.optionxform=str
 if p.exists():c.read(p)
 for group in ('Theme','General','Wayland'):
  if not c.has_section(group):c.add_section(group)
-c['Theme']['Current']='sddm-astronaut-theme'
+c['Theme']['Current']='jeebis-login-theme'
 c['Theme']['ThemeDir']=sys.argv[1]+'/share/sddm/themes'
 c['General']['DisplayServer']='wayland'
 c['Wayland']['CompositorCommand']='start-hyprland -- --config /etc/jeebis-desktop/greeter.lua'

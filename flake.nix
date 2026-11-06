@@ -48,6 +48,7 @@
         steel = import ./packages/helix-steel { pkgs = appPkgs; };
       in {
         just = appPkgs.just;
+        jeebis-login-theme = import ./packages/jeebis-login-theme.nix { pkgs = appPkgs; };
         matlab-nix = import ./packages/matlab.nix { pkgs = nixpkgs.legacyPackages.${system}; };
         home-manager = home-manager.packages.${system}.home-manager;
         helium = import ./packages/helium.nix { pkgs = nixpkgs.legacyPackages.${system}; };

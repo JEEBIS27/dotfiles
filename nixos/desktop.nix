@@ -7,7 +7,7 @@ let
   '';
   mozkey = import ../packages/mozkey-fcitx5.nix { pkgs = appPkgs; };
   helium = import ../packages/helium.nix { inherit pkgs; };
-  astronaut = pkgs.sddm-astronaut.override { embeddedTheme = "astronaut"; };
+  loginTheme = import ../packages/jeebis-login-theme.nix { pkgs = appPkgs; };
   fish = import ../packages/fish.nix { pkgs = appPkgs; };
 in
 {
@@ -35,12 +35,12 @@ in
   services.displayManager.sddm.wayland.enable = lib.mkDefault true;
   services.displayManager.sddm.wayland.compositorCommand = "${appPkgs.hyprland}/bin/Hyprland --config ${greeterConfig}";
   systemd.tmpfiles.rules = [ "d /var/lib/jeebis-theme 0755 jeebis users -" ];
-  services.displayManager.sddm.theme = "sddm-astronaut-theme";
+  services.displayManager.sddm.theme = "jeebis-login-theme";
   services.displayManager.sddm.extraPackages = with pkgs.kdePackages; [
     qtsvg qtmultimedia qtvirtualkeyboard
   ];
   services.displayManager.defaultSession = lib.mkDefault "hyprland-uwsm";
-  environment.systemPackages = [ astronaut helium ] ++ (with appPkgs; [
+  environment.systemPackages = [ loginTheme helium ] ++ (with appPkgs; [
     nautilus hyprland-preview-share-picker hyprsunset
     wl-clipboard grim slurp libnotify brightnessctl
   ]);
