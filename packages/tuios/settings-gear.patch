@@ -4024,3 +4024,79 @@
  	return o, nil
  }
  
+--- a/internal/session/agent_detect.go
++++ b/internal/session/agent_detect.go
+@@ -713,6 +713,17 @@
+ 		}
+ 		det := r.det
+ 		detected := running && r.isAgent
++		// Hooks own conversation changes inside a running Codex. When no hook
++		// has reported yet, an explicit resume UUID is an unambiguous fallback.
++		if detected && det.harness == "codex" && w.AgentSessionID == "" {
++			if id := codexResumeID(det.proc.argv); id != "" {
++				out.labels++
++				if write {
++					w.AgentSessionID = id
++					w.AgentSessionHarness = "codex"
++				}
++			}
++		}
+ 		claim := s.agentClaims[w.ID]
+ 		owned := claim.auto
+ 		// Noted whoever owns the claim, and before the switch, because
+--- a/internal/session/agent_resume.go
++++ b/internal/session/agent_resume.go
+@@ -8,6 +8,7 @@
+ 	"time"
+ 
+ 	"github.com/Gaurav-Gosain/tuios/internal/harness"
++	"github.com/google/uuid"
+ )
+ 
+ // Resuming an agent's conversation after the daemon restarts.
+@@ -385,3 +386,35 @@
+ 	}
+ 	return mapResolveErr(err, sess)
+ }
++
++// codexResumeID accepts only an explicit conversation UUID, never --last,
++// picker arguments, prompts or arbitrary command text.
++func codexResumeID(argv []string) string {
++	for i, arg := range argv {
++		base := agentBaseName(arg)
++		if (base == "codex" || base == "codex.js") && i+2 < len(argv) && argv[i+1] == "resume" {
++			if id, err := uuid.Parse(argv[i+2]); err == nil && id.String() == argv[i+2] {
++				return id.String()
++			}
++			return ""
++		}
++	}
++	return ""
++}
++
++// recoverCodexConversation upgrades older saved panes, whose sidebar launcher
++// kept the exact UUID in the pane name but did not report it to the daemon.
++// A name alone never restarts an agent the person already quit.
++func recoverCodexConversation(w *WindowState) {
++	if w.Host != "" || w.AgentSessionID != "" || !agentWasLive(*w) || (w.AgentHarness != "" && w.AgentHarness != "codex") {
++		return
++	}
++	if !strings.HasPrefix(w.CustomName, "Codex ") {
++		return
++	}
++	id := strings.TrimPrefix(w.CustomName, "Codex ")
++	if parsed, err := uuid.Parse(id); err == nil && parsed.String() == id {
++		w.AgentSessionID = id
++		w.AgentSessionHarness = "codex"
++	}
++}
+--- a/internal/session/daemon_resurrect.go
++++ b/internal/session/daemon_resurrect.go
+@@ -229,6 +229,7 @@
+ 
+ 		// The window as it was saved, for the resume offer, which asks whether
+ 		// an agent was running in it then.
++		recoverCodexConversation(w)
+ 		saved[w.ID] = *w
+ 
+ 		// The pane gets a new shell and no agent, so it must not keep claiming

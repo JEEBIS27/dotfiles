@@ -115,6 +115,17 @@ HyprlandのWorkspace1はTUIOSの `desktop-1` Workspace、2は `desktop-2` Worksp
 その中でTerminal・Yazi・Codex・Helix・btopなどの役割Tabを使い分ける。使用中なら空き番号に同じ役割の別Tabを追加する。
 再起動では同じ役割のTabへ戻り、ペインを追加しない。空の場合だけ作り直す。
 
+Rioを閉じるだけならプロセスをそのまま保持する。PC・TUIOSデーモンの再起動では、
+保存済みの各ペインのディレクトリに新しいシェルを作り、`daemon.resume_agents = "auto"` により
+直前まで起動していたCodexを `codex resume <チャットID>` で自動再開する。
+チャットIDはCodexのSessionStartフックで保存する。Home Managerの反映時にTUIOSのフックだけを
+既存のhooks.jsonへマージし、ほかのフックを保持する。明示的なresume起動にはID保存の補助もある。
+旧版の `Codex <UUID>` ペイン名は、保存時にAgentが稼働していた場合だけ復元に利用する。
+自分で終了してシェルへ戻したCodexや通常のTerminalでは、勝手にCodexを起動しない。
+チャットIDが記録される前に失われたペインは、Chats一覧から対象チャットを開き直す。
+復元はチャットの再開であり、実行途中のコマンドや生成途中のターンを自動送信し直さない。
+
+
 - Alt+Shift+S: 内蔵Workspace検索。入力で絞り込み、Enterで切り替え、Delete（またはCtrl+D）で削除確認、Escで戻る。
 - Alt+S（Alt+Gも可）: TUIOS Tab検索。
 - Alt+Tab / Alt+PgDn: 次のTUIOS Tab。

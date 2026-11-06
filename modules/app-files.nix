@@ -18,6 +18,12 @@ in
       run touch "${config.xdg.configHome}/tuios/local.toml"
     fi
   '';
+  # Merge only TUIOS-owned hooks; keep Codex history, credentials and other
+  # integrations outside Home Manager. SessionStart records each new chat ID.
+  home.activation.tuiosCodexHooks = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    run ${config.home.profileDirectory}/bin/tuios integration install codex \
+      --no-skill --command "${config.home.profileDirectory}/bin/tuios"
+  '';
   xdg.configFile = {
     "omarchy/extensions/omarchy-menu.jsonc".source = ../files/omarchy/extensions/omarchy-menu.jsonc;
     "xdg-terminals.list".text = "rio.desktop\n";

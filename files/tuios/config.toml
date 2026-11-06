@@ -10,6 +10,8 @@ start_in_terminal_mode = true
 # Keep the shared PTYs stable when input moves between differently sized windows.
 [daemon]
 window_size = "smallest"
+# Resume the recorded agent conversation after a daemon/PC restart.
+resume_agents = "auto"
 
 [appearance]
 preferred_shell = "@fish@"
