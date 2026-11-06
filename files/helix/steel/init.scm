@@ -645,6 +645,35 @@
 (define (jeebis-smart-increment) (jeebis-smart-step #t))
 (define (jeebis-smart-decrement) (jeebis-smart-step #f))
 
+(define *jeebis-yank-feedback* #f)
+(define *jeebis-yank-generation* 0)
+(define (jeebis-finish-yank)
+  (when *jeebis-yank-feedback*
+    (define signature *jeebis-yank-feedback*)
+    (set! *jeebis-yank-feedback* #f)
+    (when (equal? signature (jeebis-selector-signature))
+      (jeebis-selection-escape))))
+(define (jeebis-yank-feedback clipboard?)
+  (motion.yank)
+  (when clipboard? (motion.yank_to_clipboard))
+  ;; Retain the copied range's selection highlight briefly, without blocking
+  ;; input. A subsequent event ends feedback before that event is processed.
+  (motion.normal_mode)
+  (set! *jeebis-yank-generation* (+ *jeebis-yank-generation* 1))
+  (define generation *jeebis-yank-generation*)
+  (set! *jeebis-yank-feedback* (jeebis-selector-signature))
+  (target-misc.enqueue-thread-local-callback-with-delay 160
+    (lambda ()
+      (when (= generation *jeebis-yank-generation*) (jeebis-finish-yank)))))
+(define (jeebis-yank) (jeebis-yank-feedback #f))
+(define (jeebis-yank-clipboard) (jeebis-yank-feedback #t))
+(target-misc.push-component!
+  (target-ui.new-component! "jeebis-yank-feedback" #f (lambda (_state _area _buffer) #f)
+    (hash "handle_event" (lambda (_state event)
+      (when (or (target-ui.key-event? event) (target-ui.mouse-event? event) (target-ui.paste-event? event))
+        (jeebis-finish-yank))
+      target-ui.event-result/ignore))))
+
 ;; END cursor motions
 
 ;; The terminal draws bar cursors itself; theme scopes cover block cursors.

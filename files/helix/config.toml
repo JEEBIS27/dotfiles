@@ -48,7 +48,7 @@
 "A" = "no_op"
 "o" = ":jeebis-toggle-case"
 "O" = ":jeebis-cycle-case"
-"d" = "delete_selection_noyank"
+"d" = "delete_selection"
 "A-d" = "no_op"
 "c" = "change_selection_noyank"
 "A-c" = "no_op"
@@ -89,7 +89,7 @@
 "U" = "redo"
 "A-u" = "no_op"
 "A-U" = "no_op"
-"y" = "yank"
+"y" = ":jeebis-yank"
 "p" = "paste_after"
 "P" = "paste_before"
 "Q" = ":quit!"
@@ -159,8 +159,8 @@
 "ret" = "open_below"
 "S-ret" = "open_above"
 "V" = ":jeebis-line-mode"
-"D" = "delete_selection"
-"Y" = ["yank", "yank_to_clipboard"]
+"D" = ["yank_to_clipboard", "delete_selection"]
+"Y" = ":jeebis-yank-clipboard"
 
 "t" = ":jeebis-select-larger"
 
@@ -321,7 +321,7 @@
 [keys.normal.C-S-g.s]
 "a" = ":jeebis-surround"
 "r" = ":jeebis-replace"
-"d" = "delete_selection_noyank"
+"d" = "delete_selection"
 "i" = ":jeebis-wrapper-inner"
 "o" = ":jeebis-wrapper"
 
@@ -388,7 +388,7 @@
 "A" = "no_op"
 "o" = ":jeebis-toggle-case"
 "O" = ":jeebis-cycle-case"
-"d" = "delete_selection_noyank"
+"d" = "delete_selection"
 "A-d" = "no_op"
 "c" = "change_selection_noyank"
 "A-c" = "no_op"
@@ -429,7 +429,7 @@
 "U" = "redo"
 "A-u" = "no_op"
 "A-U" = "no_op"
-"y" = "yank"
+"y" = ":jeebis-yank"
 "p" = "paste_after"
 "P" = "paste_before"
 "Q" = ":quit!"
@@ -499,8 +499,8 @@
 "ret" = "open_below"
 "S-ret" = "open_above"
 "V" = ":jeebis-line-mode"
-"D" = "delete_selection"
-"Y" = ["yank", "yank_to_clipboard"]
+"D" = ["yank_to_clipboard", "delete_selection"]
+"Y" = ":jeebis-yank-clipboard"
 
 "t" = ":jeebis-select-larger"
 
@@ -665,7 +665,7 @@
 [keys.select.C-S-g.s]
 "a" = ":jeebis-surround"
 "r" = ":jeebis-replace"
-"d" = "delete_selection_noyank"
+"d" = "delete_selection"
 "i" = ":jeebis-wrapper-inner"
 "o" = ":jeebis-wrapper"
 
