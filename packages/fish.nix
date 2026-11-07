@@ -40,6 +40,8 @@ in pkgs.symlinkJoin {
   name = "fish-${fish.version}";
   pname = "fish";
   inherit (fish) version meta;
+  # Preserve the shell interface required by NixOS users and /etc/shells.
+  passthru = { inherit (fish) shellPath; };
   paths = [ fish ];
   postBuild = ''
     rm "$out/bin/fish"
