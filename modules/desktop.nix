@@ -54,7 +54,7 @@ let
 export PATH="${lib.makeBinPath ([ appPkgs.python3 pkgs.bash pkgs.coreutils pkgs.gawk pkgs.gnused pkgs.gnugrep pkgs.util-linux appPkgs.jq ] ++ lib.optionals native nativeDeps)}:$HOME/.nix-profile/bin:$PATH"
 export PATH="$(dirname "$0"):$PATH"
 ${lib.optionalString native ''export PATH="$(dirname "$0"):${runtime}/bin:$PATH"; export OMARCHY_PATH="${runtime}"''}
-exec ${appPkgs.python3}/bin/python3 ${../packages/desktop/desktopctl.py} --config ${json} "$@"
+exec ${appPkgs.python3}/bin/python3 ${../packages/desktop}/desktopctl.py --config ${json} "$@"
 SH
     chmod +x "$out/bin/jeebis-desktop"
     cat > "$out/bin/jeebis-theme-colors" <<'SH'
