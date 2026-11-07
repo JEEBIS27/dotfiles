@@ -5,8 +5,8 @@ if [[ ! -e /etc/NIXOS ]]; then
   echo 'NixOSの移行先PCで実行してください。' >&2
   exit 1
 fi
-if [[ $repo != /home/jeebis/Git/home-manager || $(id -un) != jeebis ]]; then
-  echo 'jeebisとして /home/jeebis/Git/home-manager から実行してください。' >&2
+if [[ $(id -un) != jeebis ]]; then
+  echo 'jeebisとして実行してください。' >&2
   exit 1
 fi
 mode=${1:-build}
@@ -18,9 +18,16 @@ case "$mode" in
     fi
     sudo test -f /etc/nixos/configuration.nix
     sudo cp -a /etc/nixos "/etc/nixos.backup-$(date +%Y%m%d-%H%M%S)"
-    sudo tee /etc/nixos/flake.nix >/dev/null <<'NIX'
+    # JSON quoting is also valid for Nix strings; reject Nix interpolation.
+    if [[ $repo == *'${'* ]]; then
+      echo 'リポジトリのパスにNix補間構文は使用できません。' >&2
+      exit 1
+    fi
+    repo_url=$(JEEBIS_DOTFILES_ROOT="$repo" nix --extra-experimental-features 'nix-command flakes' \
+      eval --impure --raw --expr 'builtins.toJSON ("path:" + builtins.getEnv "JEEBIS_DOTFILES_ROOT")')
+    sudo tee /etc/nixos/flake.nix >/dev/null <<NIX
 {
-  inputs.dotfiles.url = "path:/home/jeebis/Git/home-manager";
+  inputs.dotfiles.url = $repo_url;
   outputs = { dotfiles, ... }: {
     nixosConfigurations.jeebis = dotfiles.inputs.nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
