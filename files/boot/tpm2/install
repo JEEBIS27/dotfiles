@@ -1,0 +1,18 @@
+#!/usr/bin/bash
+# Add TPM token support to the existing busybox/encrypt boot path.
+build() {
+    add_module 'tpm_crb?'
+    add_module 'tpm_tis?'
+    add_binary /usr/bin/cryptsetup
+    add_binary /usr/bin/timeout
+    add_binary /usr/lib/cryptsetup/libcryptsetup-token-systemd-tpm2.so
+    # libsystemd loads these through dlopen; ldd does not discover them.
+    local library
+    for library in /usr/lib/libcryptsetup.so.12 /usr/lib/libtss2-{esys,rc,mu,sys,tctildr,tcti-device}.so.*; do
+        [[ -e $library ]] && add_binary "$library"
+    done
+    add_runscript
+}
+help() {
+    echo 'Try a registered systemd TPM2 token before the existing encrypt hook; retain its password fallback.'
+}
