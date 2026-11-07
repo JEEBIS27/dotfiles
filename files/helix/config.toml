@@ -45,7 +45,7 @@
 ":" = "command_mode"
 "i" = "insert_mode"
 "I" = "append_mode"
-"a" = "select_all"
+"a" = "no_op"
 "A" = "no_op"
 "o" = ":jeebis-toggle-case"
 "O" = ":jeebis-cycle-case"
