@@ -9,7 +9,7 @@ hl.config({
     border_size = 0,
 
     -- Default layout; SUPER + SHIFT + ALT + L toggles Dwindle / Scrolling.
-    layout = "dwindle",
+    layout = "scrolling",
   },
 })
 
@@ -25,7 +25,13 @@ hl.config({
 
     -- Change transparency of focused and unfocused windws
     active_opacity = 1.0,
-    inactive_opacity = 0.95,
+    inactive_opacity = 0.9,
+    blur = {
+      enabled = true,
+      size = 8,
+      passes = 2,
+      new_optimizations = true,
+    },
   },
 })
 

@@ -3,7 +3,7 @@ syntect_theme = "@themeDir@/preview.tmTheme"
 marker_copied = { fg = "{{ green }}", bg = "{{ green }}" }
 marker_cut = { fg = "{{ red }}", bg = "{{ red }}" }
 marker_marked = { fg = "{{ magenta }}", bg = "{{ magenta }}" }
-marker_selected = { fg = "{{ orange }}", bg = "{{ orange }}" }
+marker_selected = { fg = "{{ mix background accent 45% }}", bg = "{{ mix background accent 45% }}" }
 
 cwd = { fg = "{{ yellow }}" }
 
@@ -12,7 +12,7 @@ find_position = {}
 
 count_copied = { fg = "{{ background }}", bg = "{{ green }}" }
 count_cut = { fg = "{{ background }}", bg = "{{ red }}" }
-count_selected = { fg = "{{ background }}", bg = "{{ orange }}" }
+count_selected = { fg = "{{ bright_foreground }}", bg = "{{ mix background accent 45% }}" }
 
 border_symbol = "│"
 border_style = { fg = "{{ foreground }}" }
