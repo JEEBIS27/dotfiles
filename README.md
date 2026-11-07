@@ -1,6 +1,6 @@
 # dotfiles
 
-Omarchy / NixOS / Android（Nix-on-Droid）向けのHome Manager構成。Hyprland、Quickshell（jeebis-shell）、ターミナル・エディター設定とアプリを管理する。
+Omarchy / NixOS / Android（Nix-on-Droid）向けのHome Manager構成。Hyprland、Quickshell（Tide Island）、ターミナル・エディター設定とアプリを管理する。
 
 PC構成は `x86_64-linux`・ユーザー `jeebis`・配置先 `~/Git/home-manager` を前提とする。Androidは `aarch64-linux`、Nix-on-Droid既定のユーザーとホームを使用する。他の環境ではユーザー名・パス・ハードウェア設定の変更が必要。
 
@@ -27,7 +27,7 @@ PC構成は `x86_64-linux`・ユーザー `jeebis`・配置先 `~/Git/home-manag
 |---|---|
 | シェル・CLI | Zsh、TUIOS、Sheldon、Yazi、Git、fzf、ripgrep、eza、bat、zoxide |
 | エディター | Helix（既定）、共通LSP・フォーマッター、Neovim（代替） |
-| デスクトップ | Hyprland、Quickshell + jeebis-shell、Rio + TUIOS、固定テーマと壁紙 |
+| デスクトップ | Hyprland、Quickshell + Tide Island、Rio + TUIOS、固定テーマと壁紙 |
 | NixOS用アプリ・サービス | Helium、Nautilus、Fcitx5 / Mozkey、音声・Bluetooth・電源管理 |
 | クラウドマウント | rclone（Google Drive / OneDrive、認証は別途） |
 
@@ -80,7 +80,7 @@ Nixのインストール自体やAndroidアプリの導入は、このコマン�
 
 - [構成とOS別バックエンド](docs/desktop-architecture.md)
 - [導入するパッケージ・設定](docs/managed-items.md)
-- [jeebis-shell（Ruixen由来の互換プラグインを使用）](docs/jeebis-shell.md)
+- [Tide Island：起動・設定・テーマ連携](docs/tide-island.md)
 - [テーマツール：配色・壁紙の設定と切替](docs/theme-tooling.md)
 - [日本語入力・クラウドマウント](docs/input-and-mounts.md)
 
@@ -90,7 +90,7 @@ Nixのインストール自体やAndroidアプリの導入は、このコマン�
 
 | キー | 動作 |
 |---|---|
-| Super+F | Ruixen App Launcher（バー左端と同じアプリ起動） |
-| Super+Shift+Esc | Ruixen設定 |
+| Super+F | Tide Island App Launcher |
+| Super+Shift+Esc | Tide Island設定 |
 
 Hyprlandが処理する。旧Ruixen用のSuper+Alt+Space・Super+Shift+Alt+Space・Super+R・Super+Shift+Rは解除する。既存のSuper+Escはシステムメニューとして維持する。

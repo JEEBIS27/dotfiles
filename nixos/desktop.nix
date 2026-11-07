@@ -18,7 +18,6 @@ in
   programs.dconf.enable = true;
   services.gnome.gnome-keyring.enable = true;
   security.pam.services.sddm.enableGnomeKeyring = true;
-  security.pam.services.omarchy-lock-password.enableGnomeKeyring = true;
   services.gvfs.enable = true;
   programs.fish.enable = true;
   users.users.jeebis.shell = fish;
@@ -58,7 +57,7 @@ in
   networking.networkmanager.enable = true;
   hardware.bluetooth.enable = true;
   security.polkit.enable = true;
-  security.pam.services.omarchy-lock-password = { };
+  security.pam.services.tide-island = { };
   services.power-profiles-daemon.enable = true;
   services.upower.enable = true;
   services.pipewire = { enable = true; pulse.enable = true; alsa.enable = true; };

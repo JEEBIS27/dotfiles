@@ -17,13 +17,33 @@ def call(argv,**kwargs):
  return subprocess.run(argv,check=True,**kwargs)
 def command(name):return cfg.get('commands',{}).get(name,name)
 def shell_ipc(target,method,*values):
- if target=='shell' and method in ['toggle','summon'] and len(values)==1:values=(*values,'{}')
- if cfg['backend']=='omarchy':return call(['omarchy-shell',target,method,*values])
- result=call([command('quickshell'),'ipc','-n','-p',cfg['runtime']+'/shell','call','--',target,method,*values],text=True,stdout=subprocess.PIPE)
+ if cfg.get('shell')=='tide':
+  if target=='lock': target,method,values='tide',('lockStatus' if method=='status' else 'lockScreen'),()
+  elif target=='shell' and values:
+   plugin=values[0]
+   method={'omarchy.clipboard':'toggleClipboard','omarchy.menu':'togglePowerMenu','omarchy.notifications':'toggleNotificationCenter','omarchy.clock':'toggleCalendar','omarchy.power':'togglePowerMenu','omarchy.weather':'toggleWeather','ruixen.launcher':'toggleApplicationLauncher'}.get(plugin,'toggleControlCenter')
+   target,values='tide',()
+  elif target.startswith(('ruixen.','jeebis.bar')):
+   target,method,values='tide',{'toggleLauncher':'toggleApplicationLauncher','toggleNotch':'toggle','toggleFixedNotch':'toggle','toggleFixedBar':'toggle'}.get(method,method),()
+   if method=='toggle':target='island'
+  argv=[command('quickshell'),'ipc','-p',cfg['shellPath'],'call',target,method,*values]
+ elif cfg['backend']=='omarchy':argv=['omarchy-shell',target,method,*values]
+ else:argv=[command('quickshell'),'ipc','-n','-p',cfg['runtime']+'/shell','call','--',target,method,*values]
+ result=call(argv,text=True,stdout=subprocess.PIPE)
  output=result.stdout.strip()
  if output.startswith(('Target not found.','Function not found.','Too few arguments','Too many arguments','Not ready to accept queries')):raise ValueError(output)
  if output:print(output)
  return result
+
+def lock_session():
+ shell_ipc('tide','lockScreen')
+ if opt.plan:return
+ for attempt in range(100):
+  result=shell_ipc('tide','lockStatus')
+  if result.stdout.strip().lower()=='true':return
+  time.sleep(.1)
+ raise ValueError('Tide did not acquire the session lock; inspect tide-island.service')
+
 def launch(argv):return call([command('uwsm-app'),'--',*argv])
 def focus_or_launch(pattern, argv):
  if opt.plan:return call(['hyprctl','-j','clients'])
@@ -38,19 +58,29 @@ def tui(a):
  if a and a[0].startswith('--app-id='):app_id=a.pop(0).split('=',1)[1]
  return launch([command('terminal'),'--app-id='+app_id,'--',*a])
 def menu(name='root'):
- if cfg['backend']=='omarchy':return call(['omarchy-menu','toggle',name])
- return shell_ipc('shell','toggle','omarchy.menu',json.dumps({'menu':name}))
+ if cfg.get('shell')=='tide':
+  if name=='settings':return launch(['tide-island-config-app'])
+  return shell_ipc('tide','togglePowerMenu' if name in ['root','system'] else 'toggleControlCenter')
+ return call(['omarchy-menu','toggle',name])
+
 def current_directory():
  return STATE/('omarchy/current' if cfg['backend']=='omarchy' else 'jeebis-desktop/current')
 def stop_wallpaper_media():
- if opt.plan or not (STATE/'ruixen/wallpaper-media').exists():return
- try:shell_ipc('ruixen.wallpaper','stop',str(int(time.time()*1000)))
- except subprocess.CalledProcessError:pass
+ # systemd replaces the single wallpaper process when the selected link changes.
+ pass
+
+def apply_wallpaper(path):
+ if opt.plan:return call([command('systemctl'),'--user','restart','jeebis-wallpaper.service'])
+ current=current_directory();current.mkdir(parents=True,exist_ok=True)
+ temporary=current/'.home-background';temporary.unlink(missing_ok=True);temporary.symlink_to(path);temporary.replace(current/'home-background')
+ # Activation can run before login; the graphical target restores the saved link.
+ active=subprocess.run([command('systemctl'),'--user','is-active','--quiet','graphical-session.target']).returncode==0
+ if active:return call([command('systemctl'),'--user','restart','jeebis-wallpaper.service'])
 
 def wallpaper(action,values):
  current=current_directory()
  if action=='pick':
-  folders=[Path(cfg['backgrounds']),HOME/'Pictures/ruixen-wallpapers']
+  folders=[Path(cfg['backgrounds']),HOME/'Pictures/Wallpapers']
   paths=sorted({str(p.resolve()) for folder in folders if folder.is_dir() for p in folder.iterdir() if p.is_file() and p.suffix.lower() in ['.jpg','.jpeg','.png','.webp','.bmp'] and '\n' not in str(p)})
   if not paths:return
   result=call([command('fuzzel'),'--dmenu','--prompt','Wallpaper: '],input='\n'.join(paths)+'\n',text=True,stdout=subprocess.PIPE)
@@ -59,6 +89,7 @@ def wallpaper(action,values):
  if action!='set' or len(values)!=1:raise ValueError('wallpaper set requires one image path')
  path=Path(values[0]).expanduser().resolve()
  if not path.is_file():raise ValueError('wallpaper file does not exist')
+ if cfg.get('shell')=='tide':return apply_wallpaper(path)
  if cfg['backend']=='omarchy':return call(['omarchy','theme','bg','set',str(path)])
  if opt.plan:return shell_ipc('background','set',str(path))
  current.mkdir(parents=True,exist_ok=True)
@@ -77,9 +108,7 @@ def sync_appearance(preset, source):
   publish(public,colors,lock,metadata)
 
 def start_home_media(path):
- suffix=path.suffix.lower()
- if suffix in VIDEOS or suffix=='.gif':
-  return shell_ipc('ruixen.wallpaper','playGif' if suffix=='.gif' else 'playVideo',str(path),str(int(time.time()*1000)))
+ return apply_wallpaper(path)
 
 def theme(action,values):
  if action in ['set','refresh'] and not opt.plan:
@@ -112,7 +141,9 @@ def apply_theme(action,values):
   home,lock=preset_assets(preset,cfg['backgrounds'])
   if action=='refresh':
    source=current/'theme/colors.toml'
-   return sync_appearance(preset,source if source.exists() else themes/(preset['palette']+'.toml'))
+   sync_appearance(preset,source if source.exists() else themes/(preset['palette']+'.toml'))
+   if not (current/'home-background').exists():apply_wallpaper(home)
+   return
   print(json.dumps({'name':name,'palette':str(themes/(preset['palette']+'.toml')),'wallpaper':str(home),'lockWallpaper':str(lock)},ensure_ascii=False,indent=2));return
  if action in ['menu','pick']:
   names='\n'.join(presets)+'\n'
@@ -168,19 +199,23 @@ def apply_theme(action,values):
  rio_dir=Path(os.environ.get('XDG_CONFIG_HOME',HOME/'.config'))/'rio'
  if rio_dir.is_dir():os.utime(rio_dir,None)
  if cfg.get('helixReload'):call([cfg['helixReload']])
- if initializing:return
+ if initializing:
+  apply_wallpaper(home_wallpaper)
+  return
  call([command('hyprctl'),'reload'])
  try:call([command('bat'),'cache','--build'],stdout=subprocess.DEVNULL)
  except subprocess.CalledProcessError:pass
- colors=base64.b64encode((current/'theme/colors.toml').read_bytes()).decode()
- style=base64.b64encode((current/'theme/shell.toml').read_bytes()).decode()
- if backgrounds:
-  shell_ipc('background','themeTransition',old_background,str(backgrounds[0]),str(backgrounds[0]),colors,style)
-  return start_home_media(home_wallpaper)
- return shell_ipc('shell','applyTheme',colors,style)
+ return start_home_media(home_wallpaper)
 
 def native_legacy(name,a):
  # Compatibility is confined to this adapter; shared plugin IDs remain stable.
+ if cfg.get('shell')=='tide':
+  if name=='omarchy-shell':return shell_ipc(*(a[1:] if a and a[0]=='-q' else a))
+  if name in ['omarchy-system-lock','omarchy-launch-screensaver']:return lock_session()
+  if name=='omarchy-menu':return menu(a[-1] if a else 'root')
+  if name=='omarchy-notification-send':return call([command('notify-send'),*a])
+  if name=='omarchy-osd':return
+  if name=='omarchy-hyprland-session-locked':return shell_ipc('tide','lockStatus')
  helper=Path(cfg['runtime'])/'bin'/name
  if helper.is_file():return call([str(helper),*a])
  if name=='omarchy-shell':return shell_ipc(*(a[1:] if a and a[0]=='-q' else a))
@@ -237,6 +272,8 @@ def screenshot(a):
 
 def main():
  action=opt.action
+ if action=='lock':return lock_session()
+ if action=='settings':return launch(['tide-island-config-app'])
  if action=='backend':print(cfg['backend']);return
  if action=='launch':return launch(args)
  if action=='capture':return screenshot(args)
@@ -244,16 +281,16 @@ def main():
  if action=='wallpaper':return wallpaper(args[0] if args else 'pick',args[1:])
  if action=='shell':
   if args==['restart']:
-   return call(['omarchy','restart','shell']) if cfg['backend']=='omarchy' else call([command('systemctl'),'--user','--no-block','restart','jeebis-desktop.service'])
+   return call([command('systemctl'),'--user','--no-block','restart','tide-island.service'])
   return shell_ipc(*args)
  if action in ['menu','pick']:return menu(args[0] if args else 'root')
  if action=='notify':return call([command('notify-send'),*args])
  if action=='legacy':
-  if cfg['backend']=='omarchy' and args[0] not in ['omarchy-launch-tui','omarchy-launch-floating-terminal-with-presentation','omarchy-launch-editor','omarchy-launch-or-focus-tui']:return call(args)
+  if cfg.get('shell')!='tide' and cfg['backend']=='omarchy' and args[0] not in ['omarchy-launch-tui','omarchy-launch-floating-terminal-with-presentation','omarchy-launch-editor','omarchy-launch-or-focus-tui']:return call(args)
   return native_legacy(args[0],args[1:])
  if action=='browser':return call(['omarchy-launch-browser',*args]) if cfg['backend']=='omarchy' else (call([command('xdg-open'),*args]) if args else launch([command('browser')]))
  if action=='terminal':return launch([command('terminal'),*args])
- if action=='overview':return shell_ipc('shell','toggle' if not args else args[0],'ruixen.launcher','{}')
+ if action=='overview':return shell_ipc('overview',args[0] if args else 'toggle')
  raise ValueError('Unknown desktop action: '+action)
 def main_browser(a):return call(['omarchy-launch-webapp',*a]) if cfg['backend']=='omarchy' else call([command('xdg-open'),*a])
 try:main()
