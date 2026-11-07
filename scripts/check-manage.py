@@ -118,5 +118,45 @@ run_nixos() { log nixos "$@"; if [[ $1 == setup ]]; then return SETUP; fi; }
         self.assertEqual(r.stdout, '')
 
 
+class NixOSInvocationTests(unittest.TestCase):
+    def run_commands(self, action, update_ok=True):
+        # Exercise the real invocation tail, shadowing sudo to avoid host writes.
+        script = SCRIPT.with_name('nixos.sh').read_text()
+        tail = script[script.index('# Refresh only'):]
+        mocks = r'''
+set -e
+sudo() {
+  printf '%s' "$1"; local executable=$1; shift
+  printf ' <%s>' "$@"; printf '\n'
+  if [[ $executable == nix ]]; then return UPDATE; fi
+  if [[ $executable == nixos-rebuild ]]; then
+    for arg in "$@"; do
+      [[ $arg != --extra-experimental-features ]] || return 2
+    done
+  fi
+}
+'''
+        mocks = mocks.replace('UPDATE', '0' if update_ok else '1')
+        return subprocess.run(['bash', '-c', mocks + '\naction="$1"\n' + tail,
+                               'check-nixos', action], text=True, capture_output=True)
+
+    def test_first_build_uses_supported_nix_option(self):
+        result = self.run_commands('build')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines()[-1],
+                         'nixos-rebuild <build> <--flake> <path:/etc/nixos#jeebis> <--option> <experimental-features> <nix-command flakes>')
+
+    def test_switch_uses_supported_nix_option(self):
+        result = self.run_commands('switch')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('nixos-rebuild <switch>', result.stdout)
+        self.assertIn('<--option> <experimental-features> <nix-command flakes>', result.stdout)
+
+    def test_failed_input_refresh_prevents_rebuild(self):
+        result = self.run_commands('switch', update_ok=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn('nixos-rebuild', result.stdout)
+
+
 if __name__ == '__main__':
     unittest.main()
