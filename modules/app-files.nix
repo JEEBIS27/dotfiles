@@ -21,6 +21,10 @@ in
   # Merge only TUIOS-owned hooks; keep Codex history, credentials and other
   # integrations outside Home Manager. SessionStart records each new chat ID.
   home.activation.tuiosCodexHooks = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    # TUIOS requires this directory even before the first Codex login.
+    # Create only the local state root; do not manage auth or conversation data.
+    codex_home="''${CODEX_HOME:-${config.home.homeDirectory}/.codex}"
+    run mkdir -p -m 700 "$codex_home"
     run ${config.home.profileDirectory}/bin/tuios integration install codex \
       --no-skill --command "${config.home.profileDirectory}/bin/tuios"
   '';
