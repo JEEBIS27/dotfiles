@@ -36,7 +36,8 @@ case $role in
   codex) role_workspace=3; role_name=Codex ;;
   hx) role_workspace=4; role_name=Helix ;;
   btop) role_workspace=5; role_name=btop ;;
-  *) role_workspace=6; role_name=$role ;;
+  gh-dash) role_workspace=6; role_name=GitHub ;;
+  *) role_workspace=7; role_name=$role ;;
 esac
 # Outside Hyprland, use one shared main session as well.
 [[ -n $desktop_session ]] || desktop_session=main

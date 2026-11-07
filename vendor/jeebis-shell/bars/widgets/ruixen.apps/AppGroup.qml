@@ -733,8 +733,8 @@ Ui.BarWidget {
 
       var terminalApp = AppIdentity.terminalApplication(client)
       var entry = terminalApp ? null : root.desktopEntryForClient(identity, client.title)
-      var terminalIcons = { nvim: "nvim", yazi: "yazi", codex: "jeebis-codex" }
-      var terminalNames = { nvim: "Neovim", yazi: "Yazi", codex: "Codex" }
+      var terminalIcons = { nvim: "nvim", yazi: "yazi", codex: "jeebis-codex", github: "jeebis-github" }
+      var terminalNames = { nvim: "Neovim", yazi: "Yazi", codex: "Codex", github: "GitHub" }
       var icon = terminalApp ? terminalIcons[terminalApp] : entry && entry.icon ? String(entry.icon) : identity
       var name = terminalApp ? terminalNames[terminalApp] : entry && entry.name ? String(entry.name) : String(client.title || identity)
 
@@ -779,7 +779,8 @@ Ui.BarWidget {
 
   function iconSource(icon) {
     var value = String(icon || "application-x-executable")
-    // Jeebis: preserve normal app grouping; only replace the Codex mark.
+    // Jeebis: bundled marks for dedicated terminal applications.
+    if (value === "jeebis-github") return Qt.resolvedUrl("icons/jeebis-github.svg")
     if (value === "jeebis-codex") return Qt.resolvedUrl("icons/jeebis-codex.svg")
     return value.indexOf("file:") === 0 || value.charAt(0) === "/" ? value : (Quickshell.iconPath(value, true) || Quickshell.iconPath("application-x-executable"))
   }

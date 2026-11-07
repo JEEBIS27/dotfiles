@@ -173,3 +173,7 @@ Super+Enter / Super+Shift+Enterは、現在のアプリにかかわらずTermina
 Super+WはRioだけを閉じ、Tabと全ペインの作業を保持する。Alt+Wは選択中のペインを終了し、最後のペインならTabの名前・フォーカス履歴・起動予約も削除する。Alt+Shift+Wは確認後に対象Tabの全ペインを終了し、同じくTab情報を削除する。ほかにTabがあれば移り、なければそのクライアントだけを終了する。確認のキャンセルでは何も削除しない。
 
 Alt+Bは一覧へ入る・閉じて元へ戻る操作を兼ねる。Escは一覧を表示したまま元のペインへ戻る。Alt+Shift+Bはフォーカスを維持した表示切替。Alt+Uの割り当ては使用しない。
+
+Super+Alt+Gでgh-dashをGitHub用のTUIOS Tabに起動する。Super+Shift+Alt+Gは全幅起動。使用中のTabは保持し、別ウィンドウにはGitHub 2以降を割り当てる。Super+Wで閉じたTabは次回再接続する。アプリ島にはGitHubアイコンを表示する。従来のSuper+Alt+Gのグループ解除は上書きする。
+
+gh-dashの配色は共通デスクトップパレットから生成し、テーマ切り替え後の次回起動に反映する。起動キーでは共通の`~/.config/gh-dash/config.yml`を明示して使用する。初回は`gh auth login`でGitHub CLIの認証を行う。
