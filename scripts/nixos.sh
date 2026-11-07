@@ -42,5 +42,6 @@ esac
 # Refresh only the local checkout snapshot; its own flake.lock keeps packages pinned.
 sudo nix --extra-experimental-features 'nix-command flakes' \
   flake update dotfiles --flake path:/etc/nixos
+# nixos-rebuild-ng accepts generic Nix options rather than Nix CLI feature flags.
 sudo nixos-rebuild "$action" --flake path:/etc/nixos#jeebis \
-  --extra-experimental-features 'nix-command flakes'
+  --option experimental-features 'nix-command flakes'
