@@ -41,7 +41,8 @@ in
   ];
   services.displayManager.defaultSession = lib.mkDefault "hyprland-uwsm";
   environment.systemPackages = [ loginTheme helium ] ++ (with appPkgs; [
-    nautilus hyprland-preview-share-picker hyprsunset
+    # gtk-launch is also resolved by applications started through UWSM.
+    gtk3 nautilus hyprland-preview-share-picker hyprsunset
     wl-clipboard grim slurp libnotify brightnessctl
   ]);
   fonts.packages = [ appPkgs.hackgen-nf-font ];

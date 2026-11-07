@@ -42,7 +42,7 @@ let
   '';
   aliases = builtins.fromJSON (builtins.readFile ../packages/desktop/compat-names.json);
   nativeDeps = [ quickshell ] ++ (with appPkgs; [
-    hyprland uwsm grim slurp wl-clipboard libnotify brightnessctl
+    hyprland uwsm gtk3 grim slurp wl-clipboard libnotify brightnessctl
     wireplumber pulseaudio networkmanager bluez power-profiles-daemon upower
     ffmpeg curl fastfetch cava qt6.qtmultimedia
     fuzzel xdg-utils ddcutil iputils iw fontconfig dbus systemd procps python3 util-linux file hyprsunset inotify-tools findutils libxkbcommon
