@@ -10,7 +10,9 @@ import re
 s=re.sub(r'(Q_PROPERTY\(QColor .*?) CONSTANT FINAL',r'\1 NOTIFY themeChanged FINAL',s)
 s=s.replace('public:\n','signals:\n    void themeChanged();\nprivate:\n    QJsonObject m_colors;\n    QByteArray m_themeBytes;\n    void reloadTheme();\npublic:\n',1);p.write_text(s)
 p=r/'backend/StyleTokensBackend.cpp';s=p.read_text().replace('#include <Qt>','#include <Qt>\n#include <QFile>\n#include <QJsonDocument>\n#include <QTimer>\n#include <QStandardPaths>')
-s=s.replace('static const QColor color = hex(value);', 'const QColor color(m_colors.value(QStringLiteral(#name)).toString(QString::fromLatin1(value)));')
+# Avoid macro substitution of the QJsonObject member function named value.
+s=s.replace('#define STYLE_COLOR(name, value)', '#define STYLE_COLOR(name, fallback)')
+s=s.replace('static const QColor color = hex(value);', 'const QColor color(m_colors.value(QStringLiteral(#name)).toString(QString::fromLatin1(fallback)));')
 s=s.replace(': QObject(parent)\n{\n}', ''': QObject(parent)
 {
     reloadTheme();
