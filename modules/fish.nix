@@ -1,6 +1,9 @@
 { config, options, pkgs, lib, appPkgs, ... }:
 let
-  plugins = import ../packages/fish-plugins.nix { pkgs = appPkgs; };
+  pathColors = import ../packages/fish-eza-path-colors.nix { pkgs = appPkgs; };
+  plugins = (import ../packages/fish-plugins.nix { pkgs = appPkgs; }) ++ [
+    { name = "fish-eza-path-colors"; src = pathColors; }
+  ];
   extractPlugin = (lib.findFirst (p: p.name == "fish-extract") null plugins).src;
 in {
   programs.fish = {
@@ -32,9 +35,9 @@ in {
     "fish/home-manager_generated_completions".source = lib.mkForce
       (pkgs.runCommand "fish-native-completions" {} "mkdir -p $out");
   };
-  home.packages = with appPkgs; [
+  home.packages = [ pathColors ] ++ (with appPkgs; [
     nix-your-shell carapace fish-lsp grc curl jq openssh libnotify
-  ];
+  ]);
   programs.atuin = {
     enable = true;
     package = appPkgs.atuin;

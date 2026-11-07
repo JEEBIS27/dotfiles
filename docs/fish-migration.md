@@ -47,27 +47,27 @@ fishランチャーは起動前にTTYの割り込みキーをCtrl+Wへ設定し�
 
 ## 入力中のパスの種別色
 
-`packages/fish/eza-path-colors.patch`と`eza-style.rs`でfish本体の背景ハイライト処理を拡張。
-`fish_color_path_by_type=1`のとき、存在する引数・リダイレクト先をeza自身で判定し、
-そのファイル名の色を入力中のパス全体へ適用する。分類表を別途複製しないため、
-ezaのディレクトリ・実行ファイル・リンク・特殊ファイル・拡張子や名前による分類に追従する。
-`EZA_COLORS`、`LS_COLORS`、ezaの`theme.yml`/`theme.yaml`も同じものを参照する。
-権限やGit状態など、ezaの一覧の別カラムを入力行へ付け足す機能ではない。
+[公開リポジトリ](https://github.com/JEEBIS27/fish-eza-path-colors)を、
+`packages/fish-eza-path-colors-source.nix`のコミットとハッシュで固定して取得する。
+プラグインと接続パッチは両方とも同じ取得元を参照し、ローカルコピーは持たない。
+Rust製の外部providerと`conf.d`で構成し、fish本体の内部型やABIへ依存しない。
+分類・テーマ・SGR解釈はプラグイン側、fish側は
+取得元の`compat/fish-4.9.3/`にある汎用接続のみ。
+接続ファイルは内容単位で取り込み、プラグインだけの更新でfishの再ビルドが発生しないようにする。
+ezaやプラグインの更新のためにfish本体を再ビルドする必要はない。
 
-コマンド・変数・演算子・引用符の区切り・エラー・選択表示はfishの構文色を優先し、
-パスとして途中まで入力した候補は従来の強調表示を保つ。
-引用符で囲まれたパスは、引用符の内側の通常文字だけ種別色にする。
-コマンド置換は実行せず、展開で一意に確定するパスのみを扱う。
-制御文字を含む名前や、ezaの判定に失敗・時間切れになった場合は標準表示に戻る。
+Home Managerがプラグインと実行ファイルを導入する。
+`set -g fish_eza_path_colors_enabled 0`で無効化でき、従来の`fish_color_path_by_type`も互換スイッチとして扱う。
+通常版fishでは追加の色付けを行わず、標準表示に戻る。
+本体の接続パッチを無効化するには`jeebis.shell.enablePathStyleProvider = false`。
 
-外部判定は背景スレッドで行い、パス・メタデータ・配色環境ごとに最大256件/2秒キャッシュ。
-eza呼び出しの待ち時間は80msまでとし、出力はSGRの色・装飾だけを解釈する。
-一時的に無効にするには`set -g fish_color_path_by_type 0`。
-本体パッチなので、既存のfishには設定の再読み込みだけでなく新しい実行ファイルでの起動が必要。
+通信仕様v1・更新手順・対応範囲は[プラグインの説明](https://github.com/JEEBIS27/fish-eza-path-colors#readme)を参照。
+upstream fishの正式な拡張APIではなく、現時点の確認対象はfish 4.9.3。
+未知の通信形式、不正な値、provider不在・失敗・タイムアウトは標準表示へ戻る。
 
-`scripts/check-fish-path-colors.py --fish /path/to/fish --eza /path/to/eza`は、
-一時HOMEとPTYで入力行を描画し、代表的な種別・色指定・無効化・置換の非実行を確認する。
-実行にはPythonの`pyte`と`pexpect`が必要。
+`scripts/check-fish-path-colors.py --fish /path/to/fish --eza /path/to/eza --plugin /path/to/conf.d/fish-eza-path-colors.fish`で表示を照合。
+`scripts/check-fish-provider-compat.py --fish /path/to/patched-fish --stock-fish /path/to/stock-fish --plugin /path/to/conf.d/fish-eza-path-colors.fish --provider /path/to/fish-eza-path-colors-provider`で互換性を確認する。
+検証用Pythonには`pyte`と`pexpect`が必要。
 
 ## プロンプトの開発環境表示
 

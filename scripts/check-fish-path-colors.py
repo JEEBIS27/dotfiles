@@ -22,11 +22,13 @@ def appearance(cell):
 
 
 class Shell:
-    def __init__(self, binary, directory, environment):
+    def __init__(self, binary, directory, environment, plugin=None):
         init = ("function fish_prompt; printf 'P> '; end; "
                 "set -g fish_greeting; set -g fish_color_path_by_type 1; "
                 "set -g fish_color_command green; set -g fish_color_param white; "
                 "set -g fish_color_valid_path --underline; set -g fish_autosuggestion_enabled 0")
+        if plugin is not None:
+            init += "; source " + shlex.quote(str(plugin))
         self.process = pexpect.spawn(binary, ['--no-config', '--interactive', '-C', init],
                                     cwd=directory, env=environment, encoding='utf-8',
                                     dimensions=(24, 160), echo=False)
@@ -95,6 +97,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--fish', required=True)
     parser.add_argument('--eza', required=True)
+    parser.add_argument('--plugin', required=True, help='Packaged plugin conf.d file')
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix='fish-eza-check-') as temporary:
         root = Path(temporary)
@@ -130,7 +133,7 @@ def main():
             column = screen.display[0].find(Path(name).name)
             return appearance(screen.buffer[0][max(column, 0)])
 
-        shell = Shell(args.fish, work, env)
+        shell = Shell(args.fish, work, env, args.plugin)
         try:
             timings = []
             for name in ['directory', *names, 'link', 'link-dir', 'broken', 'pipe', 'socket', '/dev/null']:
