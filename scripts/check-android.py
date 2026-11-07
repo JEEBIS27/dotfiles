@@ -51,7 +51,7 @@ assert not data['assertions'], data
 packages = set(data['packages'])
 assert {'fish', 'git', 'just', 'fzf', 'yazi', 'helix', 'neovim'} <= packages, data
 for forbidden in ('hyprland', 'quickshell', 'rio', 'fcitx', 'mozkey', 'rclone',
-                  'tuios', 'jeebis-desktop', 'jeebis-shell', 'steel'):
+                  'tuios', 'jeebis-desktop', 'tide-island', 'steel'):
     assert not any(forbidden in p.lower() for p in packages), (forbidden, packages)
 for name in data['files']:
     assert not any(part in name for part in (

@@ -68,6 +68,21 @@ def write_assets(target, colors, lock):
     active = ', '.join('#ff' + c[key][1:] for key in roles)
     disabled = ', '.join('#ff' + c['muted' if key == 'foreground' else key][1:] for key in roles)
     (target / 'qt.colors').write_text('[ColorScheme]\nactive_colors=' + active + '\ninactive_colors=' + active + '\ndisabled_colors=' + disabled + '\n')
+    # Live color tokens consumed by Tide's small build-time palette adapter.
+    tokens = {}
+    for key in ['panel','track','input','overviewCard','workspaceCell']:
+        tokens[key] = c['background']
+    for key in ['module','moduleHover','cardFillActive','cardFillHover','connectivityCard','connectivityCardHover','prompt','secondaryButton','workspaceCellHover']:
+        tokens[key] = c['lighter_background']
+    for key in ['textPrimary','textPrimaryBright','buttonFill']:
+        tokens[key] = c['foreground']
+    for key in ['textSecondary','textMuted','textSoft','textTertiary','textDisabled','textSubtle','textDim','inputBorder','disabledControl','switchOff']:
+        tokens[key] = c['muted']
+    for key in ['accent','accentPressed','accentSoft','workspaceActiveBorder']:
+        tokens[key] = c['accent']
+    for token, color in [('success','color2'),('warning','color3'),('danger','color1'),('error','color1')]:
+        tokens[token] = c.get(color,c['accent'])
+    (target / 'tide-colors.json').write_text(json.dumps(tokens)+'\n')
     config = configparser.ConfigParser(); config.optionxform = str
     config['General'] = {'Background': 'Backgrounds/jeebis', 'BackgroundColor': c['background'],
         'FormBackgroundColor': c['background'], 'DimBackgroundColor': c['background'],

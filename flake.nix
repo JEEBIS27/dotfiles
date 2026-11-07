@@ -47,6 +47,7 @@
       packages.${system} = let
         steel = import ./packages/helix-steel { pkgs = appPkgs; };
       in {
+        tide-island = import ./packages/tide-island.nix { pkgs = appPkgs; };
         just = appPkgs.just;
         jeebis-login-theme = import ./packages/jeebis-login-theme.nix { pkgs = appPkgs; };
         matlab-nix = import ./packages/matlab.nix { pkgs = nixpkgs.legacyPackages.${system}; };

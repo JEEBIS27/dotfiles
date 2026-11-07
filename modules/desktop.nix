@@ -7,20 +7,17 @@ let
   runtime = import ../packages/desktop/runtime.nix { pkgs = appPkgs; };
   themeDir = "${config.xdg.stateHome}/${if native then "jeebis-desktop" else "omarchy"}/current/theme";
   coreSource = ../files/desktop;
-  jeebisShell = import ../packages/jeebis-shell.nix { pkgs = appPkgs; inherit native; };
+  tide = import ../packages/tide-island.nix { pkgs = appPkgs; };
   presetDefinitions = builtins.fromJSON (builtins.readFile ../files/desktop/presets.json);
   presetFiles = builtins.listToAttrs (map (preset: {
     name = "omarchy/themes/${preset.name}/colors.toml";
     value.source = coreSource + "/themes/${preset.palette}.toml";
   }) presetDefinitions);
-  baseShellConfig = builtins.fromJSON (builtins.readFile ../files/desktop/jeebis-shell.json);
-  shellConfig = baseShellConfig // {
-    plugins = (baseShellConfig.plugins or []) ++ [ { id = "jeebis.lock"; } ];
-    disabledPlugins = lib.unique ((baseShellConfig.disabledPlugins or []) ++ [ "omarchy.lock" ]);
-  };
   hostConfigDir = if native then "jeebis-desktop" else "omarchy";
   json = pkgs.writeText "jeebis-desktop-host.json" (builtins.toJSON {
     backend = cfg.backend;
+    shell = "tide";
+    shellPath = "${tide}/share/tide-island";
     loginAssets = if native then "/var/lib/jeebis-theme" else null;
     runtime = toString runtime;
     backgrounds = "${coreSource}/backgrounds";
@@ -31,7 +28,7 @@ let
     helixReload = "${personalHelpers}/jeebis-helix-reload";
     omarchyCycle = "${../packages/desktop}/omarchy-theme-cycle.sh";
     commands = {
-      terminal = "jeebis-terminal"; browser = "helium"; editor = config.home.sessionVariables.EDITOR;
+      quickshell = "${quickshell}/bin/quickshell"; terminal = "jeebis-terminal"; browser = "helium"; editor = config.home.sessionVariables.EDITOR;
     };
   });
   templates = pkgs.runCommand "jeebis-theme-templates" { } ''
@@ -42,9 +39,9 @@ let
   '';
   aliases = builtins.fromJSON (builtins.readFile ../packages/desktop/compat-names.json);
   nativeDeps = [ quickshell ] ++ (with appPkgs; [
-    hyprland uwsm grim slurp wl-clipboard libnotify brightnessctl
+    hyprland uwsm gtk3 grim slurp wl-clipboard libnotify brightnessctl
     wireplumber pulseaudio networkmanager bluez power-profiles-daemon upower
-    ffmpeg curl fastfetch cava qt6.qtmultimedia
+    mpvpaper swayidle ffmpeg curl fastfetch cava qt6.qtmultimedia
     fuzzel xdg-utils ddcutil iputils iw fontconfig dbus systemd procps python3 util-linux file hyprsunset inotify-tools findutils libxkbcommon
   ]);
   package = pkgs.runCommand "jeebis-desktop-${cfg.backend}" { } ''
@@ -63,19 +60,6 @@ export PATH="${lib.makeBinPath [ pkgs.bash pkgs.gawk pkgs.coreutils ]}:$PATH"
 exec ${pkgs.bash}/bin/bash ${../packages/desktop/theme-colors.sh} "$@"
 SH
     chmod +x "$out/bin/jeebis-theme-colors"
-    ${lib.concatMapStringsSep "\n" (entry: ''
-      cat > "$out/bin/${entry.name}" <<SH
-#!${pkgs.runtimeShell}
-exec "$out/bin/jeebis-desktop" ${entry.action} "\$@"
-SH
-      chmod +x "$out/bin/${entry.name}"
-    '') [
-      { name = "jeebis-ruixen-theme-set"; action = "theme set"; }
-      { name = "jeebis-ruixen-theme-pick"; action = "theme pick"; }
-      { name = "jeebis-ruixen-theme-list"; action = "theme list"; }
-      { name = "jeebis-ruixen-wallpaper-set"; action = "wallpaper set"; }
-      { name = "jeebis-ruixen-wallpaper-pick"; action = "wallpaper pick"; }
-    ]}
     ${lib.optionalString native ''
       ${lib.concatMapStringsSep "\n" (name: ''
         cat > "$out/bin/${name}" <<SH
@@ -84,15 +68,6 @@ exec "$out/bin/jeebis-desktop" legacy ${lib.escapeShellArg name} "\$@"
 SH
         chmod +x "$out/bin/${name}"
       '') aliases}
-      cat > "$out/bin/jeebis-shell" <<'SH'
-#!${pkgs.runtimeShell}
-export OMARCHY_PATH="${runtime}"
-export QML_IMPORT_PATH="${appPkgs.qt6.qtmultimedia}/${appPkgs.qt6.qtbase.qtQmlPrefix}:$QML_IMPORT_PATH"
-export QT_PLUGIN_PATH="${appPkgs.qt6.qtmultimedia}/${appPkgs.qt6.qtbase.qtPluginPrefix}:$QT_PLUGIN_PATH"
-export PATH="$(dirname "$0"):${lib.makeBinPath (nativeDeps ++ [ pkgs.bash pkgs.coreutils pkgs.gawk pkgs.gnused pkgs.gnugrep appPkgs.jq ])}:$HOME/.nix-profile/bin:${runtime}/bin:$PATH"
-exec ${quickshell}/bin/quickshell -n -p ${runtime}/shell "$@"
-SH
-      chmod +x "$out/bin/jeebis-shell"
     ''}
   '';
   personalHelpers = pkgs.runCommand "jeebis-personal-desktop-helpers" { nativeBuildInputs = [ pkgs.bash appPkgs.python3 ]; } ''
@@ -107,7 +82,20 @@ SH
   relative = base: path: lib.removePrefix ((toString base) + "/") (toString path);
   fileLinks = builtins.listToAttrs (map (path: {
     name = "hypr/${relative ../files/hypr path}";
-    value.source = path;
+    value.source = if builtins.baseNameOf path == "bindings.lua" then
+      pkgs.writeText "jeebis-bindings.lua" (builtins.replaceStrings
+        [ ''"Ruixen App Launcher", desktop.command("shell", "ruixen.notch", "toggleLauncher")''
+          ''"Ruixen Settings", desktop.command("shell", "shell", "toggle", "ruixen.launcher", '{"extension":"settings"}')''
+          ''"Toggle notch auto-hide", desktop.command("shell", "jeebis.bar", "toggleNotch")''
+          ''"Toggle fixed full bar", desktop.command("shell", "jeebis.bar", "toggleFixedBar")''
+          ''"Toggle fixed notch", desktop.command("shell", "jeebis.bar", "toggleFixedNotch")'' ]
+        [ ''"Tide App Launcher", desktop.command("shell", "tide", "toggleApplicationLauncher")''
+          ''"Tide Settings", desktop.command("settings")''
+          ''"Toggle Tide Island", desktop.command("shell", "island", "toggle")''
+          ''"Show Tide Island", desktop.command("shell", "island", "show")''
+          ''"Hide Tide Island", desktop.command("shell", "island", "hide")'' ]
+        (builtins.readFile path))
+      else path;
   }) hyprFiles);
 in
 {
@@ -117,7 +105,7 @@ in
     command = lib.mkOption { type = lib.types.str; readOnly = true; default = "${package}/bin/jeebis-desktop"; };
   };
   config = {
-    home.packages = [ package appPkgs.fuzzel appPkgs.cava appPkgs.fastfetch ];
+    home.packages = [ package tide appPkgs.mpvpaper appPkgs.swayidle appPkgs.fuzzel appPkgs.cava appPkgs.fastfetch ];
     xdg.dataFile."jeebis-desktop/backgrounds".source = coreSource + /backgrounds;
     xdg.configFile = fileLinks // {
       "jeebis/desktop.lua".text = ''
@@ -138,10 +126,18 @@ in
         return M
       '';
       "gh-dash/config.yml".source = config.lib.file.mkOutOfStoreSymlink "${themeDir}/gh-dash.yml";
-      "jeebis/motion.lua".source = jeebisShell + /hyprland/jeebis-motion.lua;
-      "jeebis/curvature.lua".source = jeebisShell + /hyprland/jeebis-curvature.lua;
-      "${hostConfigDir}/plugins".source = jeebisShell + /plugins;
-      "${hostConfigDir}/shell.json".text = builtins.toJSON shellConfig;
+      "jeebis/motion.lua".source = coreSource + /motion.lua;
+      "jeebis/curvature.lua".source = coreSource + /curvature.lua;
+      "tide-island/userconfig.json".text = builtins.toJSON {
+        iconFontFamily = "HackGen35 Console NF";
+        wallpaperLibraryPath = "${config.xdg.dataHome}/jeebis-desktop/backgrounds";
+        wallpaperPath = "${config.xdg.stateHome}/${if native then "jeebis-desktop" else "omarchy"}/current/home-background";
+        wallpaperCustomCommandEnabled = true;
+        wallpaperCustomCommand = "${package}/bin/jeebis-desktop wallpaper set \"$1\"";
+        wallpaperPywalEnabled = false;
+      };
+      "jeebis/display-rotation.json".source = coreSource + /display-rotation.json;
+
     }
     // lib.optionalAttrs (!native) (presetFiles // {
       "omarchy/themed/palette.lua.tpl".source = templates + /palette.lua.tpl;
@@ -166,23 +162,7 @@ in
     home.file.".local/bin/jeebis-chatgpt-new-window" = { source = personalHelpers + /jeebis-chatgpt-new-window; executable = true; };
     home.file.".local/bin/jeebis-theme-cycle" = { text = "#!${pkgs.runtimeShell}\nexec ${cfg.command} theme cycle\n"; executable = true; };
     home.activation = {
-      migrateJeebisShellData = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
-        old="$HOME/.local/share/ruixen-shell"
-        new="$HOME/.local/share/jeebis-shell"
-        if [ -d "$old" ]; then
-          run mkdir -p "$new"
-          for entry in "$old"/*; do
-            [ -e "$entry" ] || [ -L "$entry" ] || continue
-            name="''${entry##*/}"
-            # Personal Hyprland settings replace the upstream preset directory.
-            [ "$name" = hyprland ] && continue
-            if [ ! -e "$new/$name" ] && [ ! -L "$new/$name" ]; then
-              run cp -a "$entry" "$new/$name"
-            fi
-          done
-        fi
-      '';
-      initializeJeebisShellHypr = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+      initializeHyprMonitors = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
       run mkdir -p "$HOME/.config/hypr"
       if [ ! -e "$HOME/.config/hypr/monitors.lua" ]; then
         run install -m644 ${../files/hypr/monitors.lua} "$HOME/.config/hypr/monitors.lua"
@@ -201,18 +181,32 @@ in
     systemd.user.services = {
       jeebis-display-rotation = {
         Unit = { Description = "Automatic display rotation, including the locked session"; After = [ "wayland-session-waitenv.service" ]; PartOf = [ "graphical-session.target" ]; };
-        Service = { ExecStart = "${rotation}/bin/jeebis-display-rotation session ${config.xdg.configHome}/${hostConfigDir}/plugins/ShellConfig.js"; Restart = "on-failure"; RestartSec = 3; };
+        Service = { ExecStart = "${rotation}/bin/jeebis-display-rotation session ${config.xdg.configHome}/jeebis/display-rotation.json"; Restart = "on-failure"; RestartSec = 3; };
         Install.WantedBy = [ "graphical-session.target" ];
       };
-    } // lib.optionalAttrs native {
-      jeebis-sleep-lock = {
-        Unit = { Description = "Lock shared desktop before suspend"; After = [ "jeebis-desktop.service" ]; PartOf = [ "graphical-session.target" ]; };
-        Service = { ExecStart = "${package}/bin/jeebis-desktop legacy omarchy-system-sleep-monitor"; Restart = "always"; RestartSec = 2; };
+      tide-island = {
+        Unit = { Description = "Tide Island desktop shell"; After = [ "graphical-session-pre.target" "wayland-session-waitenv.service" ]; PartOf = [ "graphical-session.target" ]; Conflicts = [ "jeebis-desktop.service" "omarchy-shell.service" ]; };
+        Service = { ExecStart = "${tide}/bin/tide-island"; Restart = "on-failure"; RestartSec = 3; };
         Install.WantedBy = [ "graphical-session.target" ];
       };
-      jeebis-desktop = {
-        Unit = { Description = "Jeebis shared desktop shell"; After = [ "graphical-session-pre.target" "wayland-session-waitenv.service" ]; PartOf = [ "graphical-session.target" ]; };
-        Service = { ExecStart = "${package}/bin/jeebis-shell"; Restart = "on-failure"; RestartSec = 2; };
+      jeebis-wallpaper = {
+        Unit = {
+          Description = "Personal desktop wallpaper (images, GIF and video)";
+          After = [ "wayland-session-waitenv.service" ]; PartOf = [ "graphical-session.target" ];
+          ConditionPathExists = "${config.xdg.stateHome}/${if native then "jeebis-desktop" else "omarchy"}/current/home-background";
+        };
+        Service = {
+          ExecStart = "${appPkgs.mpvpaper}/bin/mpvpaper -o 'no-audio loop-file=inf image-display-duration=inf' '*' ${config.xdg.stateHome}/${if native then "jeebis-desktop" else "omarchy"}/current/home-background";
+          Restart = "on-failure"; RestartSec = 3;
+        };
+        Install.WantedBy = [ "graphical-session.target" ];
+      };
+      jeebis-idle = {
+        Unit = { Description = "Lock idle session and before sleep"; After = [ "tide-island.service" ]; PartOf = [ "graphical-session.target" ]; };
+        Service = {
+          ExecStart = "${appPkgs.swayidle}/bin/swayidle -w timeout 600 '${package}/bin/jeebis-desktop lock' before-sleep '${package}/bin/jeebis-desktop lock'";
+          Restart = "on-failure";
+        };
         Install.WantedBy = [ "graphical-session.target" ];
       };
     };

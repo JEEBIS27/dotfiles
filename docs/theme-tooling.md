@@ -37,16 +37,17 @@ Omarchyでは共通paletteをユーザーテーマのcolors.tomlとして配置�
 
 deltaも同じ`Desktop`テーマを使用する。Home Managerの適用時に`git config --global delta.syntax-theme Desktop`を設定する。Gitの名前・メール・認証情報は管理対象に含めない。独立したbat用テーマは同梱しない。配色の変更後はbatのテーマキャッシュを更新するため、deltaのシンタックスハイライトにも反映される。
 
-## Ruixenからの操作
+## Tide Islandとの連携
 
-Ruixenのテーマ一覧も共通プリセットを表示する。選択は`jeebis-desktop theme set`へ渡し、配色と対応する壁紙をまとめて適用する。上流の独立したテーマ一覧とは混在させない。
+配色とホーム・ロック壁紙のセットは共通プリセットで管理する。Tide Islandは生成された`tide-colors.json`の配色と静止画のロック壁紙を読み込む。
 
 ```bash
-jeebis-desktop theme catalog       # Ruixen向け一覧（内部形式）
+jeebis-desktop theme menu
+jeebis-desktop theme set kanagawa
 jeebis-desktop wallpaper set /path/to/image.png
 ```
 
-壁紙だけの変更では配色を維持する。動画・GIFはRuixenが再生し、静止画ポスターの設定を共通のwallpaper窓口へ渡す。別プリセットの選択時は動画・GIFを停止する。追加メディアは`~/Pictures/ruixen-wallpapers`に置く。実ファイルや再生履歴はGitへ含めない。
+Tideの壁紙ピッカーも共通のwallpaper窓口へ渡す。壁紙だけの変更では配色とロック壁紙を維持する。静止画・動画・GIFの描画はmpvpaperが担当する。別プリセットの選択時はそのホーム壁紙へ置き換える。追加メディアは`~/Pictures/Wallpapers`等に置く。実ファイルや再生履歴はGitへ含めない。詳細は[Tide Island](tide-island.md)を参照。
 
 ## ホーム・ロック・ログインのセット
 

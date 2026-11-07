@@ -12,15 +12,7 @@ if mode not in ("session", "greeter"):
     raise SystemExit("Expected session or greeter")
 config = {"automatic": True, "animation": False, "normalYSign": -1, "delayMs": 1000}
 if mode == "session":
-    text = Path(rest[0]).read_text()
-    names = {"output": "displayRotationOutput", "automatic": "displayAutoRotate",
-             "sensor": "displayRotationSensor", "normalYSign": "displayRotationNormalYSign",
-             "animation": "displayRotationAnimationEnabled", "animationDuration": "displayRotationAnimationDuration",
-             "animationSpeed": "animationSpeed", "delayMs": "displayRotationStableMs", "touchDevices": "displayRotationTouchDevices"}
-    for key, name in names.items():
-        match = re.search(r"^var " + re.escape(name) + r"\s*=\s*(.*?);", text, re.M)
-        if match:
-            config[key] = json.loads(match.group(1))
+    config.update(json.loads(Path(rest[0]).read_text()))
 else:
     # Login has its own compositor and state; no access to the user's home.
     config["touchDevices"] = ["elan3233:00-04f3:423e", "elan3233:00-04f3:423e-unknown", "elan3233:00-04f3:423e-stylus"]

@@ -8,7 +8,7 @@ PCでは`home.nix`から共通モジュールを読み込み、`hosts/omarchy.ni
 | `modules/apps.nix` | PC用TUIOS、NixOS用開発ツール |
 | `hosts/nix-on-droid.nix` / `hosts/android.nix` | Android用入口。PCモジュールは読み込まない |
 | `modules/fish.nix` / `app-files.nix` | シェル・アプリ設定の配置 |
-| `modules/desktop.nix` | Hyprland、Quickshellプラグイン、Rio + TUIOS、テーマ |
+| `modules/desktop.nix` | Hyprland、Tide Island、Rio + TUIOS、テーマ |
 | `modules/input-method-files.nix` | Fcitx / Mozkey設定・NixOS用IMEサービス |
 | `modules/mounts.nix` | rcloneとuser systemd unit |
 | `nixos/desktop.nix` | Hyprland / UWSM、IME、PAM、通信・音声・電源管理 |
@@ -18,12 +18,12 @@ Androidの読み込み経路・機能差は[Android導入手順](android-install
 
 ## 同梱ランタイム
 
-`vendor/desktop-runtime`はOmarchy 4.0.4由来のMITライセンスのデスクトップ部品。`shell/`はQuickshellの基盤、`default/`はHyprland等の共通設定、`bin/`は音量・明るさ・ネットワーク・クリップボード等の補助コマンド。インストーラーやディストリビューション更新処理は含めない。出典は`vendor/desktop-runtime/PROVENANCE.md`を参照。
+`vendor/desktop-runtime`はOmarchy 4.0.4由来のMITライセンスのデスクトップ部品。Quickshellシェルは含めず、`default/`はHyprland等の共通設定、`bin/`は音量・明るさ・ネットワーク・クリップボード等の補助コマンド。インストーラーやディストリビューション更新処理は含めない。出典は`vendor/desktop-runtime/PROVENANCE.md`を参照。
 
 `omarchy-*`の名前はQMLやスクリプトの呼出し互換のため保持する。NixOSでは`packages/desktop/runtime.nix`でパス等を調整した専用ランタイムをNix storeへ構築する。ホストの`/usr/share/omarchy`は不要。Omarchy側は既存OSの実装を利用する。直接の呼出しだけでなくスクリプト間の呼出しもあるため、名前だけを根拠に`bin/`の部品を削除しない。
 
-## jeebis-shell
+## Tide Island
 
-バー・notch・ランチャーは[jeebis-shell](jeebis-shell.md)を使用する。プラグイン本体は`vendor/jeebis-shell/`の編集可能なソースからNixで構築し、設定は`files/desktop/jeebis-shell.json`に置く。OmarchyではOSのシェル、NixOSでは同梱ランタイムに読み込む。内部ではOmarchy互換の上流由来プラグインを使用する。
+バー・island・ランチャー・通知・ロックは[Tide Island](tide-island.md)のQuickshell版を使用する。ソースは版とハッシュを固定し、Nixで構築する。`/usr`へ配置する上流インストーラーは実行しない。
 
-画面スケールと曲率はjeebis-shellが書き換えるローカル設定として初期化し、固定のHome Managerリンクにはしない。テーマプリセットは共通の宣言から管理する。
+設定は`modules/desktop.nix`、個人用の角丸・動作設定は`files/desktop/{curvature,motion}.lua`、画面回転の設定は`files/desktop/display-rotation.json`に置く。壁紙は独立したmpvpaperサービスが表示する。旧jeebis-shellとOmarchyのQuickshellシェルは同期対象に含めない。

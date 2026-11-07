@@ -1,7 +1,7 @@
 { pkgs }:
 pkgs.runCommand "jeebis-desktop-runtime-4.0.4" { nativeBuildInputs = [ pkgs.bash pkgs.python3 ]; } ''
   mkdir -p "$out"
-  cp -R ${../../vendor/desktop-runtime}/. "$out/"
+  cp -R ${../../vendor/desktop-runtime}/default ${../../vendor/desktop-runtime}/bin "$out/"
   chmod -R u+w "$out"
   cp ${./native-menu.json} "$out/default/omarchy/omarchy-menu.jsonc"
   # Namespace compatibility stays private to this runtime, never a system Omarchy install.
@@ -17,7 +17,6 @@ pkgs.runCommand "jeebis-desktop-runtime-4.0.4" { nativeBuildInputs = [ pkgs.bash
     # Rename only the singleton, not properties such as statusColor.r.
     sed -i -E 's/\<Color\./DesktopColor./g' "$file"
   done
-  substituteInPlace "$out/shell/Commons/qmldir" --replace-fail 'singleton Color ' 'singleton DesktopColor '
   cat > "$out/default/hypr/autostart.lua" <<'LUA'
   -- UWSM and Home Manager own service startup on NixOS.
 LUA

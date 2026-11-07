@@ -28,8 +28,8 @@ require_host() {
   if [[ $host == android ]]; then
     [[ $(uname -m) == aarch64 ]] || fail 'Android構成はaarch64用です。'
   else
-    [[ $(uname -m) == x86_64 && $(id -un) == jeebis && ${HOME:-} == /home/jeebis && $repo == /home/jeebis/Git/home-manager ]] ||
-      fail 'PC構成はx86_64のjeebis用です。/home/jeebis/Git/home-managerに配置してください。'
+    [[ $(uname -m) == x86_64 && $(id -un) == jeebis && ${HOME:-} == /home/jeebis ]] ||
+      fail 'PC構成はx86_64のjeebis用です。'
   fi
 }
 
