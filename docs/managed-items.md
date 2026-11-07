@@ -14,6 +14,10 @@
 | メディア | ffmpeg、poppler-utils、imagemagick、mediainfo、exiftool |
 | 起動・マウント | fuzzel、rclone |
 
+## PC用Codex CLI
+
+Codex CLI本体を固定済み`appPkgs.codex`から導入する。初回適用時に`CODEX_HOME`（未指定なら`~/.codex`）を作り、TUIOS連携フックを導入する。既存の設定全体を置き換えず、認証情報・会話履歴・ローカル状態はGitへ含めない。ログインは移行先で`codex`を起動して行う。Codex GUI本体は対象外。
+
 ## NixOS追加分
 
 - デスクトップ：Hyprland / UWSM、Quickshell + Ruixen、Rio + TUIOS、Chromium、Nautilus、HackGenフォント。

@@ -17,6 +17,7 @@
     settings.StartupWMClass = "MATLAB R2026b Update 1";
   };
   home.packages = [
+    appPkgs.codex
     (import ../packages/tuios.nix { pkgs = appPkgs; })
   ] ++ lib.optionals (config.jeebis.desktop.backend == "nixos") (with appPkgs; [
     rio
