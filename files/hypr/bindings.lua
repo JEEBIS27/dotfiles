@@ -793,7 +793,7 @@ local function split_terminal(direction)
     for _, window in ipairs(hl.get_workspace_windows(workspace.id)) do existing[window.address] = true end
     local scrolling = is_scrolling()
     if not scrolling then hl.dispatch(hl.dsp.layout("preselect " .. direction)) end
-    hl.dispatch(hl.dsp.exec_cmd([[rio --working-dir "$(omarchy-cmd-terminal-cwd)"]]))
+    hl.dispatch(hl.dsp.exec_cmd([[jeebis-terminal --cwd "$(omarchy-cmd-terminal-cwd)"]]))
     if scrolling and direction == "d" then
         local attempts = 0
         local function consume_new_terminal()

@@ -1,4 +1,8 @@
 { config, lib, pkgs, ... }:
+let
+  yaziPlugins = builtins.mapAttrs (_: pin: pkgs.fetchFromGitHub pin)
+    (builtins.fromJSON (builtins.readFile ../packages/yazi/sources.json));
+in
 {
   # Change only this public setting; keep identity and credentials outside Nix.
   home.activation.deltaSharedTheme = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
@@ -14,6 +18,12 @@
       run touch "${config.xdg.configHome}/tuios/local.toml"
     fi
   '';
+  # Merge only TUIOS-owned hooks; keep Codex history, credentials and other
+  # integrations outside Home Manager. SessionStart records each new chat ID.
+  home.activation.tuiosCodexHooks = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    run ${config.home.profileDirectory}/bin/tuios integration install codex \
+      --no-skill --command "${config.home.profileDirectory}/bin/tuios"
+  '';
   xdg.configFile = {
     "omarchy/extensions/omarchy-menu.jsonc".source = ../files/omarchy/extensions/omarchy-menu.jsonc;
     "xdg-terminals.list".text = "rio.desktop\n";
@@ -24,12 +34,21 @@
 
     "rio/themes/Desktop.toml".source = config.lib.file.mkOutOfStoreSymlink "${config.jeebis.desktop.themeDirectory}/rio.toml";
     "tuios/config.toml".text = "include = [\"defaults.toml\", \"?local.toml\"]\n";
-    # Client-only Codex profile: share all regular settings, show the agent rail.
+    # Client-only Codex profile: GUI project names and chats, not the file tree.
     "tuios-codex/tuios/config.toml".text = ''
       include = ["../../tuios/config.toml"]
       [appearance.sidebar]
       enabled = true
-      width = 16
+      width = 28
+      sections = "custom"
+      [appearance.sidebar.custom]
+      title = "Chats"
+      command = "jeebis-codex-sidebar --rows"
+      refresh = "5s"
+      [appearance.sidebar.left]
+      sections = "custom"
+      [appearance.sidebar.right]
+      sections = "custom"
     '';
 
 
@@ -80,7 +99,16 @@
     "yazi/flavors/tokyonight-night.yazi/preview.png".source = ../files/yazi/flavors/tokyonight-night.yazi/preview.png;
     "yazi/flavors/tokyonight-night.yazi/tmtheme.xml".source = ../files/yazi/flavors/tokyonight-night.yazi/tmtheme.xml;
     "yazi/plugins/helix-open.yazi/main.lua".source = ../files/yazi/plugins/helix-open.yazi/main.lua;
-    "yazi/keymap.toml".source = ../files/yazi/keymap.toml;
+    "yazi/keymap.toml".source = (pkgs.formats.toml { }).generate "yazi-keymap.toml"
+      (import ../packages/yazi/keymap.nix {
+        inherit lib;
+        settings = builtins.fromTOML (builtins.readFile ../files/yazi/keymap.toml);
+        inherit (import ../files/helix/key-layout.nix) directionKeys;
+      });
+    "yazi/plugins/unified-actions.yazi/main.lua".source = ../files/yazi/plugins/unified-actions.yazi/main.lua;
+    "yazi/plugins/archive-actions.yazi/main.lua".source = ../files/yazi/plugins/archive-actions.yazi/main.lua;
+    "yazi/plugins/ucp.yazi".source = yaziPlugins.ucp;
+    "yazi/plugins/compress.yazi".source = yaziPlugins.compress;
     "yazi/package.toml".source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/Git/home-manager/files/yazi/package.toml";
     "yazi/plugins/unified-layout.yazi/main.lua".source = ../files/yazi/plugins/unified-layout.yazi/main.lua;
     "yazi/plugins/unified-motions.yazi/main.lua".source = ../files/yazi/plugins/unified-motions.yazi/main.lua;

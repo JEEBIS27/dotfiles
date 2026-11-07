@@ -52,5 +52,11 @@
     "repo": "glyph.hx",
     "rev": "c032131086358d4702ab134a5e081bcfdf7511b4",
     "hash": "sha256-b4zg9bmXKfP2hRycNiYcLkkziZaQQ+kOmmntEjGEokE="
+  },
+  "boolswitcher": {
+    "owner": "noggynoggy",
+    "repo": "boolswitcher-hx",
+    "rev": "efacd702fb92032287a9316177ca619b1a2ff8e2",
+    "hash": "sha256-XFnQBLe7Gqgc11px3y47sJGW1jVEKx8WcmVEbPHgkdU="
   }
 }

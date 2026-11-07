@@ -2,7 +2,7 @@ local M = {}
 
 -- Edit only this table to move an app. false leaves the key unassigned here.
 -- SUPER+ALT opens normally; SUPER+ALT+SHIFT opens the SAME app at full width.
--- H/J/K/L are reserved for movement. G/S/T retain existing desktop operations.
+-- H/J/K/L are reserved for movement. S/T retain existing desktop operations.
 local APP_KEYS = {
     RETURN = "terminal",
     SPACE = "browser",
@@ -12,7 +12,7 @@ local APP_KEYS = {
     D = "codex",
     E = "sheets",
     F = "files",
-    G = false, -- Window grouping
+    G = "github",
     H = false, -- Movement
     I = "slack",
     J = false, -- Movement / toggle window split
@@ -123,6 +123,7 @@ function M.setup(desktop)
         slides = webapp("Google Slides", "https://docs.google.com/presentation", "slides"),
         chatgpt = app("ChatGPT", o.launch("jeebis-chatgpt-new-window"), "chatgpt"),
         codex = app("Codex (TUIOS)", "jeebis-codex-tuios", "org.omarchy.codex"),
+        github = app("GitHub (gh-dash)", "jeebis-gh-dash-tuios", "org.omarchy.gh-dash"),
         sheets = webapp("Google Sheets", "https://docs.google.com/spreadsheets/", "sheets"),
         files = app("GUI file manager", o.launch("nautilus --new-window"), "org.gnome.Nautilus"),
         slack = app("Slack", o.launch("slack"), "Slack"),

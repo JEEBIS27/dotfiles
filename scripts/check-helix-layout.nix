@@ -40,7 +40,7 @@ assert
   && mapped.l == "end";
 assert (render fixture "haoe").editor == fixture.editor;
 assert mapped.z == fixture.keys.normal.z;
-assert rendered.keys.normal.j == "select_all" && rendered.keys.normal.k == "open_below";
+assert rendered.keys.normal.j == source.keys.normal.a && rendered.keys.normal.k == "open_below";
 assert rendered.keys.normal.l == ":jeebis-word-prev";
 assert mapped.A == "extend-down" && mapped."S-a" == "shift-down";
 assert

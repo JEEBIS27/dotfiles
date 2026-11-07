@@ -19,4 +19,7 @@ assert.equal(context.terminalApplication(client("org.omarchy.codex", "Codex")), 
 assert.equal(context.applicationIdentity(client("org.omarchy.codex", "agent")), "rio:codex")
 assert.equal(context.terminalApplication(client("com.raphamorim.rio", "Yazi: documentation")), "")
 assert.equal(context.terminalApplication(null), "")
-console.log("JeebisAppIdentity: 13 assertions passed")
+assert.equal(context.terminalApplication(client("org.omarchy.gh-dash", "PRs")), "github")
+assert.equal(context.applicationIdentity(client("org.omarchy.gh-dash", "Issues")), "rio:github")
+assert.equal(context.terminalApplication(client("com.raphamorim.rio", "gh-dash")), "")
+console.log("JeebisAppIdentity: 16 assertions passed")

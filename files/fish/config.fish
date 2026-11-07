@@ -1,9 +1,10 @@
 # Interactive configuration, sourced last by Home Manager.
 set -g fish_greeting
+# Our prompt renders activated environments; avoid duplicate activation prefixes.
+set -gx VIRTUAL_ENV_DISABLE_PROMPT 1
+set -gx CONDA_DISABLE_FISH_PROMPT 1
 # Recognized commands are green; this does not indicate exit status.
 set -g fish_color_command green
-# Existing paths use eza's filename styles; syntax and incomplete paths stay native.
-set -g fish_color_path_by_type 1
 fish_add_path --path --append "$HOME/.cargo/bin" "$HOME/.local/bin"
 if test -x /home/linuxbrew/.linuxbrew/bin/brew
     /home/linuxbrew/.linuxbrew/bin/brew shellenv fish | source

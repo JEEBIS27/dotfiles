@@ -1,0 +1,115 @@
+#!/usr/bin/env python3
+"""Read Codex's local project/chat metadata for the TUIOS custom rail."""
+import json
+import os
+import sqlite3
+import subprocess
+import re
+import sys
+import unicodedata
+from collections import defaultdict
+from pathlib import Path
+
+
+def clean(value):
+    return ''.join(c for c in str(value or '') if not unicodedata.category(c).startswith('C')).strip()
+
+
+def read_chats(home):
+    try:
+        state=json.loads((home/'.codex-global-state.json').read_text())
+    except (OSError,ValueError):
+        state={}
+    projects={key:dict(value) for key,value in state.get('local-projects',{}).items() if isinstance(value,dict)}
+    assignments=state.get('thread-project-assignments',{})
+    mapping={}
+    for host,ids in state.get('app-server-project-id-by-legacy-project-id-by-host',{}).items():
+        if host.startswith('local:') and isinstance(ids,dict):mapping.update(ids)
+    reverse={value:key for key,value in mapping.items()}
+    database=home/'state_5.sqlite'
+    if not database.exists():return []
+    with sqlite3.connect(database.as_uri()+'?mode=ro',uri=True,timeout=.2) as db:
+        db.row_factory=sqlite3.Row
+        for project in db.execute('SELECT id,name,position FROM projects ORDER BY position'):
+            key=reverse.get(project['id'],project['id'])
+            projects.setdefault(key,dict(name=project['name'],rootPaths=[]))
+        for row in db.execute('SELECT project_id,path FROM project_roots ORDER BY position'):
+            key=reverse.get(row['project_id'],row['project_id'])
+            if key in projects:
+                projects[key].setdefault('rootPaths',[])
+                if row['path'] not in projects[key]['rootPaths']:projects[key]['rootPaths'].append(row['path'])
+        threads=[dict(r) for r in db.execute("SELECT id,title,name,cwd,project_id,is_pinned,updated_at FROM threads WHERE archived=0 AND thread_source='user' AND (length(name)>0 OR length(title)>0) ORDER BY updated_at DESC LIMIT 500")]
+    ungrouped=set(state.get('projectless-thread-ids',[]))
+    pinned=set(state.get('pinned-thread-ids',[]))
+    groups=defaultdict(list)
+    for thread in threads:
+        assigned=assignments.get(thread['id'],{})
+        key=assigned.get('projectId') or reverse.get(thread['project_id'],thread['project_id'])
+        if thread['id'] in ungrouped:key=None
+        elif not key:
+            matches=[]
+            cwd=Path(thread['cwd'])
+            for project,info in projects.items():
+                for folder in info.get('rootPaths',[]):
+                    try:cwd.relative_to(folder)
+                    except ValueError:continue
+                    matches.append((len(Path(folder).parts),project))
+            if matches:key=max(matches)[1]
+        if key not in projects:key=None
+        thread['group']='project:'+str(key or '__ungrouped__')
+        thread['pinned']=bool(thread['is_pinned'] or thread['id'] in pinned)
+        thread['label']=clean(thread['name'] or thread['title']) or '新しいチャット'
+        groups[key].append(thread)
+    pinned_projects=set(state.get('pinned-project-ids',[]))
+    order={key:i for i,key in enumerate(state.get('project-order',[]))}
+    keys=sorted(groups,key=lambda k:(k is None,k not in pinned_projects,order.get(k,10000),-max(t['updated_at'] for t in groups[k])))
+    result=[]
+    for key in keys:
+        title=clean(projects[key].get('name')) if key else 'その他のチャット'
+        result.append((title,sorted(groups[key],key=lambda t:(not t['pinned'],-t['updated_at']))))
+    return result
+
+
+def active_chats():
+    try:
+        result=subprocess.run(['tuios','list-agents','--all-sessions','--json'],capture_output=True,text=True,timeout=.8)
+        if result.returncode:return {}
+        agents=json.loads(result.stdout).get('agents',[])
+    except (OSError,ValueError,subprocess.TimeoutExpired):
+        return {}
+    states={}
+    priority={'needs_input':5,'errored':4,'working':3,'waiting':3,'idle':2,'done':1,'unknown':0}
+    for agent in agents:
+        if 'codex' not in (agent.get('foreground') or '').lower():continue
+        thread=agent.get('agent_session_id')
+        if not thread:
+            match=re.fullmatch(r'Codex ([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})',agent.get('name') or '')
+            if match:thread=match[1]
+        state=agent.get('state') or 'unknown'
+        if thread and state in priority and priority[state]>=priority.get(states.get(thread),-1):states[thread]=state
+    return states
+
+def main():
+    home=Path(os.environ.get('CODEX_HOME',str(Path.home()/'.codex'))).expanduser().resolve()
+    try:groups=read_chats(home)
+    except (OSError,ValueError,sqlite3.Error,KeyError,TypeError):
+        print('チャット一覧を読み取れません');return
+    if not groups:
+        print('チャットはありません');return
+    # Older attached clients keep readable text until they are reopened.
+    if sys.argv[1:]==['--rows'] and os.environ.get('TUIOS_CODEX_INTERACTIVE')=='1':
+        active=active_chats()
+        for name,chats in groups:
+            group=chats[0]['group']
+            print('@codex:'+json.dumps(dict(kind='project',id=group,label=name),ensure_ascii=False))
+            for chat in chats:
+                label=('★ ' if chat['pinned'] else '')+chat['label']
+                print('@codex:'+json.dumps(dict(kind='chat',id=chat['id'],label=label,cwd=chat['cwd'],group=group,state=active.get(chat['id'],'')),ensure_ascii=False))
+        return
+    for index,(name,chats) in enumerate(groups):
+        if index:print()
+        print('▾ '+name)
+        for chat in chats:print(('  ★ ' if chat['pinned'] else '    ')+chat['label'])
+
+
+if __name__=='__main__':main()

@@ -10,9 +10,9 @@
 | Alt+Shift+H/J/K/L、Alt+Shift+矢印 | ペインを5単位リサイズ | TUIOSの5単位リサイズ |
 | Alt+Enter / Shift+Enter | 左右 / 上下分割 | TUIOSのvertical / horizontal split |
 | Alt+N | Herdrタブ / tmuxウィンドウ | TUIOS新規ウィンドウ（ペイン） |
-| Alt+Shift+N | 新規Tab / Workspace | TUIOSの最初の空Tabにペイン作成 |
+| Alt+Shift+N | 新規Tab / Workspace | 最初の空Tabに作成。Codexタブ中はCodexを起動 |
 | Alt+1〜9 | タブ / ウィンドウ選択 | 現TabのTUIOSウィンドウ選択 |
-| Alt+Tab / Alt+Shift+Tab | 次 / 前タブ | 次 / 前TUIOS Tab |
+| Alt+Tab / Alt+Shift+Tab | 次 / 前タブ | 次 / 前TUIOS Tab。Codexタブ中はCodexだけを巡回 |
 | Alt+PageDown / PageUp | 次 / 前タブ | 同上、端末側のFキー変換不要 |
 | Alt+Shift+PageDown / PageUp | 次 / 前Tab | ペインがある次 / 前Tab |
 | Alt+F | WezTermの画面検出→コピー→検索 | TUIOS `copy_mode_search_backward`、1操作で検索 |
@@ -23,7 +23,8 @@
 | Alt+S（Alt+Gも可） | Tab検索 | TUIOS Tab選択 |
 | Alt+Shift+S | Workspace検索 | 内蔵検索でEnter切替・Delete削除確認 |
 | Alt+E → H/J/K/L、矢印 | ペイン交換 | TUIOS prefix→方向交換 |
-| Alt+B | Herdrサイドバー | TUIOS Workspace・エージェントrail |
+| Alt+B | サイドバー操作 | 開いてフォーカス。表示済みならフォーカスし、操作中なら閉じて元のペインへ戻る |
+| Alt+Shift+B | サイドバー表示 | フォーカスを変えずに表示・非表示を切り替える |
 | Alt+O | 通知対象へ移動 | TUIOSの最新メッセージ対象へ移動 |
 | Alt+D | デタッチ | TUIOSデタッチ、プロセスを保持 |
 | Alt+W | ペインを閉じる | TUIOSウィンドウを閉じる |
@@ -114,6 +115,17 @@ HyprlandのWorkspace1はTUIOSの `desktop-1` Workspace、2は `desktop-2` Worksp
 その中でTerminal・Yazi・Codex・Helix・btopなどの役割Tabを使い分ける。使用中なら空き番号に同じ役割の別Tabを追加する。
 再起動では同じ役割のTabへ戻り、ペインを追加しない。空の場合だけ作り直す。
 
+Rioを閉じるだけならプロセスをそのまま保持する。PC・TUIOSデーモンの再起動では、
+保存済みの各ペインのディレクトリに新しいシェルを作り、`daemon.resume_agents = "auto"` により
+直前まで起動していたCodexを `codex resume <チャットID>` で自動再開する。
+チャットIDはCodexのSessionStartフックで保存する。Home Managerの反映時にTUIOSのフックだけを
+既存のhooks.jsonへマージし、ほかのフックを保持する。明示的なresume起動にはID保存の補助もある。
+旧版の `Codex <UUID>` ペイン名は、保存時にAgentが稼働していた場合だけ復元に利用する。
+自分で終了してシェルへ戻したCodexや通常のTerminalでは、勝手にCodexを起動しない。
+チャットIDが記録される前に失われたペインは、Chats一覧から対象チャットを開き直す。
+復元はチャットの再開であり、実行途中のコマンドや生成途中のターンを自動送信し直さない。
+
+
 - Alt+Shift+S: 内蔵Workspace検索。入力で絞り込み、Enterで切り替え、Delete（またはCtrl+D）で削除確認、Escで戻る。
 - Alt+S（Alt+Gも可）: TUIOS Tab検索。
 - Alt+Tab / Alt+PgDn: 次のTUIOS Tab。
@@ -135,6 +147,33 @@ UIは旧SessionをWorkspace、旧WorkspaceをTabと呼ぶ。Alt+SはTab検索、
 ## 複数のRioウィンドウ
 
 各Rioは選択中のTabとフォーカスを独立して保持する。Codexを開いても、既存Terminalの表示は切り替わらない。
+Alt+Bのサイドバー開閉・折り畳み、フォーカス履歴、横スクロール位置、スクラッチの表示も各Rioで保持する。サイドバーの初期表示は起動プロファイルに従う。各Tabは表示しているRio自身の画面とサイドバーの幅に合わせ、他のRioのサイドバー用の余白を残さない。
 同じ役割のTabが別ウィンドウで使用中なら、新しいTabを `Terminal 2`、`Terminal 3` のように追加する。
 ウィンドウを閉じて使用中でなくなったTabは、次回の同じ役割の起動で再利用する。
 役割のTab番号は空き状況によって変わるため、Alt+Sの名前で選ぶ。既存の作業やディレクトリは上書きしない。
+
+Codex用サイドバーはローカルのCodexメタデータを読み取り専用で参照し、GUIのプロジェクト名・チャット名・ピン留めを5秒ごとに一覧表示する。アーカイブ済みチャットと内部レビュー用スレッドは表示しない。通常のTerminalはAlt+Bで現在のペインのファイルツリーを開く。
+
+Codexの一覧はクリックで操作できる。Alt+Bで一覧にフォーカスし、上下で選択、Enterでチャット再開またはプロジェクト折り畳み、左右で展開・折り畳み、Escでペインへ戻る。チャットは新しいTabで `codex resume` し、同じチャットがすでに開いていればそのTabへ移動する。既存のペインは上書きしない。
+
+Codexタブ中はAlt+Tab / Alt+Shift+Tab / Alt+PgUp / Alt+PgDnでCodexタブだけを巡回する。Alt+Shift+Nで新しいCodexタブを作成する。通常のTerminalタブからの巡回と新規作成は従来どおり。
+
+ペイン分割後は作成したペインにフォーカスする。選択中のペインを閉じた場合（シェルの終了も含む）は、同じTab内で直前に使っていた残りのペインへ戻る。各Rioのフォーカス履歴は独立して保持する。
+
+Chatsの操作: Alt+Bで一覧へ、上下で選択、Enterまたはクリックでチャット再開、左右でプロジェクトを展開・折り畳み、Escでペインへ戻る。Alt+Shift+Bでフォーカスを変えず表示だけを切り替える。Codex起動時は一覧を開き、保存された折り畳み状態を解除する。選択行は明るい青背景と暗い文字、マウスが重なった行は濃い青背景と白文字で表示する。
+
+終了したCodexがシェルとして残っているTabは、次のCodex起動時にTerminal-Codexへ変更して保持する。新しいCodexは別Tabで起動し、実行中のCodexは従来どおり再接続する。
+
+実行中のCodexと対応付いたチャットだけ、名前の左に状態色の丸を表示する。作業中・入力待ち・完了・待機・エラーはTUIOSのAgent状態色を使用し、選択行では明るい背景に合わせた濃い色にする。終了済みのチャットには丸を表示しない。一覧と状態は5秒ごとに更新する。
+
+Super+Enter / Super+Shift+Enterは、現在のアプリにかかわらずTerminal用の独立したRioを起動する。起動する子コマンドに役割とCodex用フラグの解除を明示し、既存Rioの起動条件を引き継がない。
+
+同じ役割に再接続できるTabが複数ある場合は、最後に開いた時刻が古い順に選ぶ。新規ペインを作る場合も空Tabを同じ順で選び、履歴のないTabを先、同時刻なら番号順とする。以前の名前だけが残った空Tabも再利用し、現在の役割名へ変更する。別の作業が残っているTabは上書きしない。9Tabがすべて使用中の場合はエラーを表示して待機し、Enterで起動ウィンドウを閉じる。
+
+Super+WはRioだけを閉じ、Tabと全ペインの作業を保持する。Alt+Wは選択中のペインを終了し、最後のペインならTabの名前・フォーカス履歴・起動予約も削除する。Alt+Shift+Wは確認後に対象Tabの全ペインを終了し、同じくTab情報を削除する。ほかにTabがあれば移り、なければそのクライアントだけを終了する。確認のキャンセルでは何も削除しない。
+
+Alt+Bは一覧へ入る・閉じて元へ戻る操作を兼ねる。Escは一覧を表示したまま元のペインへ戻る。Alt+Shift+Bはフォーカスを維持した表示切替。Alt+Uの割り当ては使用しない。
+
+Super+Alt+Gでgh-dashをGitHub用のTUIOS Tabに起動する。Super+Shift+Alt+Gは全幅起動。使用中のTabは保持し、別ウィンドウにはGitHub 2以降を割り当てる。Super+Wで閉じたTabは次回再接続する。アプリ島にはGitHubアイコンを表示する。従来のSuper+Alt+Gのグループ解除は上書きする。
+
+gh-dashの配色は共通デスクトップパレットから生成し、テーマ切り替え後の次回起動に反映する。起動キーでは共通の`~/.config/gh-dash/config.yml`を明示して使用する。初回は`gh auth login`でGitHub CLIの認証を行う。

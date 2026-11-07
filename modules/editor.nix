@@ -49,6 +49,7 @@ in
     name = "jeebis-helix-steel/cogs/${name}";
     value.source = "${steel.plugins}/${name}";
   }) [ "flash" "steel-pty" "recentf" "microscope" "matte.hx" "notify" "moka" "glyph" "yazi" ]) // {
+    "jeebis-helix-steel/cogs/boolswitcher.hx".source = steel.sources.boolswitcher;
     "jeebis-helix-steel/native/libsteel_pty.so".source =
       "${steel.terminal}/lib/libsteel_pty.so";
   };

@@ -12,6 +12,8 @@ with tempfile.TemporaryDirectory(prefix='tuios-independent-') as temp:
  for d in ['home','config/tuios','runtime','state','cache','data','bin']:(root/d).mkdir(parents=True)
  (root/'runtime').chmod(0o700)
  (root/'config/tuios/config.toml').write_text((repo/'files/tuios/config.toml').read_text().replace('@fish@','/bin/sh'))
+ (root/'config/tuios-codex/tuios').mkdir(parents=True)
+ (root/'config/tuios-codex/tuios/config.toml').write_text('include = ["../../tuios/config.toml"]\n[appearance.sidebar]\nenabled = true\nwidth = 16\n')
  (root/'bin/tuios').symlink_to(binary)
  mock=root/'bin/hyprctl';mock.write_text('#!/bin/sh\nprintf \'{"name":"1"}\\n\'\n');mock.chmod(0o755)
  env={k:v for k,v in os.environ.items() if not k.startswith(('TUIOS','TMUX','HERDR','JEEBIS_TUIOS')) and k!='NO_COLOR'}
@@ -45,11 +47,11 @@ with tempfile.TemporaryDirectory(prefix='tuios-independent-') as temp:
    pump()
    if fn():return
   raise AssertionError('\n\n'.join(c['role']+'\n'+text(c) for c in clients))
- def launch(role,*command):
+ def launch(role,*command,profile=False):
   pid,fd=pty.fork()
   if pid==0:
    os.chdir(root)
-   os.execvpe(str(repo/'files/desktop/helpers/jeebis-tuios'),['jeebis-tuios',*command],dict(env,JEEBIS_TUIOS_ROLE=role))
+   os.execvpe(str(repo/'files/desktop/helpers/jeebis-tuios'),['jeebis-tuios',*command],dict(env,JEEBIS_TUIOS_ROLE=role,**({'JEEBIS_TUIOS_CODEX':'1'} if profile else {})))
   fcntl.ioctl(fd,termios.TIOCSWINSZ,struct.pack('HHHH',40,120,1200,800))
   screen=pyte.Screen(120,40)
   c=dict(pid=pid,fd=fd,role=role,alive=True,screen=screen,stream=pyte.Stream(screen),decode=codecs.getincrementaldecoder('utf8')('replace'),raw=bytearray())
@@ -92,6 +94,60 @@ with tempfile.TemporaryDirectory(prefix='tuios-independent-') as temp:
   assert len(windows())==3
   assert 'TERMINAL_ONE_MARKER' in text(terminal) and 'CODEX_MARKER' in text(codex)
   save(resumed,'04-resumed-terminal-two')
+  # Sidebar visibility is a viewer preference, not shared session state.
+  def marker_column(client,marker):
+   return next(row.index(marker) for row in client['screen'].display if marker in row and 'printf' not in row)
+  os.write(terminal['fd'],b'\x1bB');pump(1)
+  os.write(resumed['fd'],b'printf "SIDEBAR_PEER_UPDATE\\n"\r');pump(1)
+  assert marker_column(terminal,'TERMINAL_ONE_MARKER')>0
+  assert marker_column(resumed,'TERMINAL_TWO_MARKER')==0
+  assert marker_column(codex,'CODEX_MARKER')==0
+  def check_pty_size(client,label,rows,cols):
+   os.write(client['fd'],f"printf '{label}:'; stty size\r".encode())
+   wait(lambda:f'{label}:{rows} {cols}' in text(client))
+  check_pty_size(terminal,'SIDEBAR_PTY',40,104)
+  check_pty_size(resumed,'FULL_WIDTH_PEER',40,120)
+  pump(1)
+  assert not any('· · ·' in row for row in resumed['screen'].display)
+  save(terminal,'sidebar-open-here');save(resumed,'sidebar-hidden-peer')
+  # A new client keeps the launch profile's default even if a peer has it open.
+  fresh=launch('desktop')
+  os.write(fresh['fd'],b'printf "FRESH_VIEW_MARKER\\n"\r')
+  wait(lambda:'FRESH_VIEW_MARKER' in text(fresh))
+  assert marker_column(fresh,'FRESH_VIEW_MARKER')==0
+  close(fresh)
+  expanded=marker_column(terminal,'TERMINAL_ONE_MARKER')
+  os.write(terminal['fd'],b'\x1bb<');pump(.5)
+  os.write(terminal['fd'],b'\x1b');pump(.5)
+  os.write(resumed['fd'],b'printf "COLLAPSE_PEER_UPDATE\\n"\r');pump(1)
+  assert 0<marker_column(terminal,'TERMINAL_ONE_MARKER')<expanded
+  assert marker_column(resumed,'TERMINAL_TWO_MARKER')==0
+  os.write(terminal['fd'],b'\x1bb>');pump(.5)
+  os.write(terminal['fd'],b'\x1b');pump(.5)
+  os.write(terminal['fd'],b'\x1bB');pump(1)
+  os.write(resumed['fd'],b'\x1bB');pump(1)
+  os.write(terminal['fd'],b'printf "REVERSE_PEER_UPDATE\\n"\r');pump(1)
+  assert marker_column(terminal,'TERMINAL_ONE_MARKER')==0
+  assert marker_column(resumed,'TERMINAL_TWO_MARKER')>0
+  os.write(resumed['fd'],b'\x1bB');pump(1)
+  # The Codex launch profile keeps its enabled rail, beside hidden normal rails.
+  profile=launch('codex',profile=True)
+  os.write(profile['fd'],b'printf "CODEX_PROFILE_MARKER\\n"\r')
+  wait(lambda:'CODEX_PROFILE_MARKER' in text(profile))
+  assert marker_column(profile,'CODEX_PROFILE_MARKER')>0
+  assert marker_column(terminal,'TERMINAL_ONE_MARKER')==0
+  assert marker_column(resumed,'TERMINAL_TWO_MARKER')==0
+  save(profile,'codex-profile-sidebar');close(profile);pump(1)
+  # Showing a scratch view in one client must survive another client's input.
+  os.write(terminal['fd'],b'\x1bt');pump(1.5)
+  os.write(terminal['fd'],b'printf "LOCAL_SCRATCH_MARKER\\n"\r')
+  wait(lambda:'LOCAL_SCRATCH_MARKER' in text(terminal))
+  os.write(resumed['fd'],b'printf "SCRATCH_PEER_UPDATE\\n"\r');pump(1)
+  assert 'LOCAL_SCRATCH_MARKER' in text(terminal)
+  assert 'LOCAL_SCRATCH_MARKER' not in text(resumed)
+  os.write(terminal['fd'],b'\x1bt');pump(1)
+  os.write(terminal['fd'],b'printf "RETURNED_FROM_SCRATCH\\n"\r')
+  wait(lambda:'RETURNED_FROM_SCRATCH' in text(terminal))
   # A half-width shell beside a full-width shell must not resize both PTYs
   # on every focus/input change. This used to alternate 80x30 and 120x40.
   fcntl.ioctl(terminal['fd'],termios.TIOCSWINSZ,struct.pack('HHHH',30,80,800,600))
@@ -107,6 +163,9 @@ with tempfile.TemporaryDirectory(prefix='tuios-independent-') as temp:
    info=json.loads(run('session-info','-s','desktop-1','--json'))
    dimensions.append((info['session_width'],info['session_height']))
   assert dimensions==[(80,30)]*6,dimensions
+  check_pty_size(terminal,'NARROW_PTY',30,80)
+  check_pty_size(resumed,'WIDE_PTY',40,120)
+  assert not any('· · ·' in row for row in resumed['screen'].display)
   for client,parity in [(terminal,0),(resumed,1)]:
    # The wide client's right-hand padding is outside the shared pane area.
    rows=[row[:80].strip() for row in client['screen'].display[:30]]
@@ -115,7 +174,7 @@ with tempfile.TemporaryDirectory(prefix='tuios-independent-') as temp:
     assert rows.count(marker)==1,(marker,rows)
   assert 'CODEX_MARKER' in text(codex)
   save(terminal,'05-stable-narrow');save(resumed,'05-stable-wide')
-  print('PASS: independent views, separate PTYs, closed Tab reuse; alternating input at different window sizes keeps shared geometry stable')
+  print('PASS: independent views/sidebar/scratch, separate PTYs, closed Tab reuse; alternating input at different window sizes keeps each Tab at its own full viewport width')
  finally:
   for i,c in enumerate(clients):
    (a.artifacts/f'client-{i}.ansi').write_bytes(c['raw'])

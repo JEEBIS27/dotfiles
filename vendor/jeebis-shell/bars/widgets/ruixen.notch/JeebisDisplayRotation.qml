@@ -35,12 +35,17 @@ Item {
   }
   Process {
     id: watcher
-    command: ["/usr/bin/python3", controller.helper, "watch", "--config", controller.settings]
+    command: ["/usr/bin/python3", controller.helper, "status", "--config", controller.settings]
     running: true
     stdout: SplitParser { onRead: data => controller.receive(data) }
     onExited: restart.restart()
   }
-  Timer { id: restart; interval: 3000; onTriggered: watcher.running = true }
+  Timer { id: restart; interval: 2000; onTriggered: watcher.running = true }
+  Process {
+    id: startWatcher
+    command: ["systemctl", "--user", "restart", "jeebis-display-rotation.service"]
+    running: true
+  }
   Process {
     id: action
     stdout: SplitParser { onRead: data => controller.receive(data) }

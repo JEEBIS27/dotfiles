@@ -38,6 +38,41 @@ def yazi_exited(window):
             pending=file.with_suffix('.tmp');pending.write_text(json.dumps(item));pending.chmod(0o600)
             os.replace(pending,file)
 
+def idle_shell(pane):
+    if pane.get('at_prompt'):
+        return True
+    try:
+        pid=int(pane['pid'])
+        comm=Path(f'/proc/{pid}/comm').read_text().strip()
+        fields=Path(f'/proc/{pid}/stat').read_text().rpartition(')')[2].split()
+        return comm in {'fish','zsh','bash','sh','dash'} and int(fields[2])==int(fields[5])
+    except (OSError,ValueError,KeyError,IndexError):
+        return False
+
+def retire_codex_tab(directory, session, tab, meta, tabs):
+    used={t.get('name') for t in tabs}
+    name='Terminal-Codex';n=2
+    while name in used:
+        name=f'Terminal-Codex {n}';n+=1
+    subprocess.run(['tuios','call','set-workspace-name',json.dumps(dict(session=session,workspace=tab['workspace'],name=name))],check=True,stdout=subprocess.DEVNULL)
+    meta=dict(meta,role='terminal-codex')
+    file=directory/f"{tab['workspace']}.json"
+    pending=file.with_suffix('.tmp');pending.write_text(json.dumps(meta));pending.chmod(0o600)
+    os.replace(pending,file)
+    tab['name']=name
+
+def forget_empty_tab(session, workspace):
+    state=Path(os.environ.get('XDG_RUNTIME_DIR',os.environ.get('XDG_STATE_HOME',str(Path.home()/'.local/state'))))/'jeebis-tuios'
+    state.mkdir(parents=True,exist_ok=True)
+    with (state/'launch.lock').open('a') as lock:
+        fcntl.flock(lock,fcntl.LOCK_EX)
+        tabs=json.loads(subprocess.check_output(['tuios','list-workspaces','-s',session,'--json']))['workspaces']
+        tab=next((t for t in tabs if t['workspace']==workspace),None)
+        if tab is None or tab['window_count']:
+            return
+        subprocess.run(['tuios','call','set-workspace-name',json.dumps(dict(session=session,workspace=workspace,name=''))],check=True,stdout=subprocess.DEVNULL)
+        (view_directory(state,session)/f'{workspace}.json').unlink(missing_ok=True)
+
 def select():
     state,session,role,label,preferred,owner=sys.argv[1:]
     preferred,owner=int(preferred),int(owner)
@@ -61,24 +96,32 @@ def select():
     if unknown:
         busy.update(t['workspace'] for t in tabs if t['window_count'])
     pattern=re.compile(re.escape(label)+r'(?: ([2-9][0-9]*))?$',re.I)
+    panes=None
     candidates=[];ordinals=set()
     for tab in tabs:
         ws=tab['workspace'];meta=metadata.get(ws,{})
         match=pattern.fullmatch(tab.get('name') or '')
         same=meta.get('role')==role or match is not None
+        if same and role=='codex' and ws not in busy and tab['window_count']:
+            if panes is None:
+                panes=json.loads(subprocess.check_output(['tuios','list-windows','-s',session,'--json']))['windows']
+            owned=[p for p in panes if p['workspace']==ws]
+            if owned and all(idle_shell(p) for p in owned):
+                retire_codex_tab(directory,session,tab,meta,tabs)
+                continue
         if same:
             ordinal=meta.get('ordinal') or (int(match[1]) if match and match[1] else 1)
             ordinals.add(ordinal)
             if ws not in busy:
                 candidates.append((meta.get('last_used',0),ws,ordinal,tab))
     if candidates:
-        _,ws,ordinal,tab=max(candidates,key=lambda t:(t[0],-t[1]))
+        _,ws,ordinal,tab=min(candidates,key=lambda t:(t[0],t[1]))
         name=tab.get('name') or (label if ordinal==1 else f'{label} {ordinal}')
     else:
-        available=[t for t in tabs if t['workspace'] not in busy and not t['window_count'] and not t.get('name')]
+        available=[t for t in tabs if t['workspace'] not in busy and not t['window_count']]
         if not available:
             raise RuntimeError('No unused Tab is available; close an unused Tab instead of sharing a working terminal.')
-        tab=min(available,key=lambda t:(t['workspace']!=preferred,t['workspace']))
+        tab=min(available,key=lambda t:(metadata.get(t['workspace'],{}).get('last_used',0),t['workspace']))
         ws=tab['workspace'];ordinal=next(n for n in range(1,100) if n not in ordinals)
         name=label if ordinal==1 else f'{label} {ordinal}'
     start=process_start(owner)
@@ -86,11 +129,12 @@ def select():
     record=dict(role=role,ordinal=ordinal,owner=owner,start=start,last_used=time.time())
     pending=directory/f'{ws}.{owner}.tmp';pending.write_text(json.dumps(record));pending.chmod(0o600)
     os.replace(pending,directory/f'{ws}.json')
-    print(json.dumps(dict(workspace=ws,name=name,rename=not bool(tab.get('name')),create=not bool(tab['window_count']))))
+    print(json.dumps(dict(workspace=ws,name=name,rename=tab.get('name')!=name,create=not bool(tab['window_count']))))
 
 if __name__=='__main__':
     try:
-        if len(sys.argv)==3 and sys.argv[1]=='--yazi-exited':yazi_exited(sys.argv[2])
+        if len(sys.argv)==4 and sys.argv[1]=='--forget-empty-tab':forget_empty_tab(sys.argv[2],int(sys.argv[3]))
+        elif len(sys.argv)==3 and sys.argv[1]=='--yazi-exited':yazi_exited(sys.argv[2])
         else:select()
     except (RuntimeError,subprocess.CalledProcessError,KeyError,ValueError) as error:
         print(f'TUIOS: {error}',file=sys.stderr);sys.exit(1)

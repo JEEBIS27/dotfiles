@@ -1,0 +1,23 @@
+#!/usr/bin/ash
+jeebis_tpm_record_boot() {
+    mkdir -p -m 700 /run/jeebis-tpm2
+    cat /proc/sys/kernel/random/boot_id >/run/jeebis-tpm2/boot-id
+}
+run_hook() {
+    # The stock encrypt hook still owns passphrase input and fallback.
+    [ -n "$cryptdevice" ] || return 0
+    jeebis_tpm_record_boot
+    local device name options resolved
+    IFS=: read -r device name options <<END
+$cryptdevice
+END
+    [ -n "$name" ] || return 0
+    # Unknown options must be handled by the original hook, not silently ignored.
+    [ -z "$options" ] || return 0
+    [ -b "/dev/mapper/$name" ] && return 0
+    resolved=$(resolve_device "$device" "$(getarg rootdelay)") || return 0
+    modprobe -q dm-crypt 2>/dev/null || :
+    timeout 15 cryptsetup open --type luks --token-only --token-type=systemd-tpm2 \
+        "$resolved" "$name" </dev/null >/dev/null 2>&1 || :
+    return 0
+}

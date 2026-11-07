@@ -10,6 +10,8 @@ start_in_terminal_mode = true
 # Keep the shared PTYs stable when input moves between differently sized windows.
 [daemon]
 window_size = "smallest"
+# Resume the recorded agent conversation after a daemon/PC restart.
+resume_agents = "auto"
 
 [appearance]
 preferred_shell = "@fish@"
@@ -27,12 +29,12 @@ dim_unfocused = 0
 shared_borders = true
 
 [appearance.sidebar]
-# Herdr-like agent rail; omit files, git and the general terminal list.
+# Normal terminals show the focused pane's file tree when Alt+B opens the rail.
 enabled = false
 position = "left"
 # Match the 16-column rail used on half-width windows, also at full width.
 width = 16
-sections = "agents"
+sections = "files"
 show_glyphs = true
 
 [scratch]
@@ -64,7 +66,9 @@ copy_mode_search_backward = ["alt+f", "ctrl+alt+f"]
 prefix_selection = ["alt+shift+y", "ctrl+alt+shift+y"]
 toggle_scratch = ["alt+t"]
 cycle_layout = ["alt+shift+t"]
-prefix_toggle_sidebar = ["alt+b"]
+toggle_sidebar_focus = ["alt+b"]
+prefix_toggle_sidebar = ["alt+shift+b"]
+focus_sidebar = []
 prefix_jump_notif = ["alt+o"]
 prefix_detach = ["alt+d"]
 last_pane = ["alt+;"]

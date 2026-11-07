@@ -65,11 +65,13 @@ with tempfile.TemporaryDirectory(prefix='dotfiles-terminal-') as tmp:
     (root/'bin/rio').chmod(0o755)
     got = json.loads(subprocess.check_output([str(repo/'files/desktop/helpers/jeebis-terminal'),
         '--app-id=org.test.rio', '--cwd', tmp, '--', '/bin/echo', 'a b;$(literal)'], env=dict(env, NO_COLOR='1'), text=True))
-    assert got == ['--app-id', 'org.test.rio', '--working-dir', tmp, '-e', 'jeebis-tuios', '/bin/echo', 'a b;$(literal)'], got
+    assert got == ['--app-id', 'org.test.rio', '--working-dir', tmp, '-e', 'env', '-u', 'JEEBIS_TUIOS_CODEX', '-u', 'JEEBIS_TUIOS_ROLE', 'JEEBIS_TUIOS_ROLE=echo', 'jeebis-tuios', '/bin/echo', 'a b;$(literal)'], got
     # Normal startup must retain the package's Rio identity and configured shell.
     plain = json.loads(subprocess.check_output([str(repo/'files/desktop/helpers/jeebis-terminal'),
         '--cwd', tmp], env=env, text=True))
-    assert plain == ['--working-dir', tmp], plain
+    assert plain == ['--working-dir', tmp, '-e', 'env', '-u', 'JEEBIS_TUIOS_CODEX', '-u', 'JEEBIS_TUIOS_ROLE', 'JEEBIS_TUIOS_ROLE=desktop', 'jeebis-tuios'], plain
+    inherited = json.loads(subprocess.check_output([str(repo/'files/desktop/helpers/jeebis-terminal'),'--cwd',tmp],env=dict(env,JEEBIS_TUIOS_CODEX='1',JEEBIS_TUIOS_ROLE='codex'),text=True))
+    assert inherited == plain, inherited
     # Render every managed palette through the real shared theme generator.
     for palette in (repo/'files/desktop/themes').glob('*.toml'):
         theme = root/palette.stem
@@ -164,7 +166,8 @@ with tempfile.TemporaryDirectory(prefix='dotfiles-terminal-') as tmp:
                                env=env, capture_output=True, text=True, timeout=20)
             assert p.returncode != 0 and 'interactive terminal' in p.stderr, p.stderr
         assert windows('main')['total'] == 2
-        window_id = next(w['window_id'] for w in windows('main')['windows'] if w['workspace'] == 6)
+        app_workspace = next(w['workspace'] for w in json.loads(run('list-workspaces', '-s', 'main', '--json'))['workspaces'] if w['name'] == 'sh')
+        window_id = next(w['window_id'] for w in windows('main')['windows'] if w['workspace'] == app_workspace)
         eventually(lambda: 'launcher-marker' in run('capture-pane', '-s', 'main', '-w', window_id))
         # The worktree popup uses the native CLI without a nested client.
         git_repo = root/'repository'

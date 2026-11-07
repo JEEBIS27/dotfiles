@@ -2,6 +2,7 @@
 let
   cfg = config.jeebis.desktop;
   native = cfg.backend == "nixos";
+  rotation = import ../packages/display-rotation.nix { pkgs = appPkgs; };
   quickshell = import ../packages/quickshell.nix { pkgs = appPkgs; };
   runtime = import ../packages/desktop/runtime.nix { pkgs = appPkgs; };
   themeDir = "${config.xdg.stateHome}/${if native then "jeebis-desktop" else "omarchy"}/current/theme";
@@ -136,6 +137,7 @@ in
         function M.bind(...) return o.bind(...) end
         return M
       '';
+      "gh-dash/config.yml".source = config.lib.file.mkOutOfStoreSymlink "${themeDir}/gh-dash.yml";
       "jeebis/motion.lua".source = jeebisShell + /hyprland/jeebis-motion.lua;
       "jeebis/curvature.lua".source = jeebisShell + /hyprland/jeebis-curvature.lua;
       "${hostConfigDir}/plugins".source = jeebisShell + /plugins;
@@ -146,6 +148,7 @@ in
       "omarchy/themed/preview.tmTheme.tpl".source = templates + /preview.tmTheme.tpl;
       "omarchy/themed/yazi.toml.tpl".source = templates + /yazi.toml.tpl;
       "omarchy/themed/rio.toml.tpl".source = templates + /rio.toml.tpl;
+      "omarchy/themed/gh-dash.yml.tpl".source = templates + /gh-dash.yml.tpl;
       "omarchy/themed/helix.toml.tpl".source = templates + /helix.toml.tpl;
       "omarchy/hooks/theme-set.d/refresh-helix.hook" = { source = ../files/omarchy/hooks/theme-set.d/refresh-helix.hook; executable = true; };
       "omarchy/hooks/theme-set.d/refresh-rio.hook" = { source = ../files/omarchy/hooks/theme-set.d/refresh-rio.hook; executable = true; };
@@ -157,6 +160,8 @@ in
     home.file.".local/bin/jeebis-tuios-select-tab" = { source = personalHelpers + /jeebis-tuios-select-tab; executable = true; };
     home.file.".local/bin/jeebis-tuios-edit-config" = { source = personalHelpers + /jeebis-tuios-edit-config; executable = true; };
     home.file.".local/bin/jeebis-tuios-worktree" = { source = personalHelpers + /jeebis-tuios-worktree; executable = true; };
+    home.file.".local/bin/jeebis-codex-sidebar" = { source = personalHelpers + /jeebis-codex-sidebar; executable = true; };
+    home.file.".local/bin/jeebis-gh-dash-tuios" = { source = personalHelpers + /jeebis-gh-dash-tuios; executable = true; };
     home.file.".local/bin/jeebis-codex-tuios" = { source = personalHelpers + /jeebis-codex-tuios; executable = true; };
     home.file.".local/bin/jeebis-chatgpt-new-window" = { source = personalHelpers + /jeebis-chatgpt-new-window; executable = true; };
     home.file.".local/bin/jeebis-theme-cycle" = { text = "#!${pkgs.runtimeShell}\nexec ${cfg.command} theme cycle\n"; executable = true; };
@@ -193,7 +198,13 @@ in
         run ${package}/bin/jeebis-desktop theme init
       '';
     };
-    systemd.user.services = lib.optionalAttrs native {
+    systemd.user.services = {
+      jeebis-display-rotation = {
+        Unit = { Description = "Automatic display rotation, including the locked session"; After = [ "wayland-session-waitenv.service" ]; PartOf = [ "graphical-session.target" ]; };
+        Service = { ExecStart = "${rotation}/bin/jeebis-display-rotation session ${config.xdg.configHome}/${hostConfigDir}/plugins/ShellConfig.js"; Restart = "on-failure"; RestartSec = 3; };
+        Install.WantedBy = [ "graphical-session.target" ];
+      };
+    } // lib.optionalAttrs native {
       jeebis-sleep-lock = {
         Unit = { Description = "Lock shared desktop before suspend"; After = [ "jeebis-desktop.service" ]; PartOf = [ "graphical-session.target" ]; };
         Service = { ExecStart = "${package}/bin/jeebis-desktop legacy omarchy-system-sleep-monitor"; Restart = "always"; RestartSec = 2; };

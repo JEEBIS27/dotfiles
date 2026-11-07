@@ -89,15 +89,24 @@ class RotationTests(unittest.TestCase):
             module.apply(MONITOR,2,{})
             sleep.assert_called_once_with(.04)
 
+    def test_locked_session_rotates_without_capture(self):
+        with patch.object(module, 'prepare_transition') as capture, patch.object(module, 'run', return_value='ok'), patch.object(module, 'monitors', return_value=[dict(MONITOR, transform=2)]):
+            module.apply(dict(MONITOR, solitaryBlockedBy=['LOCK']), 2, {'animation': True})
+            capture.assert_not_called()
+        for locked in ('true', 'unknown', '{"locked":true}', '{"locked":false,"requested":true}'):
+            with patch.object(module, 'run', return_value=locked), patch.object(module, 'transition_ipc') as ipc:
+                self.assertIsNone(module.prepare_transition(MONITOR, 2, {'animation': True}))
+                ipc.assert_not_called()
+
     def test_transition_capture_failure_never_blocks_rotation(self):
-        with patch.object(module.uuid,'uuid4') as unique, patch.object(module,'transition_ipc') as ipc:
+        with patch.object(module,'run',return_value='{"locked":false,"secure":false}'), patch.object(module.uuid,'uuid4') as unique, patch.object(module,'transition_ipc') as ipc:
             unique.return_value.hex='request'
             ipc.side_effect=['',json.dumps({'token':'request','phase':'idle'}) , '']
             self.assertIsNone(module.prepare_transition(MONITOR,2,{'animation':True}))
             self.assertEqual(ipc.call_args.args,('abortRotation','request'))
 
     def test_transition_waits_for_final_frame_and_cleans_both_outcomes(self):
-        with patch.object(module.uuid,'uuid4') as unique, patch.object(module,'transition_ipc') as ipc:
+        with patch.object(module,'run',return_value='{"locked":false,"secure":false}'), patch.object(module.uuid,'uuid4') as unique, patch.object(module,'transition_ipc') as ipc:
             unique.return_value.hex='request'
             ipc.side_effect=['',json.dumps({'token':'request','phase':'ready'})]
             self.assertEqual(module.prepare_transition(MONITOR,2,{'animation':True}),'request')

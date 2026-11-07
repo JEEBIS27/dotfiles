@@ -169,7 +169,7 @@ var notchNetworkBarGap = 1.5;    // バー同士の間隔
 // ===== バッテリー：色と充電マーク =====
 var batteryLowThreshold = 30;     // この残量（%）以下はテーマの黄色系
 var batteryCriticalThreshold = 10; // この残量（%）以下はテーマのurgent色
-var batteryShowChargingBolt = false; // 充電中の稲妻を表示（falseで非表示）
+var batteryShowChargingBolt = true; // 充電中の稲妻を表示（falseで非表示）
 
 // ===== ノッチ直下のメニュー =====
 var notchMenuWidth = 420;        // ノッチ直下のメニュー幅

@@ -51,6 +51,34 @@ function __jeebis_prompt_path --argument-names current previous
     string replace --regex '^'(string escape --style=regex -- "$HOME")'($|/)' '~$1' -- "$current"
 end
 
+# Report activated environments only, without starting language/tool processes.
+function __jeebis_prompt_environment_names
+    if test -n "$IN_NIX_SHELL"
+        set -l label nix
+        if test -n "$name"; and not contains -- "$name" shell nix-shell
+            set label "nix:$name"
+        end
+        string replace --all --regex '[[:cntrl:]]' '' -- "$label"
+    end
+    if test -n "$VIRTUAL_ENV"
+        set -l label (string trim -- "$VIRTUAL_ENV_PROMPT")
+        set label (string replace --regex '^\((.*)\)$' '$1' -- "$label")
+        if test -z "$label"; or contains -- "$label" .venv venv env .env
+            set label (path basename -- "$VIRTUAL_ENV")
+            if contains -- "$label" .venv venv env .env
+                set label (path basename -- (path dirname -- "$VIRTUAL_ENV"))
+            end
+        end
+        string replace --all --regex '[[:cntrl:]]' '' -- "venv:$label"
+    end
+    if test -n "$CONDA_PREFIX"; and test "$CONDA_SHLVL" != 0
+        set -l label "$CONDA_DEFAULT_ENV"
+        test -n "$label"; or set label (path basename -- "$CONDA_PREFIX")
+        string match --quiet '*/*' -- "$label"; and set label (path basename -- "$label")
+        string replace --all --regex '[[:cntrl:]]' '' -- "conda:$label"
+    end
+end
+
 function __jeebis_prompt_refresh --on-event fish_prompt
     # TUIOS can tell us whether the full context is still on the visible screen.
     # Failure to inspect it is handled conservatively by printing full context.
@@ -134,7 +162,7 @@ function __jeebis_postexec --on-event fish_postexec
         set -g __jeebis_face '(-■д■-)ゞｸｲｯ'
         set -g __jeebis_color d7d75f
     else if string match -rq '^(l|eza)' -- "$command_name"
-        set -g __jeebis_face ']ก`-ωｰ́ )ｼﾞｰｯ'
+        set -g __jeebis_face ']ก`-ωｰ́ )ジｰｯ'
         set -g __jeebis_color 87afd7
     else if contains -- "$command_name" cd bd zd sd z zi cdi md / '~' - .. ... ....
         set -g __jeebis_face '≡( ⊂ ˆωˆ )⊃ '
@@ -151,13 +179,7 @@ function __jeebis_postexec --on-event fish_postexec
     set -g __jeebis_prompt_ready 0
 end
 
-function fish_prompt
-    if test "$__jeebis_prompt_ready" != 1; or test "$__jeebis_prompt_pwd" != "$PWD"
-        __jeebis_prompt_refresh
-    end
-    if set -q TUIOS_WINDOW_ID
-        printf '\e]133;A\a'
-    end
+function __jeebis_prompt_header
     __jeebis_prompt_pill '' "$__jeebis_prompt_time"
     set_color blue
     if contains -- --final-rendering $argv
@@ -176,6 +198,55 @@ function fish_prompt
             end
         else
             __jeebis_git_label "$__jeebis_prompt_branch" "$__jeebis_prompt_dirty"
+        end
+    end
+    set_color normal
+end
+
+function __jeebis_prompt_environment_labels
+    set -l separator ''
+    for environment in (__jeebis_prompt_environment_names)
+        set -l icon
+        switch "$environment"
+            case nix 'nix:*'
+                set icon ''
+                set_color 7aa2f7
+            case 'venv:*'
+                set icon ''
+                set_color e5c07b
+            case 'conda:*'
+                set icon ''
+                set_color 87af87
+        end
+        if contains -- --compact $argv
+            printf '%s[%s]' "$separator" "$icon"
+        else
+            printf '%s[%s %s]' "$separator" "$icon" "$environment"
+        end
+        set separator ' '
+    end
+    test -n "$separator"; and set_color normal
+end
+
+function fish_prompt
+    if test "$__jeebis_prompt_ready" != 1; or test "$__jeebis_prompt_pwd" != "$PWD"
+        __jeebis_prompt_refresh
+    end
+    if set -q TUIOS_WINDOW_ID
+        printf '\e]133;A\a'
+    end
+    set -l header (__jeebis_prompt_header $argv | string collect)
+    printf '%s' "$header"
+    if not contains -- --final-rendering $argv
+        set -l environments (__jeebis_prompt_environment_labels | string collect)
+        if test -n "$environments"
+            set -l columns 80
+            set -q COLUMNS; and set columns $COLUMNS
+            # Leave the final column unused to avoid terminal auto-wrap.
+            set -l padding (math "$columns - 1 - $(string length --visible -- "$header") - $(string length --visible -- "$environments")")
+            if test $padding -ge 1
+                printf '%*s%s' $padding '' "$environments"
+            end
         end
     end
     set_color normal
@@ -209,6 +280,10 @@ function fish_prompt
 end
 
 function fish_right_prompt
+    # On the compact command row, fish reserves space for the typed command.
+    if contains -- --final-rendering $argv
+        __jeebis_prompt_environment_labels --compact
+    end
 end
 
 function __jeebis_list_on_cd --on-variable PWD

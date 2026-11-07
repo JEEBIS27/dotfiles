@@ -8,6 +8,7 @@ function identity(client) {
 function terminalApplication(client) {
   var id = identity(client)
   // Dedicated Rio launcher identity does not depend on a terminal title.
+  if (id === "org.omarchy.gh-dash") return "github"
   if (id === "org.omarchy.codex") return "codex"
   // Jeebis: the dedicated Yazi launcher also runs in a floating terminal.
   if ((id === "tui" || id === "tui.float") && /^Yazi(?:\s*:|$)/i.test(String(client.title || ""))) return "yazi"
