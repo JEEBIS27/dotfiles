@@ -18,9 +18,9 @@
   };
   home.packages = [
     appPkgs.codex
+  ] ++ lib.optionals (config.jeebis.desktop.compositor == "hyprland") [
     (import ../packages/tuios.nix { pkgs = appPkgs; })
   ] ++ lib.optionals (config.jeebis.desktop.backend == "nixos") (with appPkgs; [
-    rio
     # Retained Neovim fallback plugin build runtimes.
     nodejs cargo rustc
   ]);

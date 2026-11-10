@@ -1,0 +1,57 @@
+{ pkgs }:
+let
+  libraries = with pkgs; [
+    stdenv.cc.cc.lib alsa-lib at-spi2-core cairo cups dbus expat
+    gdk-pixbuf glib gtk3 libdrm libglvnd libnotify libusb1 libxkbcommon mesa
+    nspr nss openssl pango systemd tpm2-tss vulkan-loader wayland
+    qt5.qtbase qt6.qtbase
+    libx11 libxcb libxcomposite libxdamage libxext
+    libxfixes libxrandr
+  ];
+in pkgs.stdenvNoCC.mkDerivation rec {
+  pname = "chatgpt";
+  version = "26.1103.32239";
+  src = pkgs.fetchurl {
+    url = "https://persistent.oaistatic.com/codex-app-prod/linux/deb/pool/main/c/chatgpt/chatgpt_${version}_amd64.deb";
+    sha256 = "18c108808ea2c52fb8dbf92d3362d27741e3382c5891bd4ae903a9b5781364ef";
+  };
+  nativeBuildInputs = with pkgs; [ dpkg autoPatchelfHook makeWrapper wrapGAppsHook3 ];
+  buildInputs = libraries;
+  dontBuild = true;
+  dontStrip = true;
+  dontWrapGApps = true;
+  unpackPhase = ''
+    runHook preUnpack
+    dpkg-deb -x "$src" .
+    runHook postUnpack
+  '';
+  installPhase = ''
+    runHook preInstall
+    mkdir -p "$out/lib" "$out/bin" "$out/share"
+    cp -a usr/lib/chatgpt "$out/lib/chatgpt"
+    cp -a usr/share/icons "$out/share/"
+    # These optional HID builds target musl, whereas NixOS uses glibc.
+    find "$out/lib/chatgpt/resources" -type d -name '*-linux-x64-musl' -prune -exec rm -rf {} +
+    makeWrapper "$out/lib/chatgpt/ChatGPT" "$out/bin/chatgpt" \
+      "''${gappsWrapperArgs[@]}" \
+      --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.xdg-utils pkgs.git pkgs.coreutils pkgs.bash ]} \
+      --prefix LD_LIBRARY_PATH : ${pkgs.lib.makeLibraryPath libraries}
+    mkdir -p "$out/share/applications"
+    cp usr/share/applications/chatgpt.desktop "$out/share/applications/"
+    substituteInPlace "$out/share/applications/chatgpt.desktop" \
+      --replace-fail 'Exec=chatgpt %U' "Exec=$out/bin/chatgpt %U"
+    runHook postInstall
+  '';
+  preFixup = ''
+    addAutoPatchelfSearchPath "$out/lib/chatgpt"
+    addAutoPatchelfSearchPath "$out/lib/chatgpt/resources/cua_node/lib/node_modules/@img/sharp-libvips-linux-x64/lib"
+  '';
+  meta = {
+    description = "Official ChatGPT desktop app for Linux";
+    homepage = "https://learn.chatgpt.com/docs/linux/linux-app";
+    license = pkgs.lib.licenses.unfree;
+    platforms = [ "x86_64-linux" ];
+    mainProgram = "chatgpt";
+    sourceProvenance = [ pkgs.lib.sourceTypes.binaryNativeCode ];
+  };
+}

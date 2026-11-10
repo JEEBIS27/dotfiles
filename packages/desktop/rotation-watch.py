@@ -15,7 +15,9 @@ if mode == "session":
     config.update(json.loads(Path(rest[0]).read_text()))
 else:
     # Login has its own compositor and state; no access to the user's home.
-    config["touchDevices"] = ["elan3233:00-04f3:423e", "elan3233:00-04f3:423e-unknown", "elan3233:00-04f3:423e-stylus"]
+    config.update({"automatic": False, "touchDevices": []})
+    if rest:
+        config.update(json.loads(Path(rest[0]).read_text()))
     os.environ["XDG_STATE_HOME"] = str(Path(os.environ["XDG_RUNTIME_DIR"]) / "jeebis-greeter")
 spec = importlib.util.spec_from_file_location("rotation", helper)
 rotation = importlib.util.module_from_spec(spec)
