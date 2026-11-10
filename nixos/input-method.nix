@@ -1,9 +1,9 @@
-{ lib, pkgs, appPkgs, mejiroSource, ... }:
+{ config, lib, pkgs, appPkgs, mejiroSource, ... }:
 let
-  # Keep Fcitx linked against system pkgs, and reuse the explicitly platformed
-  # neural package pin. Upstream pinned-pkgs.nix imports nixpkgs with {}, which
-  # depends on builtins.currentSystem and fails during pure flake evaluation.
-  package = pkgs.callPackage (mejiroSource + "/nix/package.nix") {
+  # The upstream candidate renderer targets Fcitx 5.1.23. Keep the daemon,
+  # classic UI, addon and neural worker on the same explicit app package pin.
+  # Never mix the NixOS base Fcitx 5.1.19 with this patched UI.
+  package = appPkgs.callPackage (mejiroSource + "/nix/package.nix") {
     neuralPkgs = appPkgs;
   };
   model = pkgs.fetchurl {
@@ -22,6 +22,9 @@ in {
       gpu = lib.mkDefault "off";
     };
   };
+  i18n.inputMethod.package = lib.mkForce (appPkgs.qt6Packages.fcitx5-with-addons.override {
+    addons = config.i18n.inputMethod.fcitx5.addons;
+  });
   i18n.inputMethod.fcitx5.waylandFrontend = true;
   home-manager.users.jeebis.xdg.dataFile."fcitx5/addon/classicui.conf".source =
     "${package}/share/mejiroime/fcitx5/classicui.conf";

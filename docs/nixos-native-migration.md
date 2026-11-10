@@ -43,6 +43,12 @@ publishing the desired MejiroIME revision. The neural worker starts on CPU;
 Vulkan may be selected explicitly after real GPU validation. The model is
 Zenz v3.1 small Q5_K_M with a pinned revision and SHA-256.
 
+MejiroIME's candidate UI patch targets Fcitx 5.1.23. The daemon, classic UI,
+addon and build dependencies therefore use the existing `nixpkgs-apps` pin as
+one explicit compatibility group. The base NixOS Fcitx 5.1.19 has a different
+`InputWindow::paint` signature and cannot accept that patch. `neuralPkgs` is
+passed explicitly as well, avoiding upstream's impure platform autodetection.
+
 Do not use `desktop-vm` as a real machine configuration: its root is tmpfs.
 Do not change boot/disk/hardware configuration to the VM example.
 
