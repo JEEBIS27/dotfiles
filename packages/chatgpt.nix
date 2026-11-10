@@ -4,10 +4,13 @@ let
     stdenv.cc.cc.lib alsa-lib at-spi2-core cairo cups dbus expat
     gdk-pixbuf glib gtk3 libdrm libglvnd libnotify libusb1 libxkbcommon mesa
     nspr nss openssl pango systemd tpm2-tss vulkan-loader wayland
-    qt5.qtbase qt6.qtbase
     libx11 libxcb libxcomposite libxdamage libxext
     libxfixes libxrandr
   ];
+  # Separate bundled helpers require both Qt ABIs at runtime. Do not put Qt
+  # development outputs in buildInputs: their setup hooks reject mixed majors.
+  qtRuntime = map pkgs.lib.getLib [ pkgs.qt5.qtbase pkgs.qt6.qtbase ];
+  runtimeLibraries = libraries ++ qtRuntime;
 in pkgs.stdenvNoCC.mkDerivation rec {
   pname = "chatgpt";
   version = "26.1103.32239";
@@ -35,7 +38,7 @@ in pkgs.stdenvNoCC.mkDerivation rec {
     makeWrapper "$out/lib/chatgpt/ChatGPT" "$out/bin/chatgpt" \
       "''${gappsWrapperArgs[@]}" \
       --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.xdg-utils pkgs.git pkgs.coreutils pkgs.bash ]} \
-      --prefix LD_LIBRARY_PATH : ${pkgs.lib.makeLibraryPath libraries}
+      --prefix LD_LIBRARY_PATH : ${pkgs.lib.makeLibraryPath runtimeLibraries}
     mkdir -p "$out/share/applications"
     cp usr/share/applications/chatgpt.desktop "$out/share/applications/"
     substituteInPlace "$out/share/applications/chatgpt.desktop" \
@@ -43,6 +46,7 @@ in pkgs.stdenvNoCC.mkDerivation rec {
     runHook postInstall
   '';
   preFixup = ''
+    ${pkgs.lib.concatMapStringsSep "\n" (qt: ''addAutoPatchelfSearchPath "${qt}/lib"'') qtRuntime}
     addAutoPatchelfSearchPath "$out/lib/chatgpt"
     addAutoPatchelfSearchPath "$out/lib/chatgpt/resources/cua_node/lib/node_modules/@img/sharp-libvips-linux-x64/lib"
   '';
