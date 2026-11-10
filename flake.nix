@@ -83,6 +83,7 @@
       nixosModules.input-method = {
         imports = [ (mejiroime + "/nix/nixos.nix") ./nixos/input-method.nix ];
         _module.args.mejiroSource = mejiroime;
+        _module.args.appPkgs = appPkgs;
       };
       nixosModules.tpm-unlock = {
         imports = [ lanzaboote.nixosModules.lanzaboote ./nixos/tpm-unlock.nix ];
