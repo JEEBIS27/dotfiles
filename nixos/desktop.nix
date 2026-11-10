@@ -6,7 +6,6 @@ let
     hl.config({ misc = { disable_hyprland_logo = true, disable_splash_rendering = true }, animations = { enabled = false } })
     hl.on("hyprland.start", function() hl.exec_cmd("${rotation}/bin/jeebis-display-rotation greeter ${greeterRotation}") end)
   '';
-  mozkey = import ../packages/mozkey-fcitx5.nix { pkgs = appPkgs; };
   helium = import ../packages/helium.nix { inherit pkgs; };
   loginTheme = import ../packages/jeebis-login-theme.nix { pkgs = appPkgs; };
   fish = import ../packages/fish.nix { pkgs = appPkgs; };
@@ -49,14 +48,6 @@ in
   ];
   fonts.packages = [ appPkgs.hackgen-nf-font ];
   fonts.fontconfig.defaultFonts.monospace = [ "HackGen35 Console NF" ];
-  i18n.inputMethod = lib.mkIf ((config.jeebis.inputMethod or "mozkey") == "mozkey") {
-    enable = true;
-    type = "fcitx5";
-    package = lib.mkForce mozkey;
-    fcitx5.waylandFrontend = true;
-  };
-  environment.variables.QT_PLUGIN_PATH = lib.mkIf ((config.jeebis.inputMethod or "mozkey") == "mozkey")
-    (lib.mkForce [ "${mozkey}/${appPkgs.qt6.qtbase.qtPluginPrefix}" ]);
   systemd.user.services.fcitx5 = {
     description = "Japanese input method";
     wantedBy = [ "graphical-session.target" ];

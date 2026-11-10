@@ -9,9 +9,11 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # These upstream projects keep their own tested toolchain/package pins.
-    beanKey.url = "git+https://github.com/ph0ryn/beanKey?rev=32929b741155ff29eff2ba13cf2168c59fa0d229&submodules=1";
-    hazkey.url = "github:aster-void/nix-hazkey/9524686e361eb1ce9c054f0218e7a4b82091b847";
+    # Published source only: target PCs do not need the local development checkout.
+    mejiroime = {
+      url = "git+https://github.com/JEEBIS27/MejiroIME.git?rev=1b374936852cce07cd86ea8ff2940b9c07c86761";
+      flake = false;
+    };
 
     # Keep the official Nix-on-Droid release stack separate from the PC stack.
     nixpkgs-droid.url = "github:NixOS/nixpkgs/nixos-24.05";
@@ -26,7 +28,7 @@
     };
   };
 
-  outputs = { self, beanKey, hazkey, nixpkgs, nixpkgs-apps, home-manager, nixpkgs-droid, home-manager-droid, nix-on-droid, ... }:
+  outputs = { self, mejiroime, nixpkgs, nixpkgs-apps, home-manager, nixpkgs-droid, home-manager-droid, nix-on-droid, ... }:
     let
       system = "x86_64-linux";
       appPkgs = nixpkgs-apps.legacyPackages.${system};
@@ -64,7 +66,6 @@
         matlab-nix = import ./packages/matlab.nix { pkgs = nixpkgs.legacyPackages.${system}; };
         home-manager = home-manager.packages.${system}.home-manager;
         helium = import ./packages/helium.nix { pkgs = nixpkgs.legacyPackages.${system}; };
-        mozkey-fcitx5 = import ./packages/mozkey-fcitx5.nix { pkgs = appPkgs; };
         helix-steel = steel.editor;
         helix-steel-plugins = steel.plugins;
         helix-steel-terminal = steel.terminal;
@@ -74,7 +75,8 @@
         "jeebis@nixos" = mkHome ./hosts/nixos.nix;
       };
       nixosModules.input-method = {
-        imports = [ beanKey.nixosModules.default hazkey.nixosModules.hazkey ./nixos/input-method.nix ];
+        imports = [ (mejiroime + "/nix/nixos.nix") ./nixos/input-method.nix ];
+        _module.args.mejiroSource = mejiroime;
       };
       nixosModules.niri = import ./nixos/niri.nix;
       nixosModules.desktop = self.nixosModules.personal;
@@ -85,9 +87,10 @@
           ./nixos/desktop.nix
           ./nixos/niri.nix
           ./nixos/machine.nix
-          beanKey.nixosModules.default hazkey.nixosModules.hazkey ./nixos/input-method.nix
+          (mejiroime + "/nix/nixos.nix") ./nixos/input-method.nix
         ];
         _module.args.appPkgs = appPkgs;
+        _module.args.mejiroSource = mejiroime;
         nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (nixpkgs.lib.getName pkg) [ "chatgpt" "slack" "spotify" "obsidian" ];
         nix.settings.experimental-features = [ "nix-command" "flakes" ];
         home-manager.useGlobalPkgs = true;
@@ -97,13 +100,13 @@
       };
       nixosConfigurations.desktop-vm = nixpkgs.lib.nixosSystem {
         inherit system;
-        specialArgs = { inherit appPkgs; };
+        specialArgs = { inherit appPkgs; mejiroSource = mejiroime; };
         modules = [
           home-manager.nixosModules.home-manager
           ./nixos/desktop.nix
           ./nixos/niri.nix
           ./nixos/machine.nix
-          beanKey.nixosModules.default hazkey.nixosModules.hazkey ./nixos/input-method.nix
+          (mejiroime + "/nix/nixos.nix") ./nixos/input-method.nix
           ({ ... }: {
             nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (nixpkgs.lib.getName pkg) [ "chatgpt" "slack" "spotify" "obsidian" ];
             system.stateVersion = "26.05";

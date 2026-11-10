@@ -1,21 +1,31 @@
-{ config, lib, appPkgs, ... }:
+{ config, lib, pkgs, ... }:
 let
-  native = config.jeebis.desktop.backend == "nixos" && config.jeebis.inputMethod == "mozkey";
-  mozkey = import ../packages/mozkey-fcitx5.nix { pkgs = appPkgs; };
-in
-{
-  options.jeebis.inputMethod = lib.mkOption {
-    type = lib.types.enum [ "mozkey" "beankey" "hazkey" ];
-    default = "mozkey";
-  };
-  config = {
-  # Fcitx rewrites these settings. Keep a writable repository source, not a store file.
-  home.packages = lib.optionals native [ mozkey ];
-  xdg.configFile = lib.mkIf (config.jeebis.inputMethod == "mozkey") ({
-    "mozkey-ibg/config1.db".source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/Git/home-manager/files/mozkey-ibg/config1.db";
-  } // builtins.listToAttrs (map (name: {
-    name = "fcitx5/${name}";
-    value.source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/Git/home-manager/files/fcitx5/${name}";
-  }) [ "config" "profile" "conf/keyboard.conf" "conf/mozkey-ibg.conf" ]));
-  };
+  profile = pkgs.writeText "mejiroime-fcitx5-profile" ''
+    [Groups/0]
+    Name=Default
+    Default Layout=jp
+    DefaultIM=mejiroime
+
+    [Groups/0/Items/0]
+    Name=keyboard-jp
+    Layout=
+
+    [Groups/0/Items/1]
+    Name=mejiroime
+    Layout=
+
+    [GroupOrder]
+    0=Default
+  '';
+in {
+  # Fcitx owns its mutable profile. Seed a new NixOS profile, never a store symlink.
+  # Learning, dictionaries and private preferences are left untouched.
+  home.activation.initializeMejiroProfile = lib.mkIf (config.jeebis.desktop.backend == "nixos")
+    (lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+      target=${lib.escapeShellArg "${config.xdg.configHome}/fcitx5/profile"}
+      if [ ! -e "$target" ] && [ ! -L "$target" ]; then
+        run mkdir -p "$(dirname "$target")"
+        run install -m 600 ${profile} "$target"
+      fi
+    '');
 }

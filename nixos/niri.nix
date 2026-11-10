@@ -1,5 +1,4 @@
 { lib, pkgs, ... }: {
-  jeebis.inputMethod = lib.mkDefault "beankey";
   programs.niri.enable = true;
   # The standard NixOS session has no Hyprland/UWSM requirement.
   programs.hyprland.enable = lib.mkForce false;

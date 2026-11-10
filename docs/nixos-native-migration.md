@@ -12,8 +12,9 @@
   The GUI app and herdr-core are separate fixed-version binary Nix packages.
 - Theme rendering now produces `ghostty.conf`; reload only signals Ghostty
   processes owned by the current user that already installed a reload handler.
-- NixOS owns the Fcitx daemon; Home Manager owns only the legacy Mozkey files.
-- beanKey and Hazkey revisions and upstream dependency graphs are locked.
+- NixOS owns the Fcitx daemon and MejiroIME server; Home Manager seeds a writable
+  Fcitx profile and installs the candidate UI metadata.
+- MejiroIME source and its Zenzai model URL/hash are pinned.
   Herdr App 0.1.13 and core 0.1.18 use fixed official release URLs and SHA-256 hashes.
   Their own tested package/toolchain pins are explicit exceptions to shared pkgs.
 - Home Manager integrated with NixOS uses the system package set.
@@ -21,7 +22,7 @@
 ## Default NixOS profile
 
 `nixosModules.personal` now imports `nixosModules.niri`: `just switch` on an
-existing integrated NixOS installation selects Niri and beanKey without editing
+existing integrated NixOS installation selects Niri and MejiroIME without editing
 `/etc/nixos/flake.nix`. Hyprland/UWSM are disabled and SDDM uses Weston. Host
 boot, disks, users, stateVersion and graphics drivers remain host-owned.
 
@@ -31,9 +32,16 @@ helper, gtk-launch, Rio or TUIOS participates in these terminal shortcuts.
 Legacy runtime/aliases, TUIOS hooks and Rio configuration are not deployed by
 this profile. Lua sources remain in the repository for the Omarchy profile.
 
-Hazkey can be selected with `jeebis.inputMethod = "hazkey";` after the beanKey
-Wayland acceptance check. Local MejiroIME development is restricted to the
-Omarchy host and is not required by the NixOS configuration.
+MejiroIME is the only declared Japanese engine. Its upstream NixOS module
+owns the server and adds the Fcitx addon; no local checkout is needed. The
+published source is pinned at `1b374936852cce07cd86ea8ff2940b9c07c86761`.
+Git access to the MejiroIME repository is required on the target PC; credentials
+are local and are never placed in the flake URL or repository. Anonymous archive
+access returned 404 here, so the source uses the Git transport.
+Uncommitted development changes are not included. Update this input after
+publishing the desired MejiroIME revision. The neural worker starts on CPU;
+Vulkan may be selected explicitly after real GPU validation. The model is
+Zenz v3.1 small Q5_K_M with a pinned revision and SHA-256.
 
 Do not use `desktop-vm` as a real machine configuration: its root is tmpfs.
 Do not change boot/disk/hardware configuration to the VM example.
@@ -51,10 +59,11 @@ Lock generation only records dependencies and does not prove package builds.
    service is disabled in Niri. See `niri-keybindings.md` for mappings and limits.
 3. Check Niri login, Tide IPC, portals/screen sharing, image/video/GIF wallpaper,
    static lock wallpaper, actual locking/authentication, suspend and SDDM.
-4. On Niri, check beanKey in Ghostty, browser, GTK and Qt: live/neural conversion,
-   candidate placement, focus, reconversion, logout and suspend. Diagnose ordinary
-   config issues first; use Hazkey if it cannot meet acceptance. Configure the
-   chosen Fcitx profile and conversion settings after confirming engine behavior.
+4. On Niri, check MejiroIME in Ghostty, browser, GTK and Qt: live/neural
+   conversion, Mejiro input, candidate placement, focus, reconversion, logout and
+   suspend. Existing regular Fcitx profiles are preserved; select MejiroIME there
+   if the profile predates this migration. New profiles contain keyboard-jp and
+   MejiroIME only. No other Japanese engine is installed by this profile.
 5. Herdr App palette and pinned Codex launch settings are implemented. Validate
    agent status, window-close/reopen session persistence, and native Codex resume. Migrate TUIOS-owned Codex hooks before
    removing TUIOS. The Niri Agent shortcut and the generated Hyprland Codex app shortcut
@@ -62,9 +71,11 @@ Lock generation only records dependencies and does not prove package builds.
 6. Move actual host configurations into the repository while keeping their
    hardware declarations separate. Replace `/etc/nixos` generated-wrapper lock
    updates with a single authoritative repository lock and explicit host routing.
-7. Remove legacy TUIOS deployment, Rio configuration and Omarchy runtime/aliases
-   after acceptance. Existing compatibility runtime, app package-set exceptions,
-   fixed checkout links and some Hyprland helpers still need migration.
+7. Legacy TUIOS, Rio and Omarchy sources remain in the repository for the
+   Omarchy profile, but are not deployed by Niri. Audit pre-existing mutable Codex
+   hooks before agent acceptance: disabling the old activation hook does not
+   remove hook entries previously written into local Codex state. App package-set
+   exceptions and remaining editor checkout links can be simplified separately.
 8. Verify a second PC with separate hardware/display declarations.
 
 Private credentials, chat history, learned dictionaries, cloud contents and
