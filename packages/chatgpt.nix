@@ -32,7 +32,9 @@ in pkgs.stdenvNoCC.mkDerivation rec {
     runHook preInstall
     mkdir -p "$out/lib" "$out/bin" "$out/share"
     cp -a usr/lib/chatgpt "$out/lib/chatgpt"
-    cp -a usr/share/icons "$out/share/"
+    # This pinned deb ships its icon in the app resources, not share/icons.
+    install -Dm644 usr/lib/chatgpt/resources/icon-chatgpt.png \
+      "$out/share/pixmaps/chatgpt.png"
     # These optional HID builds target musl, whereas NixOS uses glibc.
     find "$out/lib/chatgpt/resources" -type d -name '*-linux-x64-musl' -prune -exec rm -rf {} +
     makeWrapper "$out/lib/chatgpt/ChatGPT" "$out/bin/chatgpt" \
