@@ -177,3 +177,7 @@ Alt+Bは一覧へ入る・閉じて元へ戻る操作を兼ねる。Escは一覧
 Super+Alt+Gでgh-dashをGitHub用のTUIOS Tabに起動する。Super+Shift+Alt+Gは全幅起動。使用中のTabは保持し、別ウィンドウにはGitHub 2以降を割り当てる。Super+Wで閉じたTabは次回再接続する。アプリ島にはGitHubアイコンを表示する。従来のSuper+Alt+Gのグループ解除は上書きする。
 
 gh-dashの配色は共通デスクトップパレットから生成し、テーマ切り替え後の次回起動に反映する。起動キーでは共通の`~/.config/gh-dash/config.yml`を明示して使用する。初回は`gh auth login`でGitHub CLIの認証を行う。
+
+## コピーモードの配列
+
+TUIOS のコピーモードも `files/helix/key-layout.nix` の配列を使う。現在は h/a/o/e が左/下/上/右、w/l が次/前の単語、W/L が次/前の WORD。範囲選択中も同じ。Ctrl/Alt 付き操作、検索欄の文字、f/F/t/T の検索対象文字は変換しない。
