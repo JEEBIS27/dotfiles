@@ -9,6 +9,11 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    lanzaboote = {
+      url = "github:nix-community/lanzaboote/v1.2.0";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # Published source only: target PCs do not need the local development checkout.
     mejiroime = {
       url = "git+https://github.com/JEEBIS27/MejiroIME.git?rev=88d832c4a84ab7233ee865585a31877b2f6adce1";
@@ -28,7 +33,7 @@
     };
   };
 
-  outputs = { self, mejiroime, nixpkgs, nixpkgs-apps, home-manager, nixpkgs-droid, home-manager-droid, nix-on-droid, ... }:
+  outputs = { self, mejiroime, lanzaboote, nixpkgs, nixpkgs-apps, home-manager, nixpkgs-droid, home-manager-droid, nix-on-droid, ... }:
     let
       system = "x86_64-linux";
       appPkgs = nixpkgs-apps.legacyPackages.${system};
@@ -62,6 +67,7 @@
         herdr-core = import ./packages/herdr-core.nix { pkgs = nixpkgs.legacyPackages.${system}; };
         tide-island = import ./packages/tide-island.nix { pkgs = appPkgs; };
         just = appPkgs.just;
+        sbctl = pcPkgs.sbctl;
         jeebis-login-theme = import ./packages/jeebis-login-theme.nix { pkgs = appPkgs; };
         matlab-nix = import ./packages/matlab.nix { pkgs = nixpkgs.legacyPackages.${system}; };
         home-manager = home-manager.packages.${system}.home-manager;
@@ -78,12 +84,16 @@
         imports = [ (mejiroime + "/nix/nixos.nix") ./nixos/input-method.nix ];
         _module.args.mejiroSource = mejiroime;
       };
+      nixosModules.tpm-unlock = {
+        imports = [ lanzaboote.nixosModules.lanzaboote ./nixos/tpm-unlock.nix ];
+      };
       nixosModules.niri = import ./nixos/niri.nix;
       nixosModules.desktop = self.nixosModules.personal;
       # Compose this with the destination PC's existing configuration.nix.
       nixosModules.personal = {
         imports = [
           home-manager.nixosModules.home-manager
+          self.nixosModules.tpm-unlock
           ./nixos/desktop.nix
           ./nixos/niri.nix
           ./nixos/machine.nix
@@ -103,6 +113,7 @@
         specialArgs = { inherit appPkgs; mejiroSource = mejiroime; };
         modules = [
           home-manager.nixosModules.home-manager
+          self.nixosModules.tpm-unlock
           ./nixos/desktop.nix
           ./nixos/niri.nix
           ./nixos/machine.nix
