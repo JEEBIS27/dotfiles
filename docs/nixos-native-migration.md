@@ -34,7 +34,7 @@ this profile. Lua sources remain in the repository for the Omarchy profile.
 
 MejiroIME is the only declared Japanese engine. Its upstream NixOS module
 owns the server and adds the Fcitx addon; no local checkout is needed. The
-published source is pinned at `1b374936852cce07cd86ea8ff2940b9c07c86761`.
+published source is pinned at `88d832c4a84ab7233ee865585a31877b2f6adce1`.
 Git access to the MejiroIME repository is required on the target PC; credentials
 are local and are never placed in the flake URL or repository. Anonymous archive
 access returned 404 here, so the source uses the Git transport.
