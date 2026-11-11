@@ -35,8 +35,17 @@ in pkgs.stdenvNoCC.mkDerivation rec {
     # This pinned deb ships its icon in the app resources, not share/icons.
     install -Dm644 usr/lib/chatgpt/resources/icon-chatgpt.png \
       "$out/share/pixmaps/chatgpt.png"
-    # These optional HID builds target musl, whereas NixOS uses glibc.
+    # The deb bundles both libc variants. NixOS uses the glibc prebuilds.
     find "$out/lib/chatgpt/resources" -type d -name '*-linux-x64-musl' -prune -exec rm -rf {} +
+    # Serialport stores the variants as sibling files, not separate directories.
+    while IFS= read -r -d "" musl; do
+      glibc="''${musl%.musl.node}.glibc.node"
+      if [ ! -f "$glibc" ]; then
+        echo "Missing glibc counterpart for $musl" >&2
+        exit 1
+      fi
+      rm -- "$musl"
+    done < <(find "$out/lib/chatgpt/resources" -type f -name '*.musl.node' -print0)
     makeWrapper "$out/lib/chatgpt/ChatGPT" "$out/bin/chatgpt" \
       "''${gappsWrapperArgs[@]}" \
       --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.xdg-utils pkgs.git pkgs.coreutils pkgs.bash ]} \
