@@ -1,6 +1,7 @@
 { config, lib, pkgs, ... }:
 let
   cfg = config.jeebis.desktop;
+  spotify = import ../packages/spotify.nix { inherit pkgs; };
   applications = import ../files/desktop/applications.nix { inherit config pkgs; };
   catalog = pkgs.writeText "jeebis-desktop-applications.json" (builtins.toJSON applications);
   actions = pkgs.writeShellApplication {
@@ -31,6 +32,6 @@ in {
     xdg.configFile."niri/config.kdl".text = text;
     xdg.configFile."jeebis/applications.json".source = catalog;
     home.packages = with pkgs; [ actions niri xwayland-satellite btop brightnessctl wireplumber
-      slack spotify obsidian nautilus localsend zathura ];
+      slack obsidian nautilus localsend zathura ] ++ [ spotify ];
   };
 }

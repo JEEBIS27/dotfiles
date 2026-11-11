@@ -1,6 +1,7 @@
 { config, pkgs }:
 let
   terminal = config.jeebis.terminal.command;
+  spotify = import ../../packages/spotify.nix { inherit pkgs; };
   helium = import ../../packages/helium.nix { inherit pkgs; };
   herdr = import ../../packages/herdr-app.nix { inherit pkgs; };
   chatgpt = import ../../packages/chatgpt.nix { inherit pkgs; };
@@ -32,7 +33,7 @@ in {
   files = { key = "F"; name = "Files"; argv = [ "${pkgs.nautilus}/bin/nautilus" "--new-window" ]; appIds = [ "org.gnome.Nautilus" ]; };
   github = tui "G" "GitHub" "github" [ "${pkgs.gh-dash}/bin/gh-dash" ];
   slack = { key = "I"; name = "Slack"; argv = [ "${pkgs.slack}/bin/slack" ]; appIds = [ "Slack" "slack" ]; };
-  spotify = { key = "M"; name = "Spotify"; argv = [ "${pkgs.spotify}/bin/spotify" ]; appIds = [ "spotify" ]; };
+  spotify = { key = "M"; name = "Spotify"; argv = [ "${spotify}/bin/spotify" ]; appIds = [ "spotify" ]; };
   editor = tui "N" "Helix" "editor" [ "${config.programs.helix.package}/bin/hx" ];
   obsidian = { key = "O"; name = "Obsidian"; argv = [ "${pkgs.obsidian}/bin/obsidian" ]; appIds = [ "obsidian" "md.obsidian.Obsidian" ]; };
   calendar = web "Q" "Google Calendar" "calendar" "https://calendar.google.com/calendar";

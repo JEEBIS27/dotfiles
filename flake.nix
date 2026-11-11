@@ -68,6 +68,7 @@
         tide-island = import ./packages/tide-island.nix { pkgs = appPkgs; };
         just = appPkgs.just;
         sbctl = pcPkgs.sbctl;
+        spotify = import ./packages/spotify.nix { pkgs = pcPkgs; };
         jeebis-login-theme = import ./packages/jeebis-login-theme.nix { pkgs = appPkgs; };
         matlab-nix = import ./packages/matlab.nix { pkgs = nixpkgs.legacyPackages.${system}; };
         home-manager = home-manager.packages.${system}.home-manager;
