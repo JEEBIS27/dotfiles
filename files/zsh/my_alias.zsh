@@ -340,8 +340,8 @@ google() {
     xdg-open "https://www.google.com/search?q=$encoded_query"
 }
 
-# Edit ~/Git/home-manager/files/sheldon/plugins.toml to add/remove plugins,
-# then run: home-manager switch --flake "path:$HOME/Git/home-manager#jeebis@omarchy"
+# Edit ~/dotfiles/files/sheldon/plugins.toml to add/remove plugins,
+# then run: home-manager switch --flake "path:$HOME/dotfiles#jeebis@omarchy"
 # Clear obsolete helpers when this file is sourced in an existing shell.
 unalias zsh-plugin-add zsh-plugin-remove 2>/dev/null
 unfunction zsh-plugin-add zsh-plugin-remove 2>/dev/null

@@ -2,7 +2,7 @@
 
 Omarchy / NixOS / Android（Nix-on-Droid）向けのHome Manager構成。Hyprland、Quickshell（Tide Island）、ターミナル・エディター設定とアプリを管理する。
 
-PC構成は `x86_64-linux`・ユーザー `jeebis`・配置先 `~/Git/home-manager` を前提とする。Androidは `aarch64-linux`、Nix-on-Droid既定のユーザーとホームを使用する。他の環境ではユーザー名・パス・ハードウェア設定の変更が必要。
+PC構成は `x86_64-linux`・ユーザー `jeebis`・リポジトリを `~/dotfiles` に配置する。Androidは `aarch64-linux`、Nix-on-Droid既定のユーザーとホームを使用する。他の環境ではユーザー名・パス・ハードウェア設定の変更が必要。
 
 ## 構成
 
@@ -43,9 +43,9 @@ Androidでは、以下のコマンドをNix-on-Droidアプリ内で実行する�
 ```bash
 nix-shell -p git
 
-git clone https://github.com/JEEBIS27/dotfiles.git ~/Git/home-manager
+git clone https://github.com/JEEBIS27/dotfiles.git ~/dotfiles
 
-cd ~/Git/home-manager
+cd ~/dotfiles
 
 nix --extra-experimental-features 'nix-command flakes' run "path:$PWD#just" -- switch
 ```
@@ -58,7 +58,7 @@ nix --extra-experimental-features 'nix-command flakes' run "path:$PWD#just" -- s
 導入後は、次の2行を実行するだけでGitHubの最新設定を取得して適用できる。
 
 ```bash
-cd ~/Git/home-manager
+cd ~/dotfiles
 just sync
 ```
 

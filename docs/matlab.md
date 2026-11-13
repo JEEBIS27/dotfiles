@@ -3,7 +3,7 @@
 Build the pinned Linux environment:
 
 ```sh
-cd ~/Git/home-manager
+cd ~/dotfiles
 nix --extra-experimental-features 'nix-command flakes' build "path:$PWD#matlab-nix" --out-link ~/.local/state/matlab-nix
 ```
 

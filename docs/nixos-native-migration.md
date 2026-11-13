@@ -163,7 +163,7 @@ Apply only after the migration commit has been published to the selected branch.
 From a TTY in an existing integrated installation:
 
 ```bash
-cd ~/Git/home-manager
+cd ~/dotfiles
 git pull --ff-only
 just switch
 ```

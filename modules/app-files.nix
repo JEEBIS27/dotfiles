@@ -62,7 +62,7 @@ in
     "bat/themes/Desktop.tmTheme".source = config.lib.file.mkOutOfStoreSymlink "${config.jeebis.desktop.themeDirectory}/preview.tmTheme";
     "nvim/after/lsp/lua_ls.lua".source = ../files/nvim/after/lsp/lua_ls.lua;
     "nvim/init.lua".source = ../files/nvim/init.lua;
-    "nvim/lazy-lock.json".source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/Git/home-manager/files/nvim/lazy-lock.json";
+    "nvim/lazy-lock.json".source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/dotfiles/files/nvim/lazy-lock.json";
     "nvim/lua/config/keymaps.lua".source = ../files/nvim/lua/config/keymaps.lua;
     "nvim/lua/config/lazy.lua".source = ../files/nvim/lua/config/lazy.lua;
     "nvim/lua/config/options.lua".source = ../files/nvim/lua/config/options.lua;
@@ -113,7 +113,7 @@ in
     "yazi/plugins/archive-actions.yazi/main.lua".source = ../files/yazi/plugins/archive-actions.yazi/main.lua;
     "yazi/plugins/ucp.yazi".source = yaziPlugins.ucp;
     "yazi/plugins/compress.yazi".source = yaziPlugins.compress;
-    "yazi/package.toml".source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/Git/home-manager/files/yazi/package.toml";
+    "yazi/package.toml".source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/dotfiles/files/yazi/package.toml";
     "yazi/plugins/unified-layout.yazi/main.lua".source = ../files/yazi/plugins/unified-layout.yazi/main.lua;
     "yazi/plugins/unified-motions.yazi/main.lua".source = ../files/yazi/plugins/unified-motions.yazi/main.lua;
     "yazi/plugins/unified-tabs.yazi/main.lua".source = ../files/yazi/plugins/unified-tabs.yazi/main.lua;

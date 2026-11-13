@@ -9,7 +9,7 @@ import tempfile
 
 REPO = Path(__file__).resolve().parents[1]
 if not (REPO / 'packages/desktop/desktopctl.py').exists():
-    REPO = Path('/home/jeebis/Git/home-manager')
+    raise RuntimeError('Could not locate the repository root from this script path')
 with tempfile.TemporaryDirectory(prefix='jeebis-theme-test-') as folder:
     root=Path(folder); bin=root/'bin'; bin.mkdir()
     runner=bin/'mock'

@@ -260,7 +260,7 @@ def native_legacy(name,a):
  if name.startswith('omarchy-launch-'):
   app=name.removeprefix('omarchy-launch-');return launch([app,*a])
  if name in ['omarchy-menu-keybindings']:
-  return launch([command('terminal'),'--',command('editor'),str(HOME/'Git/home-manager/docs/desktop-architecture.md')])
+  return launch([command('terminal'),'--',command('editor'),str(HOME/'dotfiles/docs/desktop-architecture.md')])
  if name=='omarchy-menu-timezone':return call([command('terminal'),'--','timedatectl','list-timezones'])
  if name in ['omarchy-powerprofiles-list']:return call([command('powerprofilesctl'),'list'])
  if name=='omarchy-powerprofiles-set':return call([command('powerprofilesctl'),'set',*a])
