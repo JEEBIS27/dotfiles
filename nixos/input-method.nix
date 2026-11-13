@@ -36,9 +36,9 @@ in {
     fcitx5-gtk = gtkModule;
   });
   i18n.inputMethod.fcitx5.waylandFrontend = true;
-  environment.sessionVariables.GIO_EXTRA_MODULES = "${gtkModule}/lib/gtk-4.0/4.0.0/immodules";
-  home-manager.users.jeebis.home.sessionVariables.GIO_EXTRA_MODULES =
-    config.environment.sessionVariables.GIO_EXTRA_MODULES;
+  environment.sessionVariables.GIO_EXTRA_MODULES = [
+    "${gtkModule}/lib/gtk-4.0/4.0.0/immodules"
+  ];
   home-manager.users.jeebis.xdg.dataFile."fcitx5/addon/classicui.conf".source =
     "${package}/share/mejiroime/fcitx5/classicui.conf";
 }
