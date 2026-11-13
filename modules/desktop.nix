@@ -9,6 +9,15 @@ let
   themeDir = "${config.xdg.stateHome}/${if native then "jeebis-desktop" else "omarchy"}/current/theme";
   coreSource = ../files/desktop;
   tide = import ../packages/tide-island.nix { pkgs = appPkgs; withNiri = cfg.compositor == "niri"; };
+  tideDefaults = pkgs.writeText "tide-island-userconfig.json" (builtins.toJSON {
+        iconFontFamily = "HackGen35 Console NF";
+        islandExclusiveZone = 0;
+        wallpaperLibraryPath = "${config.xdg.dataHome}/jeebis-desktop/backgrounds";
+        wallpaperPath = "${config.xdg.stateHome}/${if native then "jeebis-desktop" else "omarchy"}/current/home-background";
+        wallpaperCustomCommandEnabled = true;
+        wallpaperCustomCommand = "${package}/bin/jeebis-desktop wallpaper set \"$1\"";
+        wallpaperPywalEnabled = false;
+      });
   presetDefinitions = builtins.fromJSON (builtins.readFile ../files/desktop/presets.json);
   presetFiles = builtins.listToAttrs (map (preset: {
     name = "omarchy/themes/${preset.name}/colors.toml";
@@ -141,14 +150,6 @@ in
       "gh-dash/config.yml".source = config.lib.file.mkOutOfStoreSymlink "${themeDir}/gh-dash.yml";
       "jeebis/motion.lua".source = coreSource + /motion.lua;
       "jeebis/curvature.lua".source = coreSource + /curvature.lua;
-      "tide-island/userconfig.json".text = builtins.toJSON {
-        iconFontFamily = "HackGen35 Console NF";
-        wallpaperLibraryPath = "${config.xdg.dataHome}/jeebis-desktop/backgrounds";
-        wallpaperPath = "${config.xdg.stateHome}/${if native then "jeebis-desktop" else "omarchy"}/current/home-background";
-        wallpaperCustomCommandEnabled = true;
-        wallpaperCustomCommand = "${package}/bin/jeebis-desktop wallpaper set \"$1\"";
-        wallpaperPywalEnabled = false;
-      };
       "jeebis/display-rotation.json".source = coreSource + /display-rotation.json;
 
     }
@@ -175,6 +176,14 @@ in
     home.file.".local/bin/jeebis-codex-tuios" = lib.mkIf legacy { source = personalHelpers + /jeebis-codex-tuios; executable = true; };
     home.file.".local/bin/jeebis-theme-cycle" = { text = "#!${pkgs.runtimeShell}\nexec ${cfg.command} theme cycle\n"; executable = true; };
     home.activation = {
+      # Seed once; subsequent GUI changes belong to the user.
+      initializeTideConfig = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+        if [ ! -e "${config.xdg.configHome}/tide-island/userconfig.json" ]; then
+          run mkdir -p "${config.xdg.configHome}/tide-island"
+          run install -m600 ${tideDefaults} "${config.xdg.configHome}/tide-island/userconfig.json"
+        fi
+      '';
+
       initializeHyprMonitors = lib.mkIf (cfg.compositor == "hyprland") (lib.hm.dag.entryAfter [ "linkGeneration" ] ''
       run mkdir -p "$HOME/.config/hypr"
       if [ ! -e "$HOME/.config/hypr/monitors.lua" ]; then

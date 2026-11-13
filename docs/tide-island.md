@@ -15,7 +15,7 @@ UWSM starts the graphical session services. Do not add another `exec-once` launc
 
 ## Managed settings
 
-`modules/desktop.nix` declares `tide-island/userconfig.json`, keybindings and services. This JSON is managed by Home Manager: change its Nix declaration for synchronized settings rather than relying on GUI edits to persist. Credentials, clipboard history, calendar notes and caches remain local.
+`modules/desktop.nix` declares `tide-island/userconfig.json`, keybindings and services. Home Manager seeds this JSON only when missing, as a writable local file. GUI changes persist across activations. Upgrading removes the former managed link and seeds writable defaults. Changes to the Nix defaults do not overwrite an existing local configuration. Credentials, clipboard history, calendar notes and caches remain local.
 
 | Shortcut | Action |
 |---|---|
