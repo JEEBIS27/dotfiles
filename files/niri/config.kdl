@@ -1,7 +1,8 @@
 // Niri session. Machine-specific outputs are added by host modules.
 @machine@
 layout {
-    gaps 10
+    // Hyprland gaps_in=2 on each side, gaps_out=4.
+    gaps 4
     center-focused-column "never"
     default-column-width { proportion 0.5; }
     preset-column-widths {
@@ -34,35 +35,35 @@ binds {
     Mod+W { close-window; }
     Mod+Shift+W { spawn "@actions@" "close-workspace"; }
     Mod+H { focus-column-left; }
-    Mod+Shift+H { set-column-width "-50"; }
+    Mod+Shift+H { spawn "@resize@" "shrink"; }
     Mod+Ctrl+H { swap-window-left; }
     Mod+Ctrl+Shift+H { move-column-left; }
     Mod+Left { focus-column-left; }
-    Mod+Shift+Left { set-column-width "-50"; }
+    Mod+Shift+Left { spawn "@resize@" "shrink"; }
     Mod+Ctrl+Left { swap-window-left; }
     Mod+Ctrl+Shift+Left { move-column-left; }
     Mod+J { focus-window-down; }
-    Mod+Shift+J { set-window-height "+50"; }
+    Mod+Shift+J { set-window-height "+10%"; }
     Mod+Ctrl+J { move-window-down; }
     Mod+Ctrl+Shift+J { move-window-down; }
     Mod+Down { focus-window-down; }
-    Mod+Shift+Down { set-window-height "+50"; }
+    Mod+Shift+Down { set-window-height "+10%"; }
     Mod+Ctrl+Down { move-window-down; }
     Mod+Ctrl+Shift+Down { move-window-down; }
     Mod+K { focus-window-up; }
-    Mod+Shift+K { set-window-height "-50"; }
+    Mod+Shift+K { set-window-height "-10%"; }
     Mod+Ctrl+K { move-window-up; }
     Mod+Ctrl+Shift+K { move-window-up; }
     Mod+Up { focus-window-up; }
-    Mod+Shift+Up { set-window-height "-50"; }
+    Mod+Shift+Up { set-window-height "-10%"; }
     Mod+Ctrl+Up { move-window-up; }
     Mod+Ctrl+Shift+Up { move-window-up; }
     Mod+L { focus-column-right; }
-    Mod+Shift+L { set-column-width "+50"; }
+    Mod+Shift+L { spawn "@resize@" "grow"; }
     Mod+Ctrl+L { swap-window-right; }
     Mod+Ctrl+Shift+L { move-column-right; }
     Mod+Right { focus-column-right; }
-    Mod+Shift+Right { set-column-width "+50"; }
+    Mod+Shift+Right { spawn "@resize@" "grow"; }
     Mod+Ctrl+Right { swap-window-right; }
     Mod+Ctrl+Shift+Right { move-column-right; }
     Mod+Tab { focus-workspace-down; }

@@ -1,0 +1,10 @@
+// Isolated integration-test compositor; never use this as a desktop config.
+layout {
+    gaps 4
+    center-focused-column "never"
+    default-column-width { proportion 0.5; }
+    focus-ring { off; }
+    border { off; }
+}
+animations { off; }
+hotkey-overlay { skip-at-startup; }

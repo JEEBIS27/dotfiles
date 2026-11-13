@@ -22,7 +22,7 @@ Spotify, Obsidian, Nautilus, LocalSend, Zathura and btop are declared packages.
 | Super+Return / Super+Shift+Return | Ghostty + independent tmux session, right / below |
 | Super+Alt+Return / Super+Alt+Shift+Return | Plain Ghostty, right / below |
 | Super+HJKL or arrows | Focus left/down/up/right |
-| Add Shift | Resize by 50 logical pixels |
+| Add Shift | Resize by 10 percentage points; horizontal resizing compensates the adjacent column |
 | Add Ctrl | Swap left/right; reorder up/down |
 | Add Ctrl+Shift | Move column left/right; window up/down |
 | Super+W / Super+Shift+W | Close window / snapshot and close workspace windows |
@@ -107,3 +107,47 @@ References:
 - https://niri-wm.github.io/niri/IPC.html
 - https://github.com/niri-wm/niri/blob/v26.04/niri-ipc/src/lib.rs
 - https://niri-wm.github.io/niri/Configuration:-Key-Bindings.html
+
+
+## Paired resizing and width history
+
+Horizontal resizing uses 10 percentage point steps and compensates the current
+partner so the pair fills 100%. Each normal paired column is limited to 10–90%;
+maximizing temporarily uses 100%. A sole column stays full-width. Vertical
+resizing uses 10 percentage points without changing the neighboring column.
+Floating windows resize independently. Percentage calculations assume the current
+4px gaps and no left/right exclusive panels or horizontal struts.
+
+On focus movement between adjacent columns, the more recently changed width is
+preserved and the other column fills the remaining space. Manual and automatic
+changes have equal priority. Never-resized columns have no timestamp. One paired
+operation gives its actually changed columns the same timestamp; ties preserve
+the previously focused column. No-op changes do not refresh timestamps. History
+is shared by the keyboard helper and watcher, scoped to the compositor session.
+
+Examples (`*` is focused, `| ... |` is the visible pair):
+
+```text
+|50 / 50*| 50   -> resize middle to 40 -> |60 / 40*| 50
+|60 / 40*| 50   -> focus right         -> 60 |40 / 60*|
+60 |40 / 60*|  -> resize right to 70  -> 60 |30 / 70*|
+60 |30 / 70*|  -> focus middle, left  -> |70* / 30| 70
+```
+
+`Super+Shift+F` saves the current partner and width before switching to 100%.
+Shrinking again restores that partner and frames the pair without changing focus,
+including when the focused column is in the middle or at the right edge. This
+avoids the blank right-hand half left by the upstream view anchoring behavior.
+The packaged Niri patch lets `CenterWindow` on an adjacent inactive window frame
+its pair with the focused column; upstream treats that request as a no-op.
+
+The auto-width service compensates an externally resized column after its width
+stays unchanged for 300 ms. This is a debounce, not a button-release notification:
+a pause during a drag can trigger it. Mouse resizing keeps the chosen width rather
+than snapping to 10% steps. The service waits for actual client geometry commits
+before framing a newly resized pair. Application minimum sizes can prevent an
+exact 100% pair.
+
+Regression checks: `python3 scripts/check-niri-resize.py`. The isolated-compositor
+integration check uses `scripts/fixtures/niri-layout-client.c` and validates the
+real widths, focused window, and screenshot color spans.

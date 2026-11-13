@@ -1,0 +1,30 @@
+--- a/src/layout/scrolling.rs
++++ b/src/layout/scrolling.rs
+@@ -2225,8 +2225,26 @@
+             self.active_column_idx
+         };
+ 
+-        // We can reasonably center only the active column.
++        // An explicit adjacent, inactive window asks to frame its pair with
++        // the active column. Keep keyboard focus unchanged. This also restores
++        // the view after a full-width column shrinks at either edge.
+         if col_idx != self.active_column_idx {
++            if col_idx.abs_diff(self.active_column_idx) != 1 {
++                return;
++            }
++            let left = col_idx.min(self.active_column_idx);
++            let right = col_idx.max(self.active_column_idx);
++            let left_x = self.column_x(left);
++            let right_edge = self.column_x(right) + self.data[right].width;
++            let area = self.working_area;
++            if right_edge - left_x + self.options.layout.gaps * 2. > area.size.w + 2. {
++                return;
++            }
++            let view_x = (left_x + right_edge - area.size.w) / 2. - area.loc.x;
++            self.animate_view_offset(
++                self.active_column_idx,
++                view_x - self.column_x(self.active_column_idx),
++            );
+             return;
+         }
+ 

@@ -198,7 +198,7 @@ def main():
             if window.get("is_floating"):
                 action("MaximizeWindowToEdges", id=window["id"])
             else:
-                action("MaximizeColumn")
+                subprocess.run(["jeebis-niri-resize", "toggle-maximize"], check=True)
     else:
         catalog = json.loads(args.catalog.read_text())
         if args.application not in catalog:
