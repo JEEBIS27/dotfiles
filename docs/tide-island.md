@@ -39,7 +39,6 @@ The customized former shell is archived in [JEEBIS27/jeebis-shell](https://githu
 This migration has not been built or tested on the destination PC. Login, PAM unlock, clipboard, notifications, theme changes, video playback and suspend require destination testing.
 
 
-
 ## Native notification endpoint
 
 On Niri, Home Manager starts `mako.service` as the receiver for

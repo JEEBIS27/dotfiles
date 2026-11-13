@@ -39,7 +39,9 @@ in {
       default = ''
         ${outputs}
         input {
+          focus-follows-mouse
           keyboard { xkb { layout ${quote cfg.keyboard.layout}; model ${quote cfg.keyboard.model}; }; }
+          mouse { accel-speed -0.2; }
           touchpad {
             ${optionalString cfg.touchpad.tap "tap"}
             ${optionalString cfg.touchpad.naturalScroll "natural-scroll"}

@@ -3,11 +3,12 @@ let
   cfg = config.jeebis.desktop;
   niri = import ../packages/niri.nix { inherit pkgs; };
   spotify = import ../packages/spotify.nix { inherit pkgs; };
+  gtkIme = package: import ../packages/gtk-ime.nix { inherit pkgs package; };
   applications = import ../files/desktop/applications.nix { inherit config pkgs; };
   catalog = pkgs.writeText "jeebis-desktop-applications.json" (builtins.toJSON applications);
   actions = pkgs.writeShellApplication {
     name = "jeebis-niri";
-    runtimeInputs = [ pkgs.python3 pkgs.libnotify resize ];
+    runtimeInputs = [ pkgs.python3 pkgs.libnotify pkgs.wtype resize ];
     text = ''
       exec python3 ${../packages/desktop/niri-actions.py} --catalog ${catalog} "$@"
     '';
@@ -61,7 +62,7 @@ in {
     };
     xdg.configFile."niri/config.kdl".text = text;
     xdg.configFile."jeebis/applications.json".source = catalog;
-    home.packages = with pkgs; [ actions keySearch resize niri xwayland-satellite btop brightnessctl wireplumber
-      slack obsidian nautilus localsend zathura ] ++ [ spotify ];
+    home.packages = with pkgs; [ actions keySearch resize xwayland-satellite btop brightnessctl wireplumber
+      nautilus localsend zathura ] ++ [ (gtkIme pkgs.slack) (gtkIme pkgs.obsidian) spotify niri ];
   };
 }

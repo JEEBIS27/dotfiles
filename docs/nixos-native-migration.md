@@ -123,8 +123,13 @@ Spotify and Obsidian required by the declared application map.
 
 The package is currently x86_64-only. Account login, chat history and private
 app data remain local. NixOS is not an officially supported Linux distribution.
-The app follows upstream's default XWayland behavior; native Wayland can be
-requested explicitly with `chatgpt --ozone-platform=wayland` after fully quitting.
+The wrapper explicitly requests native Wayland with `--ozone-platform=wayland`
+and enables Wayland IME with text-input-v3 for Niri. Fully quit the existing app
+before testing a rebuilt wrapper. GUI startup and Japanese input still need
+verification on the target machine. Niri also prefers Wayland for GTK, Qt and
+Firefox; X11-only applications retain the XWayland compatibility path. The MATLAB
+launcher currently explicitly selects Qt's X11 backend and needs separate
+application compatibility work before it can use native Wayland.
 No sandbox-disabling flags are added.
 
 Niri binds Super+Alt+C to `chatgpt`. Its new-window/focus behavior is controlled

@@ -49,11 +49,19 @@ in {
         command = "${recordedFish}/bin/jeebis-recorded-fish";
         font-family = "HackGen35 Console NF";
         font-size = 14;
+        # Rio used weight 700 for regular text too.
+        font-style = "Bold";
+        font-style-bold = "Bold";
+        font-style-italic = "Bold";
+        font-style-bold-italic = "Bold";
         window-decoration = false;
         window-padding-x = 14;
         window-padding-y = 14;
         cursor-style = "block";
         cursor-style-blink = false;
+        shell-integration-features = "no-cursor";
+        custom-shader = "${config.xdg.configHome}/ghostty/cursor-trail.glsl";
+        custom-shader-animation = true;
         mouse-hide-while-typing = true;
         config-file = "?${config.jeebis.desktop.themeDirectory}/ghostty.conf";
         # Explicitly own only the emulator layer. Ghostty defaults consume
@@ -61,6 +69,7 @@ in {
         keybind = import ../files/ghostty/keybindings.nix;
       };
     };
+    xdg.configFile."ghostty/cursor-trail.glsl".source = ../files/ghostty/cursor-trail.glsl;
     xdg.configFile."xdg-terminals.list".text = "com.mitchellh.ghostty.desktop\n";
     # Persistence is opt-in: plain terminal/app launches never attach a mux.
     programs.tmux = {

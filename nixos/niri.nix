@@ -1,6 +1,8 @@
 { lib, pkgs, ... }: {
   programs.niri.enable = true;
   programs.niri.package = import ../packages/niri.nix { inherit pkgs; };
+  # niri imports the display environment before reporting session readiness.
+  systemd.user.services.fcitx5.after = [ "niri.service" ];
   # The standard NixOS session has no Hyprland/UWSM requirement.
   programs.hyprland.enable = lib.mkForce false;
   programs.hyprland.withUWSM = lib.mkForce false;

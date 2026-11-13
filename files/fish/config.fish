@@ -10,6 +10,12 @@ if status is-interactive; and not set -q JEEBIS_OUTPUT_LOG; and not set -q TUIOS
 end
 # Interactive configuration, sourced last by Home Manager.
 set -g fish_greeting
+# Keep a steady block even when Fish changes editing modes or runs a command.
+set -g fish_cursor_default block
+set -g fish_cursor_insert block
+set -g fish_cursor_replace_one block
+set -g fish_cursor_replace block
+set -g fish_cursor_external block
 # Our prompt renders activated environments; avoid duplicate activation prefixes.
 set -gx VIRTUAL_ENV_DISABLE_PROMPT 1
 set -gx CONDA_DISABLE_FISH_PROMPT 1

@@ -1,7 +1,7 @@
 { pkgs }:
 # Retain nixpkgs' runtime integration, but avoid the unreachable Snap API.
 # Spotify only retains recent Debian releases: update URL/version/hash together.
-pkgs.spotify.overrideAttrs (old: {
+(import ./gtk-ime.nix { inherit pkgs; package = pkgs.spotify; }).overrideAttrs (old: {
   version = "1.3.4.258.gc60b10b0946a";
   src = pkgs.fetchurl {
     url = "https://repository.spotify.com/pool/non-free/s/spotify-client/spotify-client_1.3.4.258.gc60b10b0946a_amd64.deb";

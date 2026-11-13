@@ -1,6 +1,9 @@
 { config, pkgs }:
 let
   terminal = config.jeebis.terminal.command;
+  gtkIme = package: import ../../packages/gtk-ime.nix { inherit pkgs package; };
+  slack = gtkIme pkgs.slack;
+  obsidian = gtkIme pkgs.obsidian;
   spotify = import ../../packages/spotify.nix { inherit pkgs; };
   helium = import ../../packages/helium.nix { inherit pkgs; };
   herdr = import ../../packages/herdr-app.nix { inherit pkgs; };
@@ -32,10 +35,10 @@ in {
   sheets = web "E" "Google Sheets" "sheets" "https://docs.google.com/spreadsheets/";
   files = { key = "F"; name = "Files"; argv = [ "${pkgs.nautilus}/bin/nautilus" "--new-window" ]; appIds = [ "org.gnome.Nautilus" ]; };
   github = tui "G" "GitHub" "github" [ "${pkgs.gh-dash}/bin/gh-dash" ];
-  slack = { key = "I"; name = "Slack"; argv = [ "${pkgs.slack}/bin/slack" ]; appIds = [ "Slack" "slack" ]; };
+  slack = { key = "I"; name = "Slack"; argv = [ "${slack}/bin/slack" ]; appIds = [ "Slack" "slack" ]; };
   spotify = { key = "M"; name = "Spotify"; argv = [ "${spotify}/bin/spotify" ]; appIds = [ "spotify" ]; };
   editor = tui "N" "Helix" "editor" [ "${config.programs.helix.package}/bin/hx" ];
-  obsidian = { key = "O"; name = "Obsidian"; argv = [ "${pkgs.obsidian}/bin/obsidian" ]; appIds = [ "obsidian" "md.obsidian.Obsidian" ]; };
+  obsidian = { key = "O"; name = "Obsidian"; argv = [ "${obsidian}/bin/obsidian" ]; appIds = [ "obsidian" "md.obsidian.Obsidian" ]; };
   calendar = web "Q" "Google Calendar" "calendar" "https://calendar.google.com/calendar";
   teams = web "R" "Teams" "teams" "https://teams.cloud.microsoft/";
   youtube = web "U" "YouTube" "youtube" "https://www.youtube.com/";

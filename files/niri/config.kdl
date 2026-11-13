@@ -1,5 +1,6 @@
 // Niri session. Machine-specific outputs are added by host modules.
 @machine@
+
 layout {
     // Hyprland gaps_in=2 on each side, gaps_out=4.
     gaps 4
@@ -10,13 +11,34 @@ layout {
         proportion 0.5
         proportion 0.66667
     }
-    focus-ring { width 2; }
+    focus-ring { on; }
     border { off; }
 }
+// Final Hyprland curvature override also applies to floating windows.
+window-rule {
+    geometry-corner-radius 15
+    clip-to-geometry true
+    background-effect { blur true; xray false; }
+}
+window-rule {
+    match is-active=false
+    opacity 0.9
+}
+// Approximate the old two-pass blur without saturation or added noise.
+blur { passes 2; offset 4; noise 0; saturation 1.0; }
 prefer-no-csd
 hotkey-overlay { skip-at-startup; }
 environment {
     NIXOS_OZONE_WL "1"
+    ELECTRON_OZONE_PLATFORM_HINT "wayland"
+    OZONE_PLATFORM "wayland"
+    GTK_IM_MODULE "fcitx"
+    QT_IM_MODULE "fcitx"
+    QT_IM_MODULES "fcitx"
+    XMODIFIERS "@im=fcitx"
+    GDK_BACKEND "wayland,x11"
+    QT_QPA_PLATFORM "wayland;xcb"
+    MOZ_ENABLE_WAYLAND "1"
 }
 @workspaces@
 binds {
@@ -26,6 +48,7 @@ binds {
     Mod+Alt+Return { spawn "@terminal@" "--app-id=org.jeebis.terminal"; }
     Mod+Return { spawn "@actions@" "launch" "terminal-tmux"; }
     Mod+Shift+Return { spawn "@actions@" "launch" "terminal-tmux" "--below"; }
+    Mod+O hotkey-overlay-title="Overview" { toggle-overview; }
     Mod+F { spawn "@desktop@" "shell" "tide" "toggleApplicationLauncher"; }
     Mod+Shift+Escape { spawn "@desktop@" "settings"; }
     Mod+N { spawn "@desktop@" "shell" "island" "toggle"; }
@@ -85,8 +108,11 @@ binds {
     Mod+Ctrl+T { toggle-column-tabbed-display; }
     Mod+Alt+Shift+J { toggle-column-tabbed-display; }
     Mod+Alt+Shift+K { spawn "@key-search@"; }
-    Mod+V { consume-or-expel-window-left; }
-    Mod+Shift+V { consume-or-expel-window-right; }
+    Mod+X { spawn "@actions@" "clipboard" "cut"; }
+    Mod+C { spawn "@actions@" "clipboard" "copy"; }
+    Mod+V { spawn "@actions@" "clipboard" "paste"; }
+    Mod+comma { consume-or-expel-window-left; }
+    Mod+period { consume-or-expel-window-right; }
     Mod+Ctrl+Escape { spawn "@desktop@" "shell" "tide" "togglePowerMenu"; }
     Mod+Escape { spawn "@desktop@" "lock"; }
     Mod+Shift+E { quit; }

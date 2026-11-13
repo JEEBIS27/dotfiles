@@ -180,6 +180,23 @@ def close_workspace():
                 raise
 
 
+def clipboard(operation):
+    window = query("FocusedWindow") or {}
+    identity = (window.get("app_id") or "").casefold()
+    terminal = identity in {
+        "com.mitchellh.ghostty", "ghostty", "rio", "alacritty", "kitty",
+        "foot", "org.codeberg.dnkl.foot", "org.jeebis.terminal", "org.jeebis.tmux",
+    } or identity.startswith(("org.omarchy.", "tui."))
+    modifier, key = "ctrl", {"cut": "x", "copy": "c", "paste": "v"}[operation]
+    if operation == "cut":
+        modifier, key = "shift", "Delete"
+    elif terminal:
+        modifier, key = ("ctrl" if operation == "copy" else "shift"), "Insert"
+    # Set the virtual keyboard's modifiers explicitly, excluding held Super.
+    subprocess.run(["wtype", "-M", "logo", "-M", "shift", "-M", "alt", "-M", "ctrl",
+                    "-m", modifier, "-k", key, "-M", modifier], check=True)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--catalog", required=True, type=Path)
@@ -189,8 +206,11 @@ def main():
     launch_parser.add_argument("--below", action="store_true")
     sub.add_parser("close-workspace")
     sub.add_parser("toggle-maximize")
+    sub.add_parser("clipboard").add_argument("clipboard_operation", choices=["cut", "copy", "paste"])
     args = parser.parse_args()
-    if args.operation == "close-workspace":
+    if args.operation == "clipboard":
+        clipboard(args.clipboard_operation)
+    elif args.operation == "close-workspace":
         close_workspace()
     elif args.operation == "toggle-maximize":
         window = query("FocusedWindow")

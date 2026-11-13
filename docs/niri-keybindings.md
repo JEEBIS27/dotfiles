@@ -33,12 +33,14 @@ Spotify, Obsidian, Nautilus, LocalSend, Zathura and btop are declared packages.
 | Super+Shift+PageUp/PageDown | Previous/next monitor |
 | Super+Ctrl+PageUp/PageDown | Move window to previous/next workspace |
 | Super+1..0 / Super+Shift+1..0 | Select / move window to named workspace 1..10 |
+| Super+O | Toggle Overview (workspace/window overview) |
 | Super+F / Super+Shift+Escape | Tide launcher / settings |
 | Super+N / Super+Shift+B / Super+Shift+N | Toggle / show / hide Tide Island |
 | Super+Alt+T | Cycle shared theme |
 | Super+Alt+Shift+K | Search keybindings by typing (Fuzzel) |
 | Super+R | Cycle preset column widths |
-| Super+V / Super+Shift+V | Consume or expel a window left/right |
+| Super+X / Super+C / Super+V | Universal cut / copy / paste |
+| Super+comma / Super+period | Consume or expel a window left/right |
 | Super+Ctrl+T or Super+Alt+Shift+J | Toggle tabbed column display |
 | Super+Shift+S or Print | Screenshot |
 | Super+Escape | Tide session lock |
@@ -110,7 +112,23 @@ References:
 - https://niri-wm.github.io/niri/Configuration:-Key-Bindings.html
 
 
-## Paired resizing and width history
+## Searchable keybindings
+
+Super+Alt+Shift+K opens Fuzzel with the active managed Niri bindings. Type a key,
+action, or application name to narrow the list (Japanese descriptions and English
+keywords are both included). Escape closes it; selecting a row only closes the
+reference list and never executes the action. The list reads the current generated
+config, including application and workspace bindings, rather than a separate static
+shortcut list. Niri's stock overlay is not searchable.
+
+Super+Ctrl+Escape opens Tide's power menu. Super+Escape continues to lock the session.
+
+Universal clipboard shortcuts send Shift+Delete for cut and Ctrl+C/V for copy/paste
+in regular applications. Terminals
+receive Ctrl+Insert for copy and Shift+Insert for paste, keeping Ctrl+C available
+for interrupting commands. Cut sends Shift+Delete in all applications; support depends on the application.
+The helper uses a Wayland virtual keyboard; focused layer-shell surfaces receive
+the regular shortcuts when no terminal window is focused.
 
 Horizontal resizing uses 10 percentage point steps and compensates the current
 partner so the pair fills 100%. Each normal paired column is limited to 10–90%;
@@ -152,16 +170,3 @@ exact 100% pair.
 Regression checks: `python3 scripts/check-niri-resize.py`. The isolated-compositor
 integration check uses `scripts/fixtures/niri-layout-client.c` and validates the
 real widths, focused window, and screenshot color spans.
-
-
-
-## Searchable keybindings
-
-Super+Alt+Shift+K opens Fuzzel with the active managed Niri bindings. Type a key,
-action, or application name to narrow the list (Japanese descriptions and English
-keywords are both included). Escape closes it; selecting a row only closes the
-reference list and never executes the action. The list reads the current generated
-config, including application and workspace bindings, rather than a separate static
-shortcut list. Niri's stock overlay is not searchable.
-
-Super+Ctrl+Escape opens Tide's power menu. Super+Escape continues to lock the session.

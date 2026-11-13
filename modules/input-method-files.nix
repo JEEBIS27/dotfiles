@@ -18,6 +18,15 @@ let
     0=Default
   '';
 in {
+  # Keep the display backend on Wayland; use toolkit IM modules for input.
+  home.sessionVariables = {
+    GTK_IM_MODULE = "fcitx";
+    QT_IM_MODULE = "fcitx";
+    QT_IM_MODULES = "fcitx";
+    XMODIFIERS = "@im=fcitx";
+  };
+  gtk.gtk3.extraConfig.gtk-im-module = "fcitx";
+  gtk.gtk4.extraConfig.gtk-im-module = "fcitx";
   # Fcitx owns its mutable profile. Seed a new NixOS profile, never a store symlink.
   # Learning, dictionaries and private preferences are left untouched.
   home.activation.initializeMejiroProfile = lib.mkIf (config.jeebis.desktop.backend == "nixos")

@@ -2,7 +2,7 @@
 let
   libraries = with pkgs; [
     stdenv.cc.cc.lib alsa-lib at-spi2-core cairo cups dbus expat
-    gdk-pixbuf glib gtk3 libdrm libglvnd libnotify libusb1 libxkbcommon mesa
+    gdk-pixbuf glib gtk3 gtk4 libdrm libglvnd libnotify libusb1 libxkbcommon mesa
     nspr nss openssl pango systemd tpm2-tss vulkan-loader wayland
     libx11 libxcb libxcomposite libxdamage libxext
     libxfixes libxrandr
@@ -48,6 +48,9 @@ in pkgs.stdenvNoCC.mkDerivation rec {
     done < <(find "$out/lib/chatgpt/resources" -type f -name '*.musl.node' -print0)
     makeWrapper "$out/lib/chatgpt/ChatGPT" "$out/bin/chatgpt" \
       "''${gappsWrapperArgs[@]}" \
+      --set GTK_IM_MODULE fcitx \
+      --unset NIXOS_OZONE_WL \
+      --add-flags "--ozone-platform=wayland --gtk-version=4" \
       --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.xdg-utils pkgs.git pkgs.coreutils pkgs.bash ]} \
       --prefix LD_LIBRARY_PATH : ${pkgs.lib.makeLibraryPath runtimeLibraries}
     mkdir -p "$out/share/applications"
