@@ -60,7 +60,12 @@ in {
       };
       Install.WantedBy = [ "graphical-session.target" ];
     };
-    xdg.configFile."niri/config.kdl".text = text;
+    # Replace a previous generation's store symlink when Niri first becomes
+    # Home Manager-managed through the NixOS module.
+    xdg.configFile."niri/config.kdl" = {
+      inherit text;
+      force = true;
+    };
     xdg.configFile."jeebis/applications.json".source = catalog;
     home.packages = with pkgs; [ actions keySearch resize xwayland-satellite btop brightnessctl wireplumber
       nautilus localsend zathura ] ++ [ (gtkIme pkgs.slack) (gtkIme pkgs.obsidian) spotify niri ];

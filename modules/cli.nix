@@ -4,7 +4,7 @@
   home.packages = with appPkgs; [
     git gh gh-dash curl wget just
     # fish is supplied by programs.fish.
-    neovim yazi
+    neovim yazi fastfetch
     eza bat delta dust fzf zoxide ripgrep fd
     unzip _7zz zip gnutar gzip xz bzip2 zstd coreutils stow jq
     ffmpeg poppler-utils imagemagick mediainfo exiftool
