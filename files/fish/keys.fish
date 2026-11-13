@@ -25,9 +25,9 @@ function __jeebis_prefer_case
     test (count $fallback) -eq 0; or printf '%s\n' $fallback
 end
 
-function __jeebis_clear_list
+function __jeebis_clear_screen
     functions --query __jeebis_prompt_reset; and __jeebis_prompt_reset
-    command clear; and command eza --icons=always
+    command clear
     commandline -f repaint
 end
 
@@ -448,13 +448,15 @@ function fish_user_key_bindings
     bind ctrl-w cancel-commandline
     bind ctrl-shift-w exit
     bind ctrl-r _atuin_search
-    bind ctrl-escape __jeebis_clear_list
+    bind ctrl-escape __jeebis_clear_screen
     # Reserve Ctrl+L for the unified application bindings.
     bind ctrl-l ''
     bind escape,escape 'commandline -r ""'
     bind ctrl-left backward-word
     bind ctrl-right forward-word
     bind ctrl-backspace backward-kill-word
+    # Legacy Ctrl+Backspace arrives as BS / Ctrl+H without Kitty encoding.
+    bind ctrl-h backward-kill-word
     bind ctrl-delete kill-word
     bind home beginning-of-line
     bind end end-of-line

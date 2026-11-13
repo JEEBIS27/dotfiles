@@ -15,7 +15,8 @@ NixOS / Nix-on-Droidの既定シェル定義もfishへ変更。別端末の実�
 
 Ctrl+F/G/D/Yはファイル検索・文字列検索・移動先検索・Yazi。対応するd/f/g/yコマンドは提供しない。
 Ctrl+RはAtuin履歴、Ctrl+Wは入力中断とTTY割り込み、Ctrl+Shift+Wは終了。
-Ctrl+Escは画面消去と一覧表示。Ctrl+Lはfish側の処理を無効化。
+Ctrl+Escは画面消去のみ（一覧表示なし）。Ctrl+Lはfish側の処理を無効化。
+Ctrl+Backspaceは直前の単語を削除。旧形式のBS（Ctrl+H）も同じ操作として受ける。
 Esc 2回で入力削除。単語移動・単語削除とHome/Endも維持。
 自動入力候補・構文強調・上矢印の履歴操作はfish標準。存在するコマンドの入力色は緑（実行結果とは別）。
 Atuinはローカルで履歴を記録し、既存のfish履歴は`atuin import fish`で取り込める。Zshプラグインやキーpacket変換は使わない。
