@@ -109,13 +109,16 @@ function __jeebis_yazi
     test -n "$cwd"; and test "$cwd" != "$PWD"; and cd -- "$cwd"
 end
 
-# TUIOS owns the already-rendered output. No command is rerun or wrapped in tee.
+# Read rendered output without running the command again.
 function __jeebis_last_output
-    if not set -q TUIOS_WINDOW_ID
-        printf 'この機能はTUIOSのペイン内で使ってください。\n' >&2
+    if set -q TUIOS_WINDOW_ID
+        command tuios capture-pane --window "$TUIOS_WINDOW_ID" --last-command --unwrap
+    else if set -q JEEBIS_OUTPUT_LOG
+        command jeebis-last-output
+    else
+        printf '出力記録が有効な新しいターミナルで実行してください。\n' >&2
         return 1
     end
-    command tuios capture-pane --window "$TUIOS_WINDOW_ID" --last-command --unwrap
 end
 function copy-last-output --description 'Copy the last finished command output'
     set -l tmp (mktemp -t last-output.XXXXXX); or return

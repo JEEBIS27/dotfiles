@@ -37,3 +37,14 @@ The wallpaper picker invokes `jeebis-desktop wallpaper set`; mpvpaper owns rende
 The customized former shell is archived in [JEEBIS27/jeebis-shell](https://github.com/JEEBIS27/jeebis-shell). Home Manager does not package or synchronize it. Compatibility command adapters and Hyprland defaults retained in this repository are separate from the removed Quickshell shell; they do not require an installed Omarchy OS on NixOS.
 
 This migration has not been built or tested on the destination PC. Login, PAM unlock, clipboard, notifications, theme changes, video playback and suspend require destination testing.
+
+
+
+## Native notification endpoint
+
+On Niri, Home Manager starts `mako.service` as the receiver for
+`org.freedesktop.Notifications`. Tide observes notification calls and renders the
+popup/history; mako handles protocol replies with its own popups hidden to avoid
+duplicates. Without this endpoint, tools such as fish's `done` plugin print
+`Failed to show notification ... ServiceUnknown`. The service follows the graphical
+session and restarts on failure.

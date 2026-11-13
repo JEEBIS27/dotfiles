@@ -84,9 +84,10 @@ binds {
     Mod+Shift+T { toggle-window-floating; }
     Mod+Ctrl+T { toggle-column-tabbed-display; }
     Mod+Alt+Shift+J { toggle-column-tabbed-display; }
-    Mod+Alt+Shift+K { show-hotkey-overlay; }
+    Mod+Alt+Shift+K { spawn "@key-search@"; }
     Mod+V { consume-or-expel-window-left; }
     Mod+Shift+V { consume-or-expel-window-right; }
+    Mod+Ctrl+Escape { spawn "@desktop@" "shell" "tide" "togglePowerMenu"; }
     Mod+Escape { spawn "@desktop@" "lock"; }
     Mod+Shift+E { quit; }
     Mod+Shift+S { screenshot; }

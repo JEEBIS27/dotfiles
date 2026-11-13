@@ -10,6 +10,9 @@ let
       "muted" "bright_red" "bright_green" "bright_yellow" "bright_blue" "bright_magenta" "bright_cyan" "bright_foreground" ];
   });
   preferences = pkgs.writeText "jeebis-herdr-preferences.json" (builtins.toJSON {
+    keys = lib.recursiveUpdate (builtins.fromJSON (builtins.readFile ../files/herdr-app/keys.json)) {
+      global.alt-y.args.argv = [ "${config.jeebis.shell.package}/bin/fish" "-i" "-c" "__jeebis_yazi" ];
+    };
     settings = { core = "${app.core}/bin/herdr-core"; theme = "jeebis"; font = "HackGen35 Console NF"; font_size = 14; };
     programs.programs.codex.run = [ "${appPkgs.codex}/bin/codex" "--no-daemon" ];
   });

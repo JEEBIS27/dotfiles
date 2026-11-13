@@ -120,6 +120,9 @@ function __jeebis_preexec --on-event fish_preexec
     if set -q TUIOS_WINDOW_ID
         printf '\e]133;C\a'
     end
+    if set -q JEEBIS_OUTPUT_TOKEN
+        printf '\e]777;jeebis;%s;start\a' $JEEBIS_OUTPUT_TOKEN
+    end
 end
 
 function __jeebis_command_result --argument-names result duration
@@ -171,6 +174,9 @@ function __jeebis_postexec --on-event fish_postexec
     if set -q TUIOS_WINDOW_ID
         # Keep status decoration outside the captured command-output region.
         printf '\e]133;D;%s\a' $result
+    end
+    if set -q JEEBIS_OUTPUT_TOKEN
+        printf '\e]777;jeebis;%s;end\a' $JEEBIS_OUTPUT_TOKEN
     end
     __jeebis_command_result "$result" "$duration"
     if string match --quiet --regex '(^|[;&|]\s*)(command\s+)?(clear|reset)(\s|$)' -- "$argv[1]"

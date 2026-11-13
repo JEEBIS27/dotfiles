@@ -19,6 +19,15 @@ let
       exec python3 ${../packages/desktop/niri_resize.py} "$@"
     '';
   };
+  keySearch = pkgs.writeShellApplication {
+    name = "jeebis-niri-keybindings";
+    runtimeInputs = [ pkgs.python3 pkgs.fuzzel ];
+    text = ''
+      exec python3 ${../packages/desktop/niri-keybindings.py} \
+        --config ${lib.escapeShellArg "${config.xdg.configHome}/niri/config.kdl"} \
+        --applications ${lib.escapeShellArg "${config.xdg.configHome}/jeebis/applications.json"} "$@"
+    '';
+  };
   appBindings = lib.concatStringsSep "\n" (lib.concatLists (lib.mapAttrsToList (id: app:
     lib.optional (id != "terminal")
       ''Mod+Alt+${app.key} { spawn "${actions}/bin/jeebis-niri" "launch" "${id}"; }''
@@ -32,8 +41,8 @@ let
     '') (lib.range 1 10));
   workspaces = lib.concatMapStringsSep "\n" (n: ''workspace "${toString n}"'') (lib.range 1 10);
   text = builtins.replaceStrings
-    [ "@machine@" "@terminal@" "@desktop@" "@actions@" "@applications@" "@workspace-bindings@" "@workspaces@" "@resize@" ]
-    [ config.jeebis.machine.niriConfiguration config.jeebis.terminal.command cfg.command "${actions}/bin/jeebis-niri" appBindings workspaceBindings workspaces "${resize}/bin/jeebis-niri-resize" ]
+    [ "@machine@" "@terminal@" "@desktop@" "@actions@" "@applications@" "@workspace-bindings@" "@workspaces@" "@key-search@" "@resize@" ]
+    [ config.jeebis.machine.niriConfiguration config.jeebis.terminal.command cfg.command "${actions}/bin/jeebis-niri" appBindings workspaceBindings workspaces "${keySearch}/bin/jeebis-niri-keybindings" "${resize}/bin/jeebis-niri-resize" ]
     (builtins.readFile ../files/niri/config.kdl);
 in {
   config = lib.mkIf (cfg.compositor == "niri") {
@@ -52,7 +61,7 @@ in {
     };
     xdg.configFile."niri/config.kdl".text = text;
     xdg.configFile."jeebis/applications.json".source = catalog;
-    home.packages = with pkgs; [ actions resize niri xwayland-satellite btop brightnessctl wireplumber
+    home.packages = with pkgs; [ actions keySearch resize niri xwayland-satellite btop brightnessctl wireplumber
       slack obsidian nautilus localsend zathura ] ++ [ spotify ];
   };
 }

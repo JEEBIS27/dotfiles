@@ -127,6 +127,14 @@ in
     command = lib.mkOption { type = lib.types.str; readOnly = true; default = "${package}/bin/jeebis-desktop"; };
   };
   config = {
+    # Tide observes Notify calls and renders its own popup/history, but does
+    # not own org.freedesktop.Notifications. Supply the protocol endpoint.
+    services.mako = lib.mkIf (native && !legacy) {
+      enable = true;
+      settings.default-timeout = 5000;
+      # Tide owns the visible UI; avoid a second popup from mako.
+      extraConfig = "[summary~=\".*\"]\ninvisible=1\n";
+    };
     home.packages = [ package tide appPkgs.mpvpaper appPkgs.swayidle appPkgs.fuzzel appPkgs.cava appPkgs.fastfetch ];
     xdg.dataFile."jeebis-desktop/backgrounds".source = coreSource + /backgrounds;
     xdg.configFile = lib.optionalAttrs (cfg.compositor == "hyprland") fileLinks // {
@@ -201,6 +209,20 @@ in
       '';
     };
     systemd.user.services = {
+      mako = lib.mkIf (native && !legacy) {
+        Unit = {
+          Description = "Notification endpoint for Tide Island";
+          PartOf = [ "graphical-session.target" ];
+          After = [ "graphical-session.target" ];
+        };
+        Service = {
+          Type = "dbus";
+          BusName = "org.freedesktop.Notifications";
+          ExecStart = "${pkgs.mako}/bin/mako --config ${config.xdg.configHome}/mako/config";
+          Restart = "on-failure";
+        };
+        Install.WantedBy = [ "graphical-session.target" ];
+      };
       jeebis-display-rotation = lib.mkIf (cfg.compositor == "hyprland") {
         Unit = { Description = "Automatic display rotation, including the locked session"; After = [ "wayland-session-waitenv.service" ]; PartOf = [ "graphical-session.target" ]; };
         Service = { ExecStart = "${rotation}/bin/jeebis-display-rotation session ${config.xdg.configHome}/jeebis/display-rotation.json"; Restart = "on-failure"; RestartSec = 3; };

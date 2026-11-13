@@ -1,5 +1,27 @@
 { config, lib, pkgs, ... }:
 let
+  recordedFish = pkgs.writeShellApplication {
+    name = "jeebis-recorded-fish";
+    runtimeInputs = [ pkgs.util-linux pkgs.coreutils ];
+    text = ''
+      # tmux sets SHELL to default-shell, which is this wrapper. script uses
+      # SHELL to launch --command: point it at fish to prevent recursion.
+      export SHELL="${config.jeebis.shell.package}/bin/fish"
+      # tmux also invokes default-shell -c COMMAND for tool panes/popups.
+      if (( $# > 0 )); then
+        exec "$SHELL" "$@"
+      fi
+      umask 077
+      capture_dir=$(mktemp -d "''${XDG_RUNTIME_DIR:-/tmp}/jeebis-output.XXXXXXXX")
+      trap 'rm -rf -- "$capture_dir"' EXIT
+      export JEEBIS_OUTPUT_LOG="$capture_dir/output"
+      JEEBIS_OUTPUT_TOKEN=$(cat /proc/sys/kernel/random/uuid)
+      export JEEBIS_OUTPUT_TOKEN
+      script --quiet --flush --return --log-out "$JEEBIS_OUTPUT_LOG" \
+        --command 'exec ${config.jeebis.shell.package}/bin/fish'
+    '';
+  };
+  outputPython = pkgs.python3.withPackages (ps: [ ps.pyte ]);
   launcher = pkgs.writeShellApplication {
     name = "jeebis-terminal";
     runtimeInputs = [ pkgs.ghostty ];
@@ -13,7 +35,8 @@ in {
     description = "Compositor-independent terminal launcher.";
   };
   config = {
-    home.packages = [ launcher (pkgs.writeShellApplication {
+    home.packages = [ launcher recordedFish (pkgs.writeShellScriptBin "jeebis-last-output"
+      "exec ${outputPython}/bin/python3 ${../files/desktop/helpers/jeebis-last-output.py} \"$@\"") (pkgs.writeShellApplication {
       name = "jeebis-ghostty-reload";
       runtimeInputs = [ pkgs.python3 ];
       text = "exec python3 ${../packages/desktop/reload-ghostty.py}";
@@ -23,7 +46,7 @@ in {
       enable = true;
       package = pkgs.ghostty;
       settings = {
-        command = "${config.jeebis.shell.package}/bin/fish";
+        command = "${recordedFish}/bin/jeebis-recorded-fish";
         font-family = "HackGen35 Console NF";
         font-size = 14;
         window-decoration = false;
@@ -33,11 +56,9 @@ in {
         cursor-style-blink = false;
         mouse-hide-while-typing = true;
         config-file = "?${config.jeebis.desktop.themeDirectory}/ghostty.conf";
-        keybind = [
-          "ctrl+insert=copy_to_clipboard" "shift+insert=paste_from_clipboard"
-          "ctrl+alt+equal=increase_font_size:1" "ctrl+alt+minus=decrease_font_size:1"
-          "ctrl+alt+0=reset_font_size"
-        ];
+        # Explicitly own only the emulator layer. Ghostty defaults consume
+        # Ctrl+Enter, Ctrl+Tab, Ctrl+numbers and Shift movement before TUIs.
+        keybind = import ../files/ghostty/keybindings.nix;
       };
     };
     xdg.configFile."xdg-terminals.list".text = "com.mitchellh.ghostty.desktop\n";
@@ -48,7 +69,11 @@ in {
       escapeTime = 0;
       historyLimit = 50000;
       mouse = true;
-      shell = "${config.jeebis.shell.package}/bin/fish";
+      shell = "${recordedFish}/bin/jeebis-recorded-fish";
+      extraConfig = builtins.replaceStrings
+        [ "@fish@" ] [ "${config.jeebis.shell.package}/bin/fish" ]
+        (builtins.readFile ../files/tmux/tmux.conf)
+        + "\n" + import ../files/tmux/copy-keys.nix { inherit lib; };
     };
   };
 }

@@ -1,183 +1,95 @@
-# ターミナルのキー移行表
+# 現環境のキーバインド
 
-調査元は移行前の `files/wezterm/keybinds.lua`、`wezterm.lua`、`files/tmux.conf`、`files/herdr/config.toml`。旧設定そのものはGit履歴にだけ残す。Alt層をTUIOSへ集約し、Ctrl+Alt層の主要操作も別名として残す。
+Niri + Ghostty + fish、必要に応じてtmuxまたはHerdr Appを使う。
+旧Hyprland環境の階層を維持する：Superはデスクトップ、Ctrl+Altは端末、Altは多重化、Ctrlは内側アプリ。
+TUIOS時代の対応表は[tuios-terminal-keybindings.md](tuios-terminal-keybindings.md)に保存した。
 
-## 通常操作
+## tmux / Herdr App
 
-| 旧キー | 旧担当・意味 | Rio + TUIOS |
-|---|---|---|
-| Alt+H/J/K/L、Alt+矢印 | Herdr/tmuxのペイン移動 | TUIOSの方向移動 |
-| Alt+Shift+H/J/K/L、Alt+Shift+矢印 | ペインを5単位リサイズ | TUIOSの5単位リサイズ |
-| Alt+Enter / Shift+Enter | 左右 / 上下分割 | TUIOSのvertical / horizontal split |
-| Alt+N | Herdrタブ / tmuxウィンドウ | TUIOS新規ウィンドウ（ペイン） |
-| Alt+Shift+N | 新規Tab / Workspace | 最初の空Tabに作成。Codexタブ中はCodexを起動 |
-| Alt+1〜9 | タブ / ウィンドウ選択 | 現TabのTUIOSウィンドウ選択 |
-| Alt+Tab / Alt+Shift+Tab | 次 / 前タブ | 次 / 前TUIOS Tab。Codexタブ中はCodexだけを巡回 |
-| Alt+PageDown / PageUp | 次 / 前タブ | 同上、端末側のFキー変換不要 |
-| Alt+Shift+PageDown / PageUp | 次 / 前Tab | ペインがある次 / 前Tab |
-| Alt+F | WezTermの画面検出→コピー→検索 | TUIOS `copy_mode_search_backward`、1操作で検索 |
-| Alt+Shift+Y | コピーモード | TUIOSコピーモード |
-| Alt+Y | cwdを継承してYazi | TUIOSカスタムpaneコマンド `yazi` |
-| Alt+T | シェルpopup | TUIOSの永続scratch、同じキーで表示/非表示 |
-| Alt+Shift+T | tmuxレイアウト切替 | TUIOSレイアウト切替 |
-| Alt+S（Alt+Gも可） | Tab検索 | TUIOS Tab選択 |
-| Alt+Shift+S | Workspace検索 | 内蔵検索でEnter切替・Delete削除確認 |
-| Alt+E → H/J/K/L、矢印 | ペイン交換 | TUIOS prefix→方向交換 |
-| Alt+B | サイドバー操作 | 開いてフォーカス。表示済みならフォーカスし、操作中なら閉じて元のペインへ戻る |
-| Alt+Shift+B | サイドバー表示 | フォーカスを変えずに表示・非表示を切り替える |
-| Alt+O | 通知対象へ移動 | TUIOSの最新メッセージ対象へ移動 |
-| Alt+D | デタッチ | TUIOSデタッチ、プロセスを保持 |
-| Alt+W | ペインを閉じる | TUIOSウィンドウを閉じる |
-| Alt+Shift+W | Tabを閉じる | 現Tabの全ペインを閉じる（確認あり）。他のTabは保持 |
-| Alt+Shift+D | Tabを閉じる | TUIOSの現Tab全ペインを閉じる（確認あり） |
-| Alt+Shift+F | ズーム | TUIOSズーム |
-| Alt+; | 前のペイン | TUIOS last pane |
-| Alt+R | タブ名変更 | TUIOSウィンドウ名変更（階層差あり） |
-| Alt+Shift+P | ペイン名変更 | TUIOSウィンドウ名変更 |
-| Alt+Shift+R | Tab名変更 | TUIOS Tab名変更 |
-| Alt+P | Herdr goto | TUIOSコマンドパレット（完全に同じpickerではない） |
-| Alt+Shift+E | スクロールバック編集 | TUIOSスクロールバックbrowser（外部エディター編集とは異なる） |
-| Alt+, / Alt+Shift+, | 設定 / 再読込 | TUIOS設定 / 再読込 |
-| Alt+/ | ヘルプ | TUIOSヘルプ |
-| Alt+Shift+G | Herdr worktree作成 | popupでブランチ入力→`tuios worktree new --detach`。作成後はrailで選択 |
+| キー | tmux | Herdr App |
+| --- | --- | --- |
+| Alt+H/J/K/L・矢印 | ペイン移動 | ペイン移動 |
+| Alt+Shift+方向 | 5セルのリサイズ | App 0.1.13には非対応。マウスで境界をドラッグ |
+| Alt+E → H/J/K/L・矢印 | ペイン交換 | ペイン交換（GPUIのキーシーケンス） |
+| Alt+Ctrl+H/J/K/L・矢印 | 端末側の操作 | 隣接ペインとの交換（`pane.swap`） |
+| Alt+Enter / Alt+Shift+Enter | 左右 / 上下分割 | 同じ |
+| Alt+W / Alt+Shift+W | ペイン / ウィンドウを閉じる | ペイン / タブを閉じる |
+| Alt+Shift+F | ペインのズーム切替 | 同じ |
+| Alt+N / Alt+Shift+N | 新規ウィンドウ / セッション | 新規タブ / スペース |
+| Alt+R / Alt+Shift+R | ウィンドウ / セッションの名前変更 | タブ / スペースの名前変更 |
+| Alt+1〜9 | ウィンドウ選択（1始まり） | タブ選択。標準のスペース選択を変更 |
+| Alt+Tab・Alt+PageDown / Shift+Tab・PageUp | 次 / 前ウィンドウ | 次 / 前タブ |
+| Alt+Shift+PageDown / PageUp | 次 / 前セッション | 次 / 前スペース |
+| Alt+S / Alt+G | ウィンドウ / セッション一覧 | スペース・タブ・エージェントのpicker |
+| Alt+F | コピーモードを開いて検索 | 端末の検索バー |
+| Alt+Shift+Y | コピーモード | Appには旧版のキーボードコピーモードがない |
+| Alt+Y | 右分割でfishのYazi関数を起動 | 同じ |
+| Alt+T | シェルpopup（80%） | Appには旧版のシェルpopupがない |
+| Alt+Shift+T | ペインレイアウト切替 | Appの画面レイアウト切替 |
+| Alt+D | デタッチ | ウィンドウを閉じる。coreの端末は保持 |
+| Alt+Shift+D | セッションを閉じる（確認あり） | スペースを閉じる |
+| Alt+/ | キー一覧 | ヘルプ |
+| Alt+B・Alt+Shift+B | 未割当て | サイドバー表示切替 |
 
-TUIOSの表示名は **Workspace → Tab → Pane**（内部識別子は従来の `session → workspace → window`）。Herdrの **workspace → tab → pane** と階層の名前・切替対象が違う。Alt+Nで複数ペインを束ねた独立タブは作られない。9Tabを使い切るとAlt+Shift+Nは新規作成できない。通常のRioはHyprland Workspaceごとの既存Workspaceへ再接続する。
+Herdr TUIとHerdr Appは別製品。Appの公開コマンドにはpane.resize、copy_mode、
+rename_pane、last_pane、new_worktree、edit_scrollbackがないため、架空の操作を割り当てない。
+旧Alt+Shift+方向がApp標準の「ペイン交換」にならないよう、その割当ても解除する。
+Appのキー設定はライブ反映。旧Alt+Shift+,の明示的な設定再読込は不要。
+旧Alt+Oの通知対象への移動も同等コマンドがないため未割当て。
 
-## Ctrl+Alt層・端末操作
+Appに残っていたCtrl+数字・Ctrl+Tab・Ctrl+PageUp/Down・Ctrl+Shift+W/N等は
+端末フォーカス中に内側アプリへ渡す。Ctrl+Backspaceの旧`send:Ctrl+W`変換も外し、
+fishの割り込みキーCtrl+Wと混同しないようにする。コピー/貼付けのCtrl+Shift+C/VとInsert系は維持。
+独自のローカルキーとmodセクションは、宣言したキー以外を保持してマージする。
 
-| 旧キー | 移行先 / 差異 |
-|---|---|
-| Ctrl+Alt+H/J/K/L、矢印、Shift付き | Alt層と同じ移動・リサイズ |
-| Ctrl+Alt+Enter、Shift付き | TUIOS左右・上下分割 |
-| Ctrl+Alt+Shift+F | TUIOSズーム |
-| Ctrl+Alt+W | TUIOSウィンドウを閉じる |
-| Ctrl+Alt+Shift+W | 旧タブ全体の削除は未移行 |
-| Ctrl+Alt+N | TUIOS新規ウィンドウ |
-| Ctrl+Alt+Shift+N | 旧OSウィンドウ作成は未移行。Super+Alt+Enterを使用（FullwidthはSuper+Alt+Shift+Enter） |
-| Ctrl+Alt+R / Shift+R | TUIOSウィンドウ / Tab名変更 |
-| Ctrl+Alt+Tab、Shift+Tab、PageUp/Down、Shift+PageUp/Down、1〜9 | Alt層と同じウィンドウ・Tab切替 |
-| Ctrl+Alt+G / Shift+G | TUIOS Tab選択 / 新規作成（旧名前入力promptとは異なる） |
-| Ctrl+Alt+E | 旧WezTerm pane selector交換は未移行。Alt+E→方向を使用 |
-| Ctrl+Alt+F、Shift+Y、Y | TUIOS検索・コピー・Yazi |
-| Ctrl+Alt+P | TUIOSコマンドパレット |
-| Ctrl+Alt+, / Shift+, | TUIOS再読込 / 設定画面（旧ファイルをエディターで開く操作とは異なる） |
-| Ctrl+Alt+= / - / 0 | Rioのフォント拡大 / 縮小 / リセット |
-| Ctrl+Alt+U、Shift+U | WezTerm独自の透過切替を削除。透明度はHyprlandのlooknfeelで管理 |
-| Ctrl+Alt+I | 旧Herdr起動を削除。TUIOS Inboxを表示 |
-| Ctrl+Alt+Shift+I | 外部`chat`起動は未移行（リポジトリにコマンド本体なし） |
-| Ctrl+Alt+Home / End | Rio独自スクロールは削除。TUIOSコピー内のg/Gを使用 |
-| Ctrl+Insert / Shift+Insert | Rioコピー / 貼付け |
-| Ctrl+Shift+C / V | Rio標準コピー / 貼付け |
-| Shift+Enter | 固定CSI-uパケット注入を削除、Kitty Keyboard Protocolで転送 |
-| 左クリック選択・離す | アプリのマウスイベントを優先。TUIOSコピーやShift付き端末選択を使用 |
-| Alt+F5〜F9 | 旧Page/BackTab変換用aliasを削除。実際のPage/Tabキーを使用 |
-| Alt+E→PageUp/Down、F5/F6 | 旧タブ順交換は未移行。タブ階層なし |
-| Ctrl+Space / Ctrl+B prefix、prefix q / ? | 旧tmux prefixを削除。TUIOSはAlt+E、再読込Alt+Shift+,、ヘルプAlt+/ |
+## Ghostty
 
-## コピーモード
+`files/ghostty/keybindings.nix`で標準キーをclearした上で必要な端末操作だけを宣言する。
+Alt+数字、Ctrl+Enter、Ctrl+Shift+Enter、Ctrl+Tab、Ctrl+数字、Shift+PageUp/Down、
+Shift+矢印は内側アプリへ届く。これがHelix・Yazi・fishの共通キーを有効にする。
 
-旧WezTermの `h/j/k/l`・矢印、`^/$/0`、Home/End、`w/b/e`、`f/F/t/T/;`、`g/G`、Ctrl+Home/End、`H/M/L`、Ctrl+B/F/U/D、PageUp/Down、`v/V/Ctrl+V`、`o/O`、`y`、Enter、Esc、Ctrl+C、qを調査した。
+| キー | 操作 |
+| --- | --- |
+| Ctrl+Insert / Ctrl+Shift+C | コピー |
+| Shift+Insert / Ctrl+Shift+V | クリップボード貼付け |
+| Ctrl+Alt+= / - / 0 | 文字サイズ拡大 / 縮小 / リセット |
+| Ctrl+Alt+H/J/K/L・矢印 | Ghosttyの分割移動 |
+| Ctrl+Alt+Shift+方向 | Ghosttyの分割リサイズ（5px。旧WezTermの5セルとは単位が違う） |
+| Ctrl+Alt+Enter / Ctrl+Alt+Shift+Enter | 左右 / 上下分割 |
+| Ctrl+Alt+Shift+F | 分割のズーム切替 |
+| Ctrl+Alt+W / Ctrl+Alt+Shift+W | 現在の分割 / タブを閉じる |
+| Ctrl+Alt+N / Ctrl+Alt+Shift+N | 新規タブ / OSウィンドウ |
+| Ctrl+Alt+Tab・PageDown / Shift+Tab・PageUp | 次 / 前タブ |
+| Ctrl+Alt+Shift+PageDown / PageUp | 次 / 前OSウィンドウ。WezTermのWorkspaceとは異なる |
+| Ctrl+Alt+1〜9 | タブ選択 |
+| Ctrl+Alt+R / Ctrl+Alt+G | タブ名変更 / タブ一覧 |
+| Ctrl+Alt+F / Ctrl+Alt+P | 検索 / コマンドパレット |
+| Ctrl+Alt+, / Ctrl+Alt+Shift+, | 再読込 / 設定ファイルを開く |
+| Ctrl+Alt+Home / End | スクロールの先頭 / 末尾 |
 
-TUIOS標準のVim移動・`v/V`選択・`/ ? n N`検索・`y`コピーを使用する。旧 `o/O` の選択端交換、Ctrl+Vの矩形選択、Home/End/Ctrl+Home/End、EnterでPRIMARYにもコピーする挙動、Ctrl+Cで終了する挙動までの完全一致は保証しない。コピーと選択の詳細はTUIOSのヘルプで確認する。動かない互換アクションは追加していない。
+WezTermのWorkspace・pane selector交換・透過段階切替・Vimコピーモードに完全一致する
+Ghostty操作はない。Alt層のtmuxでセッション・ペイン交換・コピーを使う。
 
-## 内側アプリとの境界
+## 内側アプリとデスクトップ
 
-Ctrl+P/N/F/Y/V、Shift+Enter、Shift+PageUp/Down、Shift+矢印は内側アプリへ渡す。fishのCtrl+F/G/D/Y/Rとネイティブのキー処理、Yaziの`d/D/x/X`などの操作は維持する。Rio標準のCtrl+Shift+P/F/B/NとCtrl+Lは明示的に転送へ変更した。
+Helix、Yazi、fish、Neovimのキー設定はHyprlandからの移行で変更されていない。
+Helix/Yaziの文字移動とtmuxのコピーモードは共通の`directionKeys = "haoe"`を使う。
+Ctrl/Alt/Super付き方向キーはHJKLのまま。検索文字と挿入文字は変換しない。
 
-Alt+H/J/K/L・Alt+矢印など、この表で予約したキーは内側アプリへ届かない。fishのAlt+矢印による単語移動は元からペイン移動との競合対象であり、Ctrl+矢印を使う。CodexのAlt+キー操作と衝突する場合もTUIOS層が優先する。`tuios keybinds doctor --guest nvim`等は参考情報であり、実機入力確認の代わりではない。
+- [Helix](helix-keybindings.md)、[共通Ctrl操作](editor-keybindings.md)
+- [Yazi](yazi-keybindings.md)、[fish](fish-migration.md)
+- [Niriのデスクトップ操作と移行差分](niri-keybindings.md)
 
-fishの画面消去＋一覧表示はCtrl+Esc。Ctrl+Lはfishで処理しない。シェルの移行内容と出力保存は[fish-migration.md](fish-migration.md)を参照。
+Niriの既存アプリ起動・上下配置・ワークスペース操作を維持する。Hyprland固有の
+special workspace、Dwindle、Super+Eのexchange submapはNiriの同等機能がなく、
+現行Super+Ctrl+方向の交換操作を使う。Shift付きアプリ起動は現在の下配置を維持。
 
-## デスクトップのアプリ起動
+## 反映と検証
 
-キーの割り当ては `files/hypr/app-bindings.lua` 先頭の `APP_KEYS` に集約する。
-例: `O = "obsidian"`。`false` はこの表から起動キーを生成しない。
-空き文字キーも残し、H/J/K/Lは移動操作用に予約する。
+Home ManagerがGhostty/tmuxの設定とHerdr Appへのキーのマージを管理する。
+既存tmuxには`tmux source-file ~/.config/tmux/tmux.conf`で反映でき、paneのプロセスは継続する。
+Ghosttyは再読込、Herdr Appは次回起動またはライブ反映で更新する。
 
-各キーにSuper+Alt（通常起動）とSuper+Alt+Shift（同じアプリのFullwidth起動）を自動生成する。
-FullwidthはScrollingで列幅100%、Dwindle/Floatingで最大化。起動元Tabの対象アプリを待ち、既存の全幅を解除しない。
-端末の右/下分割（Super+Enter / Super+Shift+Enter）は配置操作として維持する。
-1Password・Tensaku・Ploverはランチャーから起動する。
-
-## Yazi画像プレビュー
-
-Super+Yは `jeebis-terminal` → Rio → TUIOS → fish → Yazi で起動する。
-通常のTUIOSペインから開くYaziも含め、Rioの描画は `Webgpu` に揃える。
-ネイティブVulkan経路では画像プレビュー中のリサイズとIntel GPUハングが対応していた。
-`jeebis-terminal` は `NO_COLOR` を解除する。Kitty画像プロトコルは文字色に画像IDを埋め込むため、
-TUIOSの描画から色を省くと画像が表示されない。GUI検証を直接起動する場合も `env -u NO_COLOR` を使う。
-
-
-## Workspaceと役割Tab
-
-HyprlandのWorkspace1はTUIOSの `desktop-1` Workspace、2は `desktop-2` Workspaceを使う。
-名前付き・specialのHyprland Workspaceも、独立したTUIOS Workspaceに対応する。
-その中でTerminal・Yazi・Codex・Helix・btopなどの役割Tabを使い分ける。使用中なら空き番号に同じ役割の別Tabを追加する。
-再起動では同じ役割のTabへ戻り、ペインを追加しない。空の場合だけ作り直す。
-
-Rioを閉じるだけならプロセスをそのまま保持する。PC・TUIOSデーモンの再起動では、
-保存済みの各ペインのディレクトリに新しいシェルを作り、`daemon.resume_agents = "auto"` により
-直前まで起動していたCodexを `codex resume <チャットID>` で自動再開する。
-チャットIDはCodexのSessionStartフックで保存する。Home Managerの反映時にTUIOSのフックだけを
-既存のhooks.jsonへマージし、ほかのフックを保持する。明示的なresume起動にはID保存の補助もある。
-旧版の `Codex <UUID>` ペイン名は、保存時にAgentが稼働していた場合だけ復元に利用する。
-自分で終了してシェルへ戻したCodexや通常のTerminalでは、勝手にCodexを起動しない。
-チャットIDが記録される前に失われたペインは、Chats一覧から対象チャットを開き直す。
-復元はチャットの再開であり、実行途中のコマンドや生成途中のターンを自動送信し直さない。
-
-
-- Alt+Shift+S: 内蔵Workspace検索。入力で絞り込み、Enterで切り替え、Delete（またはCtrl+D）で削除確認、Escで戻る。
-- Alt+S（Alt+Gも可）: TUIOS Tab検索。
-- Alt+Tab / Alt+PgDn: 次のTUIOS Tab。
-- Alt+Shift+Tab / Alt+PgUp: 前のTUIOS Tab。
-- Super+W: Rioを閉じる。Workspaceと実行中プロセスは保持する。
-- Alt+W: 現在のペインを閉じる。
-- Alt+Shift+W: 現在のTabの全ペインを閉じる（確認あり）。他のTabとWorkspaceは保持する。
-
-歯車マークは表示しない。過去の役割別Workspaceは自動削除せず、必要ならAlt+Shift+Sから削除する。
-
-Tab検索には役割名・ペインタイトル・選択中Tabの作業ディレクトリを表示する。名前・タイトル・ディレクトリで絞り込める。役割名は未命名の場合だけ設定し、Ctrl+Rで変更した名前は保持する。
-
-## 表示名と内部識別子
-
-UIは旧SessionをWorkspace、旧WorkspaceをTabと呼ぶ。Alt+SはTab検索、Alt+Shift+SはWorkspace検索。
-既存設定・CLIとの互換性のため、`prefix_session_switcher`、`prefix_workspace_switcher`、`tuios attach`などの内部名やコマンド名は変更しない。
-
-
-## 複数のRioウィンドウ
-
-各Rioは選択中のTabとフォーカスを独立して保持する。Codexを開いても、既存Terminalの表示は切り替わらない。
-Alt+Bのサイドバー開閉・折り畳み、フォーカス履歴、横スクロール位置、スクラッチの表示も各Rioで保持する。サイドバーの初期表示は起動プロファイルに従う。各Tabは表示しているRio自身の画面とサイドバーの幅に合わせ、他のRioのサイドバー用の余白を残さない。
-同じ役割のTabが別ウィンドウで使用中なら、新しいTabを `Terminal 2`、`Terminal 3` のように追加する。
-ウィンドウを閉じて使用中でなくなったTabは、次回の同じ役割の起動で再利用する。
-役割のTab番号は空き状況によって変わるため、Alt+Sの名前で選ぶ。既存の作業やディレクトリは上書きしない。
-
-Codex用サイドバーはローカルのCodexメタデータを読み取り専用で参照し、GUIのプロジェクト名・チャット名・ピン留めを5秒ごとに一覧表示する。アーカイブ済みチャットと内部レビュー用スレッドは表示しない。通常のTerminalはAlt+Bで現在のペインのファイルツリーを開く。
-
-Codexの一覧はクリックで操作できる。Alt+Bで一覧にフォーカスし、上下で選択、Enterでチャット再開またはプロジェクト折り畳み、左右で展開・折り畳み、Escでペインへ戻る。チャットは新しいTabで `codex resume` し、同じチャットがすでに開いていればそのTabへ移動する。既存のペインは上書きしない。
-
-Codexタブ中はAlt+Tab / Alt+Shift+Tab / Alt+PgUp / Alt+PgDnでCodexタブだけを巡回する。Alt+Shift+Nで新しいCodexタブを作成する。通常のTerminalタブからの巡回と新規作成は従来どおり。
-
-ペイン分割後は作成したペインにフォーカスする。選択中のペインを閉じた場合（シェルの終了も含む）は、同じTab内で直前に使っていた残りのペインへ戻る。各Rioのフォーカス履歴は独立して保持する。
-
-Chatsの操作: Alt+Bで一覧へ、上下で選択、Enterまたはクリックでチャット再開、左右でプロジェクトを展開・折り畳み、Escでペインへ戻る。Alt+Shift+Bでフォーカスを変えず表示だけを切り替える。Codex起動時は一覧を開き、保存された折り畳み状態を解除する。選択行は明るい青背景と暗い文字、マウスが重なった行は濃い青背景と白文字で表示する。
-
-終了したCodexがシェルとして残っているTabは、次のCodex起動時にTerminal-Codexへ変更して保持する。新しいCodexは別Tabで起動し、実行中のCodexは従来どおり再接続する。
-
-実行中のCodexと対応付いたチャットだけ、名前の左に状態色の丸を表示する。作業中・入力待ち・完了・待機・エラーはTUIOSのAgent状態色を使用し、選択行では明るい背景に合わせた濃い色にする。終了済みのチャットには丸を表示しない。一覧と状態は5秒ごとに更新する。
-
-Super+Enter / Super+Shift+Enterは、現在のアプリにかかわらずTerminal用の独立したRioを起動する。起動する子コマンドに役割とCodex用フラグの解除を明示し、既存Rioの起動条件を引き継がない。
-
-同じ役割に再接続できるTabが複数ある場合は、最後に開いた時刻が古い順に選ぶ。新規ペインを作る場合も空Tabを同じ順で選び、履歴のないTabを先、同時刻なら番号順とする。以前の名前だけが残った空Tabも再利用し、現在の役割名へ変更する。別の作業が残っているTabは上書きしない。9Tabがすべて使用中の場合はエラーを表示して待機し、Enterで起動ウィンドウを閉じる。
-
-Super+WはRioだけを閉じ、Tabと全ペインの作業を保持する。Alt+Wは選択中のペインを終了し、最後のペインならTabの名前・フォーカス履歴・起動予約も削除する。Alt+Shift+Wは確認後に対象Tabの全ペインを終了し、同じくTab情報を削除する。ほかにTabがあれば移り、なければそのクライアントだけを終了する。確認のキャンセルでは何も削除しない。
-
-Alt+Bは一覧へ入る・閉じて元へ戻る操作を兼ねる。Escは一覧を表示したまま元のペインへ戻る。Alt+Shift+Bはフォーカスを維持した表示切替。Alt+Uの割り当ては使用しない。
-
-Super+Alt+Gでgh-dashをGitHub用のTUIOS Tabに起動する。Super+Shift+Alt+Gは全幅起動。使用中のTabは保持し、別ウィンドウにはGitHub 2以降を割り当てる。Super+Wで閉じたTabは次回再接続する。アプリ島にはGitHubアイコンを表示する。従来のSuper+Alt+Gのグループ解除は上書きする。
-
-gh-dashの配色は共通デスクトップパレットから生成し、テーマ切り替え後の次回起動に反映する。起動キーでは共通の`~/.config/gh-dash/config.yml`を明示して使用する。初回は`gh auth login`でGitHub CLIの認証を行う。
-
-## コピーモードの配列
-
-TUIOS のコピーモードも `files/helix/key-layout.nix` の配列を使う。現在は h/a/o/e が左/下/上/右、w/l が次/前の単語、W/L が次/前の WORD。範囲選択中も同じ。Ctrl/Alt 付き操作、検索欄の文字、f/F/t/T の検索対象文字は変換しない。
+`scripts/check-native-keybindings.py --tmux-config FILE --ghostty-config FILE`は
+Ghosttyの実効キー、私有tmuxサーバーの各テーブル、Herdrの公開コマンドとローカル設定の
+マージを検証する。物理キー・IME・Herdr GUIの各機能は別途実機確認が必要。

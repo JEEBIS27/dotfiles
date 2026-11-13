@@ -36,12 +36,13 @@ Spotify, Obsidian, Nautilus, LocalSend, Zathura and btop are declared packages.
 | Super+F / Super+Shift+Escape | Tide launcher / settings |
 | Super+N / Super+Shift+B / Super+Shift+N | Toggle / show / hide Tide Island |
 | Super+Alt+T | Cycle shared theme |
-| Super+Alt+Shift+K | Niri hotkey overlay |
+| Super+Alt+Shift+K | Search keybindings by typing (Fuzzel) |
 | Super+R | Cycle preset column widths |
 | Super+V / Super+Shift+V | Consume or expel a window left/right |
 | Super+Ctrl+T or Super+Alt+Shift+J | Toggle tabbed column display |
 | Super+Shift+S or Print | Screenshot |
 | Super+Escape | Tide session lock |
+| Super+Ctrl+Escape | Tide power menu (shutdown/reboot/suspend/logout) |
 
 ## Window selection and split placement
 
@@ -151,3 +152,16 @@ exact 100% pair.
 Regression checks: `python3 scripts/check-niri-resize.py`. The isolated-compositor
 integration check uses `scripts/fixtures/niri-layout-client.c` and validates the
 real widths, focused window, and screenshot color spans.
+
+
+
+## Searchable keybindings
+
+Super+Alt+Shift+K opens Fuzzel with the active managed Niri bindings. Type a key,
+action, or application name to narrow the list (Japanese descriptions and English
+keywords are both included). Escape closes it; selecting a row only closes the
+reference list and never executes the action. The list reads the current generated
+config, including application and workspace bindings, rather than a separate static
+shortcut list. Niri's stock overlay is not searchable.
+
+Super+Ctrl+Escape opens Tide's power menu. Super+Escape continues to lock the session.

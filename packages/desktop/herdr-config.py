@@ -57,7 +57,9 @@ def main():
     updates = []
     if args.preferences:
         preferences = read_object(args.preferences)
-        for name in ["settings", "programs"]:
+        for name in ["settings", "programs", "keys"]:
+            if name not in preferences:
+                continue
             path = args.root / (name + ".json")
             updates.append((path, merge(read_object(path), preferences[name])))
     theme_path = args.root / "themes/jeebis.json"
