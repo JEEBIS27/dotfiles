@@ -17,6 +17,11 @@ build:
 sync:
     @bash scripts/manage.sh sync
 
+# Authenticate GitHub CLI and configure Git to use it for HTTPS.
+git-auth:
+    gh auth login --hostname github.com --git-protocol https --web
+    gh auth setup-git
+
 # Show the detected OS without building or activating anything.
 host:
     @bash scripts/manage.sh host
