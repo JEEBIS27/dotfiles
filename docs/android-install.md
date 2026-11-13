@@ -43,8 +43,8 @@ AndroidのUID/GIDをGitに書き込まない。リポジトリの配置先は任
 2. Nix-on-Droid内で取得する。Gitがなければ先に `nix-shell -p git` を起動する。
 
    ```bash
-   git clone https://github.com/JEEBIS27/dotfiles.git ~/Git/home-manager
-   cd ~/Git/home-manager
+   git clone https://github.com/JEEBIS27/dotfiles.git ~/dotfiles
+   cd ~/dotfiles
    ```
 
 3. 初回はNixからjustを一時起動し、ビルドだけで確認する。

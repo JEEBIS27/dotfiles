@@ -53,7 +53,7 @@ run_nixos() { log nixos "$@"; if [[ $1 == setup ]]; then return SETUP; fi; }
         shell = 'source "$1"; repo=/tmp/wrong-checkout; HOME=/home/jeebis; uname() { echo x86_64; }; id() { echo jeebis; }; require_host omarchy'
         r = subprocess.run(['bash', '-c', shell, 'check-manage', str(SCRIPT)], text=True, capture_output=True)
         self.assertNotEqual(r.returncode, 0)
-        self.assertIn('/home/jeebis/Git/home-manager', r.stderr)
+        self.assertIn('/home/jeebis', r.stderr)
 
     def test_wrong_android_architecture_is_rejected(self):
         shell = 'source "$1"; uname() { echo x86_64; }; require_host android'

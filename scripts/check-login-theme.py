@@ -11,7 +11,7 @@ os.environ.setdefault('QT_QUICK_BACKEND', 'software')
 os.environ.setdefault('QT_QUICK_CONTROLS_STYLE', 'Basic')
 os.environ.setdefault('GSETTINGS_BACKEND', 'memory')
 os.environ.setdefault('QT_IM_MODULE', 'qtvirtualkeyboard')
-from PySide6.QtCore import QAbstractListModel, QObject, Property, Qt, Signal, Slot, QUrl, QMetaObject
+from PySide6.QtCore import QAbstractListModel, QObject, Property, Qt, Signal, Slot, QUrl, QMetaObject, Q_ARG
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQuick import QQuickView
 from PySide6.QtTest import QTest
@@ -66,7 +66,7 @@ view.resize(1920, 1200)
 view.show()
 QTest.qWait(1200)
 root = view.rootObject()
-password = root.findChild(QObject, 'loginPassword')
+password = root.findChild(QObject, 'passwordInput')
 assert password is not None
 assert root.findChild(QObject, 'loginUser').property('currentText') == 'jeebis'
 assert root.findChild(QObject, 'loginSession').property('currentIndex') == 1
@@ -76,21 +76,22 @@ QTest.qWait(100)
 assert proxy.calls == [('jeebis', 'test-only-not-a-real-password', 1)]
 assert password.property('text') == ''
 assert root.property('authenticating')
-QMetaObject.invokeMethod(root, 'submit')
+QMetaObject.invokeMethod(root, 'submit', Q_ARG(str, ''))
 assert len(proxy.calls) == 1, 'Duplicate submission while busy'
 proxy.loginFailed.emit()
 QTest.qWait(100)
 assert not root.property('authenticating') and password.property('enabled')
 assert root.property('failureMessage')
 # No theme-side password requirement: the daemon/PAM decides empty-password auth.
-QMetaObject.invokeMethod(root, 'submit')
+QMetaObject.invokeMethod(root, 'submit', Q_ARG(str, ''))
 assert proxy.calls[-1] == ('jeebis', '', 1)
 proxy.loginFailed.emit()
 root.setProperty('failureMessage', '')
 for width, height in [(1920, 1200), (1200, 1920)]:
     view.resize(width, height)
     QTest.qWait(300)
-    assert abs(password.property('y') - height * 0.59) < 1
+    assert root.findChild(QObject, 'clockCard') is not None
+    assert root.findChild(QObject, 'profileCard') is not None
     assert password.property('width') <= width
     image = view.grabWindow()
     assert not image.isNull()

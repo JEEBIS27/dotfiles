@@ -8,8 +8,8 @@ Gitにはアプリ・設定・サービスの宣言を保存する。Google Driv
 移行先でGitがなければ `nix-shell -p git` で利用できる。
 
 ```bash
-git clone https://github.com/JEEBIS27/dotfiles.git ~/Git/home-manager
-cd ~/Git/home-manager
+git clone https://github.com/JEEBIS27/dotfiles.git ~/dotfiles
+cd ~/dotfiles
 nix --extra-experimental-features 'nix-command flakes' run "path:$PWD#just" -- switch
 ```
 
@@ -25,7 +25,7 @@ configuration.nixから読み込むハードウェア・ディスク・ブート
 ## 更新
 
 ```bash
-cd ~/Git/home-manager
+cd ~/dotfiles
 just sync
 ```
 

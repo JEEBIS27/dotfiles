@@ -1,0 +1,126 @@
+// Niri session. Machine-specific outputs are added by host modules.
+@machine@
+
+layout {
+    // Hyprland gaps_in=2 on each side, gaps_out=4.
+    gaps 4
+    center-focused-column "never"
+    default-column-width { proportion 0.5; }
+    preset-column-widths {
+        proportion 0.33333
+        proportion 0.5
+        proportion 0.66667
+    }
+    focus-ring { on; }
+    border { off; }
+}
+// Final Hyprland curvature override also applies to floating windows.
+window-rule {
+    geometry-corner-radius 15
+    clip-to-geometry true
+    background-effect { blur true; xray false; }
+}
+window-rule {
+    match is-active=false
+    opacity 0.9
+}
+// Approximate the old two-pass blur without saturation or added noise.
+blur { passes 2; offset 4; noise 0; saturation 1.0; }
+prefer-no-csd
+hotkey-overlay { skip-at-startup; }
+environment {
+    NIXOS_OZONE_WL "1"
+    ELECTRON_OZONE_PLATFORM_HINT "wayland"
+    OZONE_PLATFORM "wayland"
+    GTK_IM_MODULE "fcitx"
+    QT_IM_MODULE "fcitx"
+    QT_IM_MODULES "fcitx"
+    XMODIFIERS "@im=fcitx"
+    GDK_BACKEND "wayland,x11"
+    QT_QPA_PLATFORM "wayland;xcb"
+    MOZ_ENABLE_WAYLAND "1"
+}
+@workspaces@
+binds {
+    @applications@
+    @workspace-bindings@
+    // Plain Ghostty bypasses the placement helper and all legacy launchers.
+    Mod+Alt+Return { spawn "@terminal@" "--app-id=org.jeebis.terminal"; }
+    Mod+Return { spawn "@actions@" "launch" "terminal-tmux"; }
+    Mod+Shift+Return { spawn "@actions@" "launch" "terminal-tmux" "--below"; }
+    Mod+O hotkey-overlay-title="Overview" { toggle-overview; }
+    Mod+F { spawn "@desktop@" "shell" "tide" "toggleApplicationLauncher"; }
+    Mod+Shift+Escape { spawn "@desktop@" "settings"; }
+    Mod+N { spawn "@desktop@" "shell" "island" "toggle"; }
+    Mod+Shift+B { spawn "@desktop@" "shell" "island" "show"; }
+    Mod+Shift+N { spawn "@desktop@" "shell" "island" "hide"; }
+    Mod+Alt+T { spawn "@desktop@" "theme" "cycle"; }
+    Mod+W { close-window; }
+    Mod+Shift+W { spawn "@actions@" "close-workspace"; }
+    Mod+H { focus-column-left; }
+    Mod+Shift+H { spawn "@resize@" "shrink"; }
+    Mod+Ctrl+H { swap-window-left; }
+    Mod+Ctrl+Shift+H { move-column-left; }
+    Mod+Left { focus-column-left; }
+    Mod+Shift+Left { spawn "@resize@" "shrink"; }
+    Mod+Ctrl+Left { swap-window-left; }
+    Mod+Ctrl+Shift+Left { move-column-left; }
+    Mod+J { focus-window-down; }
+    Mod+Shift+J { set-window-height "+10%"; }
+    Mod+Ctrl+J { move-window-down; }
+    Mod+Ctrl+Shift+J { move-window-down; }
+    Mod+Down { focus-window-down; }
+    Mod+Shift+Down { set-window-height "+10%"; }
+    Mod+Ctrl+Down { move-window-down; }
+    Mod+Ctrl+Shift+Down { move-window-down; }
+    Mod+K { focus-window-up; }
+    Mod+Shift+K { set-window-height "-10%"; }
+    Mod+Ctrl+K { move-window-up; }
+    Mod+Ctrl+Shift+K { move-window-up; }
+    Mod+Up { focus-window-up; }
+    Mod+Shift+Up { set-window-height "-10%"; }
+    Mod+Ctrl+Up { move-window-up; }
+    Mod+Ctrl+Shift+Up { move-window-up; }
+    Mod+L { focus-column-right; }
+    Mod+Shift+L { spawn "@resize@" "grow"; }
+    Mod+Ctrl+L { swap-window-right; }
+    Mod+Ctrl+Shift+L { move-column-right; }
+    Mod+Right { focus-column-right; }
+    Mod+Shift+Right { spawn "@resize@" "grow"; }
+    Mod+Ctrl+Right { swap-window-right; }
+    Mod+Ctrl+Shift+Right { move-column-right; }
+    Mod+Tab { focus-workspace-down; }
+    Mod+Shift+Tab { focus-workspace-up; }
+    Mod+Ctrl+Tab { focus-workspace-previous; }
+    Mod+Page_Down { focus-workspace-down; }
+    Mod+Page_Up { focus-workspace-up; }
+    Mod+Shift+Page_Down { focus-monitor-next; }
+    Mod+Shift+Page_Up { focus-monitor-previous; }
+    Mod+WheelScrollDown cooldown-ms=150 { focus-workspace-down; }
+    Mod+WheelScrollUp cooldown-ms=150 { focus-workspace-up; }
+    Mod+Ctrl+Page_Down { move-window-to-workspace-down; }
+    Mod+Ctrl+Page_Up { move-window-to-workspace-up; }
+    Mod+R { switch-preset-column-width; }
+    Mod+Shift+F { spawn "@actions@" "toggle-maximize"; }
+    Mod+Ctrl+F { fullscreen-window; }
+    Mod+T { switch-focus-between-floating-and-tiling; }
+    Mod+Shift+T { toggle-window-floating; }
+    Mod+Ctrl+T { toggle-column-tabbed-display; }
+    Mod+Alt+Shift+J { toggle-column-tabbed-display; }
+    Mod+Alt+Shift+K { spawn "@key-search@"; }
+    Mod+X { spawn "@actions@" "clipboard" "cut"; }
+    Mod+C { spawn "@actions@" "clipboard" "copy"; }
+    Mod+V { spawn "@actions@" "clipboard" "paste"; }
+    Mod+comma { consume-or-expel-window-left; }
+    Mod+period { consume-or-expel-window-right; }
+    Mod+Ctrl+Escape { spawn "@desktop@" "shell" "tide" "togglePowerMenu"; }
+    Mod+Escape { spawn "@desktop@" "lock"; }
+    Mod+Shift+E { quit; }
+    Mod+Shift+S { screenshot; }
+    Print { screenshot; }
+    XF86AudioRaiseVolume allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "0.05+"; }
+    XF86AudioLowerVolume allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "0.05-"; }
+    XF86AudioMute allow-when-locked=true { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"; }
+    XF86MonBrightnessUp { spawn "brightnessctl" "set" "5%+"; }
+    XF86MonBrightnessDown { spawn "brightnessctl" "set" "5%-"; }
+}

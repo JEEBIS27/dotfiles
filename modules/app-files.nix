@@ -1,5 +1,6 @@
 { config, lib, pkgs, ... }:
 let
+  legacy = config.jeebis.desktop.compositor == "hyprland";
   yaziPlugins = builtins.mapAttrs (_: pin: pkgs.fetchFromGitHub pin)
     (builtins.fromJSON (builtins.readFile ../packages/yazi/sources.json));
 in
@@ -9,28 +10,26 @@ in
     run ${pkgs.git}/bin/git config --global delta.syntax-theme Desktop
   '';
 
-  home.sessionVariables.TERMINAL = "rio";
   # Native TUIOS saves changes into the last writable include. Defaults stay
   # declarative; local.toml belongs to the user and survives rebuilds.
-  home.activation.tuiosLocalConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+  home.activation.tuiosLocalConfig = lib.mkIf legacy (lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     if [ ! -e "${config.xdg.configHome}/tuios/local.toml" ]; then
       run mkdir -p "${config.xdg.configHome}/tuios"
       run touch "${config.xdg.configHome}/tuios/local.toml"
     fi
-  '';
+  '');
   # Merge only TUIOS-owned hooks; keep Codex history, credentials and other
   # integrations outside Home Manager. SessionStart records each new chat ID.
-  home.activation.tuiosCodexHooks = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+  home.activation.tuiosCodexHooks = lib.mkIf legacy (lib.hm.dag.entryAfter [ "linkGeneration" ] ''
     # TUIOS requires this directory even before the first Codex login.
     # Create only the local state root; do not manage auth or conversation data.
     codex_home="''${CODEX_HOME:-${config.home.homeDirectory}/.codex}"
     run mkdir -p -m 700 "$codex_home"
     run ${config.home.profileDirectory}/bin/tuios integration install codex \
       --no-skill --command "${config.home.profileDirectory}/bin/tuios"
-  '';
-  xdg.configFile = {
+  '');
+  xdg.configFile = lib.optionalAttrs legacy {
     "omarchy/extensions/omarchy-menu.jsonc".source = ../files/omarchy/extensions/omarchy-menu.jsonc;
-    "xdg-terminals.list".text = "rio.desktop\n";
     "rio/config.toml".source = ../files/rio/config.toml;
     # Compatibility path for existing launchers; share the main renderer.
     "rio-yazi/config.toml".source = ../files/rio/config.toml;
@@ -59,10 +58,11 @@ in
     "tuios/defaults.toml".text = builtins.replaceStrings
       [ "@fish@" ] [ "${config.jeebis.shell.package}/bin/fish" ]
       (builtins.readFile ../files/tuios/config.toml);
+  } // {
     "bat/themes/Desktop.tmTheme".source = config.lib.file.mkOutOfStoreSymlink "${config.jeebis.desktop.themeDirectory}/preview.tmTheme";
     "nvim/after/lsp/lua_ls.lua".source = ../files/nvim/after/lsp/lua_ls.lua;
     "nvim/init.lua".source = ../files/nvim/init.lua;
-    "nvim/lazy-lock.json".source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/Git/home-manager/files/nvim/lazy-lock.json";
+    "nvim/lazy-lock.json".source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/dotfiles/files/nvim/lazy-lock.json";
     "nvim/lua/config/keymaps.lua".source = ../files/nvim/lua/config/keymaps.lua;
     "nvim/lua/config/lazy.lua".source = ../files/nvim/lua/config/lazy.lua;
     "nvim/lua/config/options.lua".source = ../files/nvim/lua/config/options.lua;
@@ -113,7 +113,7 @@ in
     "yazi/plugins/archive-actions.yazi/main.lua".source = ../files/yazi/plugins/archive-actions.yazi/main.lua;
     "yazi/plugins/ucp.yazi".source = yaziPlugins.ucp;
     "yazi/plugins/compress.yazi".source = yaziPlugins.compress;
-    "yazi/package.toml".source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/Git/home-manager/files/yazi/package.toml";
+    "yazi/package.toml".source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/dotfiles/files/yazi/package.toml";
     "yazi/plugins/unified-layout.yazi/main.lua".source = ../files/yazi/plugins/unified-layout.yazi/main.lua;
     "yazi/plugins/unified-motions.yazi/main.lua".source = ../files/yazi/plugins/unified-motions.yazi/main.lua;
     "yazi/plugins/unified-tabs.yazi/main.lua".source = ../files/yazi/plugins/unified-tabs.yazi/main.lua;

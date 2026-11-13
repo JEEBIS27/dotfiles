@@ -68,6 +68,11 @@ def write_assets(target, colors, lock):
     active = ', '.join('#ff' + c[key][1:] for key in roles)
     disabled = ', '.join('#ff' + c['muted' if key == 'foreground' else key][1:] for key in roles)
     (target / 'qt.colors').write_text('[ColorScheme]\nactive_colors=' + active + '\ninactive_colors=' + active + '\ndisabled_colors=' + disabled + '\n')
+    (target / 'herdr-theme.json').write_text(json.dumps({
+        'background': c['background'], 'foreground': c['foreground'],
+        'selection': c['selection_background'], 'cursor': c['cursor'],
+        'ansi': [c['color' + str(index)] for index in range(16)],
+    }) + '\n')
     # Live color tokens consumed by Tide's small build-time palette adapter.
     tokens = {}
     for key in ['panel','track','input','overviewCard','workspaceCell']:

@@ -1,7 +1,7 @@
-{ config, ... }:
+{ config, pkgs, ... }:
 
 {
-  imports = [ ./modules/common.nix ./modules/apps.nix ./modules/editor.nix ./modules/app-files.nix ./modules/desktop.nix ./modules/desktop-preferences.nix ./modules/mounts.nix ./modules/input-method-files.nix ];
+  imports = [ ./modules/common.nix ./modules/machine.nix ./modules/apps.nix ./modules/terminal.nix ./modules/herdr.nix ./modules/chatgpt.nix ./modules/niri.nix ./modules/editor.nix ./modules/app-files.nix ./modules/desktop.nix ./modules/desktop-preferences.nix ./modules/mounts.nix ./modules/input-method-files.nix ];
 
   # Only PC hosts import this module and the desktop theme generator.
   jeebis.shell.themeDirectory = config.jeebis.desktop.themeDirectory;
@@ -11,6 +11,10 @@
   home.stateVersion = "26.05";
 
   programs.home-manager.enable = true;
+
+  # The pinned Home Manager default still uses deprecated stdenv.isLinux.
+  # Keep its platform-dependent behavior using the current platform API.
+  systemd.user.enable = pkgs.stdenv.hostPlatform.isLinux;
 
   # Keep the existing OS providers for man and the MIME database tools.
   # Personal MIME associations can still be migrated as configuration files.

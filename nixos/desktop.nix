@@ -1,11 +1,11 @@
-{ appPkgs, pkgs, lib, ... }:
+{ appPkgs, config, pkgs, lib, ... }:
 let
   rotation = import ../packages/display-rotation.nix { pkgs = appPkgs; };
+  greeterRotation = pkgs.writeText "jeebis-greeter-rotation.json" (builtins.toJSON config.jeebis.machine.greeterRotation);
   greeterConfig = pkgs.writeText "jeebis-greeter.lua" ''
     hl.config({ misc = { disable_hyprland_logo = true, disable_splash_rendering = true }, animations = { enabled = false } })
-    hl.on("hyprland.start", function() hl.exec_cmd("${rotation}/bin/jeebis-display-rotation greeter") end)
+    hl.on("hyprland.start", function() hl.exec_cmd("${rotation}/bin/jeebis-display-rotation greeter ${greeterRotation}") end)
   '';
-  mozkey = import ../packages/mozkey-fcitx5.nix { pkgs = appPkgs; };
   helium = import ../packages/helium.nix { inherit pkgs; };
   loginTheme = import ../packages/jeebis-login-theme.nix { pkgs = appPkgs; };
   fish = import ../packages/fish.nix { pkgs = appPkgs; };
@@ -41,18 +41,24 @@ in
   services.displayManager.defaultSession = lib.mkDefault "hyprland-uwsm";
   environment.systemPackages = [ loginTheme helium ] ++ (with appPkgs; [
     # gtk-launch is also resolved by applications started through UWSM.
-    gtk3 nautilus hyprland-preview-share-picker hyprsunset
+    gtk3 nautilus
     wl-clipboard grim slurp libnotify brightnessctl
-  ]);
+  ]) ++ lib.optionals config.programs.hyprland.enable [
+    appPkgs.hyprland-preview-share-picker appPkgs.hyprsunset
+  ];
   fonts.packages = [ appPkgs.hackgen-nf-font ];
   fonts.fontconfig.defaultFonts.monospace = [ "HackGen35 Console NF" ];
-  i18n.inputMethod = {
-    enable = true;
-    type = "fcitx5";
-    package = lib.mkForce mozkey;
-    fcitx5.waylandFrontend = true;
+  systemd.user.services.fcitx5 = {
+    description = "Japanese input method";
+    wantedBy = [ "graphical-session.target" ];
+    partOf = [ "graphical-session.target" ];
+    after = [ "graphical-session-pre.target" ];
+    serviceConfig = {
+      ExecStart = "${config.i18n.inputMethod.package}/bin/fcitx5 -D";
+      Restart = "on-failure";
+      RestartSec = 2;
+    };
   };
-  environment.variables.QT_PLUGIN_PATH = lib.mkForce [ "${mozkey}/${appPkgs.qt6.qtbase.qtPluginPrefix}" ];
   programs.fuse.enable = true;
   networking.networkmanager.enable = true;
   hardware.bluetooth.enable = true;

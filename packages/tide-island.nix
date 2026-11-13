@@ -1,10 +1,11 @@
-{ pkgs }:
+{ pkgs, withNiri ? false }:
 let
   quickshell = import ./quickshell.nix { inherit pkgs; };
   deps = with pkgs; [ bash coreutils procps systemd dbus xdg-utils gtk3 brightnessctl
     wireplumber pulseaudio networkmanager bluez power-profiles-daemon upower
     python3 grim slurp ffmpeg curl findutils gnugrep gnused gawk file util-linux
-    cliphist wl-clipboard hyprland hyprsunset cava imagemagick jq ];
+    cliphist wl-clipboard cava imagemagick jq ]
+    ++ pkgs.lib.optionals (!withNiri) [ pkgs.hyprland pkgs.hyprsunset ];
 in pkgs.stdenv.mkDerivation rec {
   pname = "tide-island";
   version = "1.0.49";
@@ -15,7 +16,7 @@ in pkgs.stdenv.mkDerivation rec {
   nativeBuildInputs = [ pkgs.cmake pkgs.pkg-config pkgs.qt6.wrapQtAppsHook pkgs.makeWrapper pkgs.python3 ];
   buildInputs = with pkgs; [ systemd qt6.qtbase qt6.qtdeclarative qt6.qtwebsockets
     qt6.qtwayland qt6.qt5compat qt6.qtconnectivity qt6.qtsvg qt6.qtmultimedia ];
-  cmakeFlags = [ "-DTIDE_ISLAND_WITH_NIRI=OFF" ];
+  cmakeFlags = [ "-DTIDE_ISLAND_WITH_NIRI=${if withNiri then "ON" else "OFF"}" ];
   # No upstream installer, writes to /usr, or bundled test targets.
   postPatch = ''
     rm -rf tests Tide-island-app/tests

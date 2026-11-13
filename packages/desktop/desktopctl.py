@@ -44,7 +44,9 @@ def lock_session():
   time.sleep(.1)
  raise ValueError('Tide did not acquire the session lock; inspect tide-island.service')
 
-def launch(argv):return call([command('uwsm-app'),'--',*argv])
+def launch(argv):
+ if cfg.get('compositor')=='niri':return call([command('niri'),'msg','action','spawn','--',*argv])
+ return call([command('uwsm-app'),'--',*argv])
 def focus_or_launch(pattern, argv):
  if opt.plan:return call(['hyprctl','-j','clients'])
  result=call([command('hyprctl'),'-j','clients'],text=True,stdout=subprocess.PIPE)
@@ -102,6 +104,8 @@ def sync_appearance(preset, source):
  colors=palette_colors(source)
  metadata={'name':preset['name'],'palette':preset['palette'],'wallpaper':str(home),'lockWallpaper':str(lock)}
  publish(STATE/'jeebis-theme',colors,lock,metadata)
+ if cfg.get('herdrConfig'):
+  call([sys.executable,str(Path(__file__).with_name('herdr-config.py')),'--root',cfg['herdrConfig'],'--theme',str(STATE/'jeebis-theme/current/herdr-theme.json')])
  if cfg.get('loginAssets'):
   public=Path(cfg['loginAssets'])
   if not public.is_dir():raise ValueError('login assets directory missing; apply the NixOS configuration first')
@@ -198,11 +202,12 @@ def apply_theme(action,values):
  sync_appearance(preset,source)
  rio_dir=Path(os.environ.get('XDG_CONFIG_HOME',HOME/'.config'))/'rio'
  if rio_dir.is_dir():os.utime(rio_dir,None)
+ if cfg.get('ghosttyReload'):call([cfg['ghosttyReload']])
  if cfg.get('helixReload'):call([cfg['helixReload']])
  if initializing:
   apply_wallpaper(home_wallpaper)
   return
- call([command('hyprctl'),'reload'])
+ if cfg.get('compositor','hyprland')=='hyprland':call([command('hyprctl'),'reload'])
  try:call([command('bat'),'cache','--build'],stdout=subprocess.DEVNULL)
  except subprocess.CalledProcessError:pass
  return start_home_media(home_wallpaper)
@@ -216,6 +221,7 @@ def native_legacy(name,a):
   if name=='omarchy-notification-send':return call([command('notify-send'),*a])
   if name=='omarchy-osd':return
   if name=='omarchy-hyprland-session-locked':return shell_ipc('tide','lockStatus')
+ if not cfg.get('runtime'):raise ValueError('Legacy desktop commands are unavailable in the Niri profile')
  helper=Path(cfg['runtime'])/'bin'/name
  if helper.is_file():return call([str(helper),*a])
  if name=='omarchy-shell':return shell_ipc(*(a[1:] if a and a[0]=='-q' else a))
@@ -254,7 +260,7 @@ def native_legacy(name,a):
  if name.startswith('omarchy-launch-'):
   app=name.removeprefix('omarchy-launch-');return launch([app,*a])
  if name in ['omarchy-menu-keybindings']:
-  return launch([command('terminal'),'--',command('editor'),str(HOME/'Git/home-manager/docs/desktop-architecture.md')])
+  return launch([command('terminal'),'--',command('editor'),str(HOME/'dotfiles/docs/desktop-architecture.md')])
  if name=='omarchy-menu-timezone':return call([command('terminal'),'--','timedatectl','list-timezones'])
  if name in ['omarchy-powerprofiles-list']:return call([command('powerprofilesctl'),'list'])
  if name=='omarchy-powerprofiles-set':return call([command('powerprofilesctl'),'set',*a])

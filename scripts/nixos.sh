@@ -31,7 +31,8 @@ case "$mode" in
   outputs = { dotfiles, ... }: {
     nixosConfigurations.jeebis = dotfiles.inputs.nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
-      modules = [ ./configuration.nix dotfiles.nixosModules.personal ];
+      modules = [ ./configuration.nix dotfiles.nixosModules.personal ]
+        ++ (if builtins.pathExists ./jeebis-boot.nix then [ ./jeebis-boot.nix ] else []);
     };
   };
 }

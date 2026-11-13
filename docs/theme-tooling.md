@@ -62,23 +62,23 @@ Tideの壁紙ピッカーも共通のwallpaper窓口へ渡す。壁紙だけの�
 }
 ```
 
-`presets.json`を編集し、`just switch`で宣言を反映してから`jeebis-desktop theme set kanagawa`を実行する。ロックの認証処理は既存のPAMを維持する。専用クローン`jeebis.lock`はAstronautに合わせた壁紙・時計・入力欄を使う。shell.jsonは元JSONにクローン有効化を合成した生成ファイルとなり、設定の永続化先はGit側のJSON。
+`presets.json`を編集し、`just switch`で宣言を反映してから`jeebis-desktop theme set kanagawa`を実行する。ロックの認証処理は既存のPAMを維持する。Tideの設定は書き込み可能なローカルの`userconfig.json`に保存する。
 
 ホームの動画/GIFも指定可能。その場合は`lockWallpaper`に別途静止画を必ず指定する。切替時は静止画を基底に設定した後、ログイン済みシェルへ再生IPCを送る。ログイン前・初期化時のホームは静止画で、動画の実再生には起動済みシェルが必要。`theme refresh`は現在の配色で外観アセットだけを再生成し、ホーム壁紙は変更しない。
 
 共通パレットからGTKの色定義を生成し、NixOSではQt5/Qt6のFusion/qtctパレットも生成する。GTK/libadwaitaやQtアプリ独自の描画は完全一致を保証しない。起動済みアプリは配色反映に再起動が必要な場合がある。OmarchyのQtは既存GTK連携を維持する。
 
-SDDMとロック画面はAstronautの標準の壁紙・フォントを使用する。`lockWallpaper`で生成するアセットはAstronautの標準壁紙を上書きしない。NixOSではJeebis Login（Astronaut素材）とログイン前の自動回転を宣言的に設定する。ユーザーのホームをログイン前に読み込ませず、`/var/lib/jeebis-theme/`へ選択した静止画と色設定を公開する。その画像と設定は他ユーザーからも読めるため、公開したくない画像をロック壁紙に指定しない。自動ログインは設定しない。SDDMを再起動せず、次に表示されるログイン画面から反映する。既存Omarchyへのシステム設定は、ビルド済みJeebis Loginテーマと回転パッケージを引数に`sudo bash scripts/install-astronaut-login.sh <theme-store-path> <rotation-store-path>`で適用する。設定を退避し、SDDMは再起動しない。自動ログイン設定は保持する。
+SDDMとTideのロック画面は、共通の`lockWallpaper`を使用する。NixOSではJeebis Tide Loginとログイン前の自動回転を宣言的に設定する。ユーザーのホームをログイン前に読み込ませず、`/var/lib/jeebis-theme/`へ選択した静止画と色設定を公開する。その画像と設定は他ユーザーからも読めるため、公開したくない画像をロック壁紙に指定しない。自動ログインは設定しない。SDDMを再起動せず、次に表示されるログイン画面から反映する。既存Omarchyへのシステム設定は、ビルド済みJeebis Loginテーマと回転パッケージを引数に`sudo bash scripts/install-astronaut-login.sh <theme-store-path> <rotation-store-path>`で適用する。設定を退避し、SDDMは再起動しない。自動ログイン設定は保持する。
 
 生成物は`~/.local/state/jeebis-theme/current/`。GTK/Qtはこの共通出力を参照する。ホーム壁紙だけの変更はロック・ログイン壁紙を変えず、次にプリセットを選ぶとセットに戻る。
 
 検証: `python3 scripts/check-theme.py`。隔離HOMEとIPCモックを使い、両OSの生成・別壁紙・失敗時の副作用防止・動画/GIF呼出を確認する。画面表示と認証をこのテストで保証するものではない。
 
-ロック用ビューは`files/desktop/lock/JeebisAstronautLockView.qml`。SDDMそのものをロック解除に使わず、既存のセッションロック・パスワード・指紋認証を維持する。壁紙・フォントは[Nixで固定したAstronautテーマ](https://github.com/Keyitdev/sddm-astronaut-theme)を参照し、元パッケージのライセンスとクレジットを保持する。
+ロックにはTide Islandの`LockScreenView.qml`と`WlSessionLock`、専用の`tide-island` PAMサービスを使用する。SDDMはログインだけを担当する。
 
 ## ログイン画面の統一
 
-SDDMは`nix build .#jeebis-login-theme`で構築するJeebis Loginテーマを使う。`files/desktop/login/Main.qml`の時計・日付・中央ぼかし・入力欄・ボタンの位置と寸法は`JeebisAstronautLockView.qml`に合わせる。壁紙とOpen Sansはロックと同じappPkgsのAstronautを参照する。上流のライセンスとクレジットはパッケージ内に保持する。
+SDDMは`nix build .#jeebis-login-theme`で構築するJeebis Tide Loginテーマを使う。Tide Islandと同じ固定ソースの表示専用`LockScreenView`とカード・アイコン部品を再利用し、認証とセッション開始はSDDMが担当する。公開済みの`/var/lib/jeebis-theme/current/lock-wallpaper`を読み、配色はビルド時に`palette`引数（既定`catppuccin`）から生成する。ログイン画面の色の変更は再ビルドが必要。時計・ユーザー・パスワード欄を表示する。音楽・天気・バッテリーなどセッション依存の情報と、Tide GUI内の個別レイアウト設定は同期しない。ユーザー・セッション選択と電源操作はログイン専用の下部コントロールに置く。Astronautには依存しない。
 
 ログイン専用のユーザー選択・セッション選択・電源操作・画面キーボードは維持し、認証はSDDMの既存PAMへ委譲する。テーマ単体では指紋認証を有効にしない。ロック側の認証処理も変更しない。
 

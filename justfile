@@ -17,6 +17,11 @@ build:
 sync:
     @bash scripts/manage.sh sync
 
+# Authenticate GitHub CLI and configure Git to use it for HTTPS.
+git-auth:
+    gh auth login --hostname github.com --git-protocol https --web
+    gh auth setup-git
+
 # Show the detected OS without building or activating anything.
 host:
     @bash scripts/manage.sh host
@@ -35,3 +40,11 @@ lint:
 
 # Focused installer checks (not every desktop component).
 check: lint test
+
+# NixOS only: prepare local signing keys and an opt-in boot module; no activation.
+prepare-tpm:
+    @bash scripts/tpm.sh prepare
+
+# NixOS only: register TPM after signed boot + Secure Boot have been verified.
+enroll-tpm:
+    @bash scripts/tpm.sh enroll

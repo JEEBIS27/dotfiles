@@ -1,26 +1,23 @@
-// Jeebis login view, matching JeebisAstronautLockView.qml.
-// SDDM alone owns authentication; no passwords are stored by this theme.
+// Tide's display-only view; SDDM owns login and session creation.
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Effects
 import QtQuick.VirtualKeyboard
+import "TideLock"
+import "Palette.js" as Palette
 
 Rectangle {
     id: root
-    color: "#1a1b26"
+    color: "#202125"
     property bool authenticating: false
     property string failureMessage: ""
     property date now: new Date()
-    readonly property int fieldWidth: Math.min(384, Math.max(220, width * 0.24))
-    FontLoader { source: "Fonts/OpenSans/OpenSans-Regular.ttf" }
-    FontLoader { source: "Fonts/OpenSans/OpenSans-Bold.ttf" }
+    property var themeTokens: Palette.tokens
     Timer { interval: 1000; running: true; repeat: true; onTriggered: root.now = new Date() }
-    function submit() {
+    function submit(secret: string) {
         if (authenticating || !user.currentText || session.currentIndex < 0) return;
         failureMessage = "";
         authenticating = true;
-        var secret = password.text;
-        password.clear();
+        lockView.clearInput();
         sddm.login(user.currentText, secret, session.currentIndex);
     }
     Connections {
@@ -28,134 +25,82 @@ Rectangle {
         function onLoginFailed() {
             root.authenticating = false;
             root.failureMessage = "Login failed. Try again.";
-            password.forceActiveFocus();
+            lockView.focusInput();
         }
     }
-    Image {
-        id: wallpaper
+    LockScreenView {
+        id: lockView
+        objectName: "tideLoginView"
         anchors.fill: parent
-        source: "Backgrounds/astronaut.png"
-        fillMode: Image.PreserveAspectCrop
-        sourceSize.width: width; sourceSize.height: height
-        asynchronous: true
+        userName: user.currentText
+        now: root.now
+        wallpaperPath: "/var/lib/jeebis-theme/current/lock-wallpaper"
+        styleTokens: root.themeTokens
+        busy: root.authenticating
+        authError: root.failureMessage.length > 0
+        authMessage: root.failureMessage
+        prompt: "Password"
+        // Session data is unavailable before login. Keep the shared clock,
+        // profile and password cards, without placeholder media/weather data.
+        settings: ({showMusic: false, showWeather: false, showBattery: false})
+        onSubmitted: response => root.submit(response)
+        onCancelAuthentication: root.failureMessage = ""
     }
-    Item {
-        width: Math.min(root.width, Math.max(360, root.width * 0.40))
-        height: root.height
-        anchors.horizontalCenter: parent.horizontalCenter
-        clip: true
-        MultiEffect {
-            width: root.width; height: root.height
-            anchors.centerIn: parent
-            source: wallpaper
-            blurEnabled: wallpaper.status === Image.Ready
-            blur: 0.8; blurMax: 64; autoPaddingEnabled: false
-        }
-        Rectangle { anchors.fill: parent; color: "#3021222c" }
-    }
-    Text {
-        anchors.horizontalCenter: parent.horizontalCenter; y: root.height * 0.16
-        text: Qt.formatDateTime(root.now, "HH:mm")
-        color: "white"; font.family: "Open Sans"; font.bold: true
-        font.pixelSize: Math.max(48, Math.min(112, root.height * 0.12))
-    }
-    Text {
-        anchors.horizontalCenter: parent.horizontalCenter; y: root.height * 0.34
-        text: Qt.formatDateTime(root.now, "dddd d MMMM")
-        color: "white"; font.family: "Open Sans"; font.pixelSize: 22; font.bold: true
-    }
-    ComboBox {
-        id: user
-        objectName: "loginUser"
-        anchors.horizontalCenter: parent.horizontalCenter; y: root.height * 0.52
-        width: root.fieldWidth; height: 30
-        model: userModel; textRole: "name"
-        currentIndex: Math.max(0, userModel.lastIndex)
+    component Picker: ComboBox {
+        id: picker
+        width: 210
+        height: 36
         enabled: !root.authenticating
-        font.family: "Open Sans"; font.pixelSize: 16
+        palette.buttonText: "#f5f5f7"
+        palette.text: "#f5f5f7"
+        palette.base: "#202125"
+        font.pixelSize: 13
         contentItem: Text {
-            text: user.currentText; color: "white"; font: user.font
-            horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+            text: picker.currentText; color: "#f5f5f7"; font: picker.font
+            verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight
+            leftPadding: 16; rightPadding: 28
         }
-        indicator: Item { }
-        background: Rectangle { color: user.hovered ? "#3021222c" : "transparent"; radius: 15 }
-    }
-    TextField {
-        id: password
-        objectName: "loginPassword"
-        anchors.horizontalCenter: parent.horizontalCenter; y: root.height * 0.59
-        width: root.fieldWidth; height: 42
-        enabled: !root.authenticating
-        echoMode: TextInput.Password
-        passwordCharacter: "●"
-        passwordMaskDelay: 0
-        horizontalAlignment: TextInput.AlignHCenter
-        verticalAlignment: TextInput.AlignVCenter
-        leftPadding: 18; rightPadding: 18
-        color: "white"; font.family: "monospace"; font.pixelSize: 16
-        cursorVisible: activeFocus && text.length > 0
-        Text {
-            anchors.fill: parent
-            visible: password.text.length === 0
-            text: root.authenticating ? "Checking…" : root.failureMessage || "Enter Password"
-            color: root.failureMessage ? "#f7768e" : "#b0b0b0"
-            font: password.font
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-            elide: Text.ElideRight
-        }
-        background: Rectangle { color: "#78222222"; radius: height / 2 }
-        onAccepted: root.submit()
-        onTextEdited: root.failureMessage = ""
-        Keys.onEscapePressed: clear()
-        Keys.onPressed: function(event) {
-            if (event.modifiers & Qt.ControlModifier && event.key === Qt.Key_U) {
-                clear(); event.accepted = true;
-            }
-        }
-        Component.onCompleted: forceActiveFocus()
-    }
-    Button {
-        id: login
-        anchors.horizontalCenter: parent.horizontalCenter; y: root.height * 0.70
-        width: root.fieldWidth; height: 42
-        enabled: !root.authenticating
-        text: root.authenticating ? "Checking…" : "Login"
-        font.pixelSize: 16; font.bold: true
-        contentItem: Text { text: login.text; color: "white"; font: login.font; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-        background: Rectangle { color: login.down ? "#45495d" : "#343746"; radius: height / 2 }
-        onClicked: root.submit()
-    }
-    // Login-only controls, kept outside the shared lock-screen composition.
-    ComboBox {
-        id: session
-        objectName: "loginSession"
-        anchors.horizontalCenter: parent.horizontalCenter; y: root.height * 0.82
-        width: root.fieldWidth; height: 32
-        model: sessionModel; textRole: "name"; currentIndex: Math.max(0, sessionModel.lastIndex)
-        enabled: !root.authenticating
-        palette.buttonText: "white"; font.pixelSize: 13
-        contentItem: Text {
-            text: session.currentText; color: "white"; font: session.font
-            horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
-            elide: Text.ElideRight
-        }
-        background: Rectangle { color: "#78222222"; radius: 16 }
+        background: Rectangle { color: "#d1202125"; radius: 18; border.color: "#26ffffff" }
     }
     component ActionButton: Button {
         id: action
-        height: 32
+        width: 210; height: 36
         font.pixelSize: 13
         contentItem: Text {
-            text: action.text; color: "white"; font: action.font
+            text: action.text; color: "#f5f5f7"; font: action.font
             horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
         }
-        background: Rectangle { color: action.down ? "#45495d" : "#343746"; radius: height / 2 }
+        background: Rectangle {
+            color: action.down ? "#303136" : "#d1202125"
+            radius: 18; border.color: action.activeFocus ? "#89b4fa" : "#26ffffff"
+        }
     }
-    Row {
-        anchors.horizontalCenter: parent.horizontalCenter; y: root.height * 0.90
-        spacing: 12
-        ActionButton { text: "Keyboard"; onClicked: { password.forceActiveFocus(); Qt.inputMethod.show(); } }
+    Flow {
+        id: controls
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 20
+        width: Math.min(660, root.width - 32)
+        spacing: 8
+        Picker {
+            id: user
+            objectName: "loginUser"
+            model: userModel; textRole: "name"
+            currentIndex: Math.max(0, userModel.lastIndex)
+            Accessible.name: "User"
+            onActivated: { lockView.clearInput(); root.failureMessage = ""; }
+        }
+        Picker {
+            id: session
+            objectName: "loginSession"
+            model: sessionModel; textRole: "name"
+            currentIndex: Math.max(0, sessionModel.lastIndex)
+            Accessible.name: "Session"
+        }
+        ActionButton {
+            text: "Keyboard"
+            onClicked: { lockView.focusInput(); Qt.inputMethod.show(); }
+        }
         ActionButton { text: "Suspend"; visible: sddm.canSuspend; onClicked: sddm.suspend() }
         ActionButton { text: "Restart"; visible: sddm.canReboot; onClicked: sddm.reboot() }
         ActionButton { text: "Shut down"; visible: sddm.canPowerOff; onClicked: sddm.powerOff() }

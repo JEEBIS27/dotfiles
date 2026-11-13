@@ -15,7 +15,7 @@ UWSM starts the graphical session services. Do not add another `exec-once` launc
 
 ## Managed settings
 
-`modules/desktop.nix` declares `tide-island/userconfig.json`, keybindings and services. This JSON is managed by Home Manager: change its Nix declaration for synchronized settings rather than relying on GUI edits to persist. Credentials, clipboard history, calendar notes and caches remain local.
+`modules/desktop.nix` declares `tide-island/userconfig.json`, keybindings and services. Home Manager seeds this JSON only when missing, as a writable local file. GUI changes persist across activations. Upgrading removes the former managed link and seeds writable defaults. Changes to the Nix defaults do not overwrite an existing local configuration. Credentials, clipboard history, calendar notes and caches remain local.
 
 | Shortcut | Action |
 |---|---|
@@ -37,3 +37,13 @@ The wallpaper picker invokes `jeebis-desktop wallpaper set`; mpvpaper owns rende
 The customized former shell is archived in [JEEBIS27/jeebis-shell](https://github.com/JEEBIS27/jeebis-shell). Home Manager does not package or synchronize it. Compatibility command adapters and Hyprland defaults retained in this repository are separate from the removed Quickshell shell; they do not require an installed Omarchy OS on NixOS.
 
 This migration has not been built or tested on the destination PC. Login, PAM unlock, clipboard, notifications, theme changes, video playback and suspend require destination testing.
+
+
+## Native notification endpoint
+
+On Niri, Home Manager starts `mako.service` as the receiver for
+`org.freedesktop.Notifications`. Tide observes notification calls and renders the
+popup/history; mako handles protocol replies with its own popups hidden to avoid
+duplicates. Without this endpoint, tools such as fish's `done` plugin print
+`Failed to show notification ... ServiceUnknown`. The service follows the graphical
+session and restarts on failure.
