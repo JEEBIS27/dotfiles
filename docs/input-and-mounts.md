@@ -22,9 +22,9 @@ WaylandのGTK / Qt入力を想定する。X11 / XWayland用Qtプラグインに�
 認証は`~/.config/rclone/rclone.conf`に保存する。
 
 ```bash
-rclone config
-systemctl --user start rclone-gdrive rclone-onedrive
+just rclone-auth
+just rclone-start
 systemctl --user status rclone-gdrive rclone-onedrive
 ```
 
-`rclone config`で上表の名前のリモートを作る。
+未作成なら上表の名前で対話設定し、既存なら再認証する。[認証とセットアップ](authentication.md)を参照。

@@ -38,11 +38,11 @@
       system = "x86_64-linux";
       appPkgs = import nixpkgs-apps {
         inherit system;
-        config.allowUnfreePredicate = pkg: builtins.elem (nixpkgs.lib.getName pkg) [ "chatgpt" "slack" "spotify" "obsidian" ];
+        config.allowUnfreePredicate = pkg: builtins.elem (nixpkgs.lib.getName pkg) [ "chatgpt" "slack" "spotify" "obsidian" "1password" "1password-cli" ];
       };
       pcPkgs = import nixpkgs {
         inherit system;
-        config.allowUnfreePredicate = pkg: builtins.elem (nixpkgs.lib.getName pkg) [ "chatgpt" "slack" "spotify" "obsidian" ];
+        config.allowUnfreePredicate = pkg: builtins.elem (nixpkgs.lib.getName pkg) [ "chatgpt" "slack" "spotify" "obsidian" "1password" "1password-cli" ];
       };
       mkHome = host: home-manager.lib.homeManagerConfiguration {
         pkgs = pcPkgs;
@@ -106,7 +106,7 @@
         ];
         _module.args.appPkgs = appPkgs;
         _module.args.mejiroSource = mejiroime;
-        nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (nixpkgs.lib.getName pkg) [ "chatgpt" "slack" "spotify" "obsidian" ];
+        nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (nixpkgs.lib.getName pkg) [ "chatgpt" "slack" "spotify" "obsidian" "1password" "1password-cli" ];
         nix.settings.experimental-features = [ "nix-command" "flakes" ];
         home-manager.useGlobalPkgs = true;
         home-manager.useUserPackages = true;
@@ -124,7 +124,7 @@
           ./nixos/machine.nix
           (mejiroime + "/nix/nixos.nix") ./nixos/input-method.nix
           ({ ... }: {
-            nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (nixpkgs.lib.getName pkg) [ "chatgpt" "slack" "spotify" "obsidian" ];
+            nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (nixpkgs.lib.getName pkg) [ "chatgpt" "slack" "spotify" "obsidian" "1password" "1password-cli" ];
             system.stateVersion = "26.05";
             virtualisation.vmVariant = { virtualisation.memorySize = 4096; virtualisation.cores = 4; };
             boot.loader.grub.enable = false;

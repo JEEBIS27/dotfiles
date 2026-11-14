@@ -39,7 +39,7 @@ just sync
 
 `just sync` は Git の fast-forward pull 後に設定を適用する。ローカルのコミットを使って適用するときは `just switch`、適用せずビルド確認だけ行うときは `just build` を使う。
 
-初回に clone した公開リポジトリの取得には GitHub 認証は不要。push 用の HTTPS 認証が必要になったら、別途 `just git-auth` を実行する。
+初回に clone した公開リポジトリの取得には GitHub 認証は不要。push 用の HTTPS 認証が必要になったら、1Password を設定して `just git-auth` を実行する。初回の取得に認証が必要なら `just git-auth-web` を使う。[認証手順](authentication.md)を参照。
 
 ## 注意点
 

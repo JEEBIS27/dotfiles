@@ -47,9 +47,16 @@ NIX
     ;;
   *) echo '使い方: bash scripts/nixos.sh {setup|build|switch|sync}' >&2; exit 2 ;;
 esac
-# Refresh only the local checkout snapshot; its own flake.lock keeps packages pinned.
-sudo nix --extra-experimental-features 'nix-command flakes' \
-  flake update dotfiles --flake path:/etc/nixos
-# nixos-rebuild-ng accepts generic Nix options rather than Nix CLI feature flags.
-sudo nixos-rebuild "$action" --flake path:/etc/nixos#jeebis \
+# Resolve private inputs as the logged-in user, whose Git helper can access op.
+# Preserve /etc/nixos ownership: build from a private writable snapshot instead.
+work=$(mktemp -d)
+trap 'rm -rf -- "$work"' EXIT
+cp -r /etc/nixos/. "$work/"
+chmod -R u+w "$work"
+nix --extra-experimental-features 'nix-command flakes' \
+  flake update dotfiles --flake "path:$work"
+# Elevate only activation/profile operations, not evaluation or source fetching.
+nixos-rebuild "$action" --sudo --flake "path:$work#jeebis" \
   --option experimental-features 'nix-command flakes'
+# Keep the integration lock for subsequent invocations after a successful build.
+sudo install -m 644 "$work/flake.lock" /etc/nixos/flake.lock

@@ -15,6 +15,12 @@ in
   i18n.defaultLocale = lib.mkDefault "ja_JP.UTF-8";
   console.keyMap = lib.mkDefault "jp106";
   services.xserver.xkb.layout = lib.mkDefault "jp";
+  programs._1password = { enable = true; package = appPkgs._1password-cli; };
+  programs._1password-gui = {
+    enable = true;
+    package = appPkgs._1password-gui;
+    polkitPolicyOwners = [ "jeebis" ];
+  };
   programs.dconf.enable = true;
   services.gnome.gnome-keyring.enable = true;
   security.pam.services.sddm.enableGnomeKeyring = true;
@@ -63,6 +69,16 @@ in
   networking.networkmanager.enable = true;
   hardware.bluetooth.enable = true;
   security.polkit.enable = true;
+  systemd.user.services.polkit-agent = {
+    description = "Polkit authentication agent";
+    wantedBy = [ "graphical-session.target" ];
+    partOf = [ "graphical-session.target" ];
+    after = [ "graphical-session.target" ];
+    serviceConfig = {
+      ExecStart = "${appPkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1";
+      Restart = "on-failure";
+    };
+  };
   security.pam.services.tide-island = { };
   services.power-profiles-daemon.enable = true;
   services.upower.enable = true;

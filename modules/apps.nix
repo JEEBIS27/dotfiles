@@ -18,6 +18,13 @@
   };
   home.packages = [
     appPkgs.codex
+    (pkgs.writeShellApplication {
+      name = "git-credential-op";
+      runtimeInputs = [ appPkgs.git ];
+      text = builtins.readFile ../scripts/git-credential-op.sh;
+    })
+  ] ++ lib.optionals (config.jeebis.desktop.backend != "nixos") [
+    appPkgs._1password-cli appPkgs._1password-gui
   ] ++ lib.optionals (config.jeebis.desktop.compositor == "hyprland") [
     (import ../packages/tuios.nix { pkgs = appPkgs; })
   ] ++ lib.optionals (config.jeebis.desktop.backend == "nixos") (with appPkgs; [

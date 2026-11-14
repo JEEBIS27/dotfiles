@@ -49,11 +49,11 @@ run_nixos() { log nixos "$@"; if [[ $1 == setup ]]; then return SETUP; fi; }
         self.assertTrue(r.stdout.startswith('nix-on-droid '))
         self.assertNotIn('home-manager', r.stdout)
 
-    def test_wrong_pc_checkout_is_rejected(self):
-        shell = 'source "$1"; repo=/tmp/wrong-checkout; HOME=/home/jeebis; uname() { echo x86_64; }; id() { echo jeebis; }; require_host omarchy'
+    def test_wrong_pc_user_is_rejected(self):
+        shell = 'source "$1"; repo=/tmp/wrong-checkout; HOME=/home/jeebis; uname() { echo x86_64; }; id() { echo another-user; }; require_host omarchy'
         r = subprocess.run(['bash', '-c', shell, 'check-manage', str(SCRIPT)], text=True, capture_output=True)
         self.assertNotEqual(r.returncode, 0)
-        self.assertIn('/home/jeebis', r.stderr)
+        self.assertIn('jeebis', r.stderr)
 
     def test_wrong_android_architecture_is_rejected(self):
         shell = 'source "$1"; uname() { echo x86_64; }; require_host android'
@@ -122,19 +122,17 @@ class NixOSInvocationTests(unittest.TestCase):
     def run_commands(self, action, update_ok=True):
         # Exercise the real invocation tail, shadowing sudo to avoid host writes.
         script = SCRIPT.with_name('nixos.sh').read_text()
-        tail = script[script.index('# Refresh only'):]
+        tail = script[script.index('# Resolve private'):]
         mocks = r'''
 set -e
-sudo() {
-  printf '%s' "$1"; local executable=$1; shift
-  printf ' <%s>' "$@"; printf '\n'
-  if [[ $executable == nix ]]; then return UPDATE; fi
-  if [[ $executable == nixos-rebuild ]]; then
-    for arg in "$@"; do
-      [[ $arg != --extra-experimental-features ]] || return 2
-    done
-  fi
-}
+mktemp() { echo /tmp/mock-nixos; }
+cp() { :; }
+chmod() { :; }
+rm() { :; }
+log() { printf '%s' "$1"; shift; printf ' <%s>' "$@"; printf '\n'; }
+nix() { log nix "$@"; return UPDATE; }
+nixos-rebuild() { log nixos-rebuild "$@"; }
+sudo() { log sudo "$@"; }
 '''
         mocks = mocks.replace('UPDATE', '0' if update_ok else '1')
         return subprocess.run(['bash', '-c', mocks + '\naction="$1"\n' + tail,
@@ -143,8 +141,8 @@ sudo() {
     def test_first_build_uses_supported_nix_option(self):
         result = self.run_commands('build')
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.splitlines()[-1],
-                         'nixos-rebuild <build> <--flake> <path:/etc/nixos#jeebis> <--option> <experimental-features> <nix-command flakes>')
+        self.assertEqual(result.stdout.splitlines()[-2],
+                         'nixos-rebuild <build> <--sudo> <--flake> <path:/tmp/mock-nixos#jeebis> <--option> <experimental-features> <nix-command flakes>')
 
     def test_switch_uses_supported_nix_option(self):
         result = self.run_commands('switch')

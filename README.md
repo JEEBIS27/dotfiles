@@ -81,6 +81,10 @@ Androidはfish・CLIを共有し、PC用のHyprland・Quickshell・Rio・IME・�
 未対応OSはエラーで停止する。PC構成のユーザー名・配置先は現構成の前提を維持する。
 Nixのインストール自体やAndroidアプリの導入は、このコマンドの対象外。
 
+## 個別ログイン
+
+1Password アプリと CLI を Nix で導入する。`just op-auth`、`just git-auth`、`just rclone-auth` で個別セットアップを行う。初回導入・PAT の保存・OAuth・既存コマンドの使い分けは[認証とセットアップ](docs/authentication.md)を参照。
+
 ## ドキュメント
 
 - [Rio + TUIOS：移行・検証・ロールバック](docs/terminal-migration.md)
