@@ -10,7 +10,7 @@ ChatGPT・Helium・Slack・Obsidian・Spotifyは起動ラッパーで--gtk-versi
 GTK4実行ライブラリも用意する。通常のランチャーとNiriのアプリカタログは同じパッケージを使う。
 追加の起動引数やアプリ内設定で入力経路を上書きした場合は別途確認が必要。
 
-NixOSではMejiroIMEのGTK配色拡張を有効化し、固定版をf34d0e4へ更新した。
+NixOSではMejiroIMEのGTK配色拡張を有効化し、固定版を2047fb9へ更新した（表示だけを待機するライブ変換Delayと設定GUIのコマ送りプレビューを含む）。
 Fcitxを独自パッケージで強制指定しているため、そちらにも拡張GTKを明示的に組み込む。
 GTK4モジュールの探索先はGIO_EXTRA_MODULESで指定する。
 配色はMejiroIMEの設定で「プレビュー連動」または「個別設定」を選択する。

@@ -16,7 +16,7 @@
 
     # Published source only: target PCs do not need the local development checkout.
     mejiroime = {
-      url = "git+https://github.com/JEEBIS27/MejiroIME.git?rev=f34d0e45fd1bfb570f6b0d8a0f9bf42af8651aeb";
+      url = "git+https://github.com/JEEBIS27/MejiroIME.git?rev=2047fb9ad6b426cf91b325aee3a7c3a4e00107b3";
       flake = false;
     };
 
