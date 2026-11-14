@@ -62,6 +62,14 @@ cd ~/dotfiles
 just sync
 ```
 
+CLI・開発ツール・一般アプリは `nixpkgs-apps` の `nixpkgs-unstable` を追跡する。新しいパッケージを取得して適用するには、次を実行する。
+
+```bash
+just update-apps
+```
+
+`just sync` はリポジトリに記録済みのロックを適用する。`just update-apps` はアプリ用のロックを更新して適用する。OS・Home Managerは別管理のまま維持する。ChatGPT・Helium・Spotifyなど `packages/` 内で独自にバージョン・ハッシュを指定しているアプリは、別途パッケージ定義の更新が必要。
+
 通常の導入・更新では `just build` や `just host` を使う必要はない。
 
 NixOSでは初回に既存のOS設定をバックアップして統合用の設定を生成し、OS全体に適用する。

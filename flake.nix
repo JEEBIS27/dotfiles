@@ -3,7 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
-    nixpkgs-apps.url = "github:NixOS/nixpkgs/70fdef7c16ffb24c9c74d91c73e438a39b46bfb5";
+    nixpkgs-apps.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     home-manager = {
       url = "github:nix-community/home-manager/release-26.05";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -36,7 +36,10 @@
   outputs = { self, mejiroime, lanzaboote, nixpkgs, nixpkgs-apps, home-manager, nixpkgs-droid, home-manager-droid, nix-on-droid, ... }:
     let
       system = "x86_64-linux";
-      appPkgs = nixpkgs-apps.legacyPackages.${system};
+      appPkgs = import nixpkgs-apps {
+        inherit system;
+        config.allowUnfreePredicate = pkg: builtins.elem (nixpkgs.lib.getName pkg) [ "chatgpt" "slack" "spotify" "obsidian" ];
+      };
       pcPkgs = import nixpkgs {
         inherit system;
         config.allowUnfreePredicate = pkg: builtins.elem (nixpkgs.lib.getName pkg) [ "chatgpt" "slack" "spotify" "obsidian" ];

@@ -1,4 +1,4 @@
-{ config, lib, pkgs, ... }:
+{ appPkgs, config, lib, pkgs, ... }:
 let
   cfg = config.jeebis.desktop;
   niri = import ../packages/niri.nix { inherit pkgs; };
@@ -67,7 +67,7 @@ in {
       force = true;
     };
     xdg.configFile."jeebis/applications.json".source = catalog;
-    home.packages = with pkgs; [ actions keySearch resize xwayland-satellite btop brightnessctl wireplumber
-      nautilus localsend zathura ] ++ [ (gtkIme pkgs.slack) (gtkIme pkgs.obsidian) spotify niri ];
+    home.packages = with appPkgs; [ actions keySearch resize xwayland-satellite btop brightnessctl wireplumber
+      nautilus localsend zathura ] ++ [ (gtkIme appPkgs.slack) (gtkIme appPkgs.obsidian) spotify niri ];
   };
 }

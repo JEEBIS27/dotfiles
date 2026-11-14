@@ -17,6 +17,11 @@ build:
 sync:
     @bash scripts/manage.sh sync
 
+# Refresh CLI and application packages from unstable, then apply.
+update-apps:
+    nix --extra-experimental-features 'nix-command flakes' flake update nixpkgs-apps
+    @bash scripts/manage.sh switch
+
 # Authenticate GitHub CLI and configure Git to use it for HTTPS.
 git-auth:
     gh auth login --hostname github.com --git-protocol https --web

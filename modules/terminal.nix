@@ -1,4 +1,4 @@
-{ config, lib, pkgs, ... }:
+{ appPkgs, config, lib, pkgs, ... }:
 let
   recordedFish = pkgs.writeShellApplication {
     name = "jeebis-recorded-fish";
@@ -24,7 +24,7 @@ let
   outputPython = pkgs.python3.withPackages (ps: [ ps.pyte ]);
   launcher = pkgs.writeShellApplication {
     name = "jeebis-terminal";
-    runtimeInputs = [ pkgs.ghostty ];
+    runtimeInputs = [ appPkgs.ghostty ];
     text = builtins.readFile ../files/desktop/helpers/jeebis-terminal;
   };
 in {
@@ -44,7 +44,7 @@ in {
     home.sessionVariables.TERMINAL = "jeebis-terminal";
     programs.ghostty = {
       enable = true;
-      package = pkgs.ghostty;
+      package = appPkgs.ghostty;
       settings = {
         command = "${recordedFish}/bin/jeebis-recorded-fish";
         font-family = "HackGen35 Console NF";
@@ -74,6 +74,7 @@ in {
     # Persistence is opt-in: plain terminal/app launches never attach a mux.
     programs.tmux = {
       enable = true;
+      package = appPkgs.tmux;
       terminal = "tmux-256color";
       escapeTime = 0;
       historyLimit = 50000;
