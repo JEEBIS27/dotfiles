@@ -1,0 +1,15 @@
+// Isolated animation test: stable outer edges are checked during every frame.
+layout {
+    gaps 4
+    center-focused-column "never"
+    default-column-width { proportion 0.5; }
+    focus-ring { off; }
+    border { off; }
+}
+animations {
+    window-open { duration-ms 600; curve "linear"; }
+    window-resize { duration-ms 600; curve "linear"; }
+    window-movement { duration-ms 600; curve "linear"; }
+    horizontal-view-movement { duration-ms 600; curve "linear"; }
+}
+hotkey-overlay { skip-at-startup; }

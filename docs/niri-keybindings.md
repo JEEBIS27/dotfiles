@@ -170,3 +170,18 @@ exact 100% pair.
 Regression checks: `python3 scripts/check-niri-resize.py`. The isolated-compositor
 integration check uses `scripts/fixtures/niri-layout-client.c` and validates the
 real widths, focused window, and screenshot color spans.
+
+Full-width split animations keep the old window's outer edge stationary. A peer
+on the right keeps its left edge fixed; a peer on the left keeps its right edge
+fixed. The Niri patch establishes the lock before activating a newly inserted
+column or sending a full-width resize, and follows the actual animated tile size
+until the clients finish resizing. View gestures and explicit left/right focus
+navigation release the lock; a two-second timeout also releases unresponsive
+clients. Final viewport framing does not start a separate camera animation while
+the edge lock is active.
+
+`python3 scripts/check-niri-resize-animation.py --help` describes the isolated
+animation check. Use `scripts/fixtures/niri-layout-animation-test.kdl`, Xvfb,
+ImageMagick, and the fixture client. It samples scanlines during each transition
+and checks outer-edge motion and intermediate widths, alongside the existing
+final-layout integration check.

@@ -1,10 +1,136 @@
 --- a/src/layout/scrolling.rs
 +++ b/src/layout/scrolling.rs
-@@ -2225,8 +2225,26 @@
+@@ -51,6 +51,11 @@
+     /// with this view offset (rather than added as a constant elsewhere in the code). This allows
+     /// for natural handling of fullscreen windows, which must ignore work area padding.
+     view_offset: ViewOffset,
++
++    /// Pair selected by the resize helper; IDs survive column insertions.
++    resize_pair: Option<(W::Id, W::Id)>,
++    /// Keep the original tile's split-facing animation anchored to its outer edge.
++    pair_anchor: Option<PairResizeAnchor<W::Id>>,
+ 
+     /// Whether to activate the previous, rather than the next, column upon column removal.
+     ///
+@@ -282,6 +287,16 @@
+     from: f64,
+ }
+ 
++#[derive(Debug)]
++struct PairResizeAnchor<I> {
++    window: I,
++    right_edge: bool,
++    screen_edge: f64,
++    initial_width: f64,
++    started: bool,
++    deadline: Duration,
++}
++
+ impl<W: LayoutElement> ScrollingSpace<W> {
+     pub fn new(
+         view_size: Size<f64, Logical>,
+@@ -298,6 +313,8 @@
+             active_column_idx: 0,
+             interactive_resize: None,
+             view_offset: ViewOffset::Static(0.),
++            resize_pair: None,
++            pair_anchor: None,
+             activate_prev_column_on_removal: None,
+             view_offset_to_restore: None,
+             closing_windows: Vec::new(),
+@@ -382,10 +399,29 @@
+             closing.advance_animations();
+             closing.are_animations_ongoing()
+         });
++
++        let status = self.pair_anchor.as_ref().map(|anchor| {
++            let width = self.columns.iter().flat_map(|col| col.tiles())
++                .find(|(tile, _)| tile.window().id() == &anchor.window)
++                .map(|(tile, _)| tile.tile_size().w);
++            (width, anchor.initial_width, anchor.deadline)
++        });
++        if let Some((width, initial_width, deadline)) = status {
++            if let Some(anchor) = &mut self.pair_anchor {
++                anchor.started |= width.is_some_and(|width| (width - initial_width).abs() > 0.5);
++            }
++            let started = self.pair_anchor.as_ref().unwrap().started;
++            if width.is_none() || self.clock.now_unadjusted() >= deadline
++                || (started && !self.columns.iter().any(Column::are_animations_ongoing))
++            {
++                self.release_pair_anchor();
++            }
++        }
+     }
+ 
+     pub fn are_animations_ongoing(&self) -> bool {
+-        self.view_offset.is_animation_ongoing()
++        self.pair_anchor.is_some()
++            || self.view_offset.is_animation_ongoing()
+             || self.columns.iter().any(Column::are_animations_ongoing)
+             || !self.closing_windows.is_empty()
+     }
+@@ -977,6 +1013,15 @@
+             }
+         });
+ 
++        // Lock the existing full-width window before activation can scroll it
++        // out of view. The client may acknowledge the requested split later.
++        if self.columns.len() == 1
++            && self.data[0].width >= self.working_area.size.w - self.options.layout.gaps * 2. - 2.
++        {
++            self.begin_pair_anchor(0, idx == 0);
++        }
++        let old_window = self.pair_anchor.as_ref().map(|anchor| anchor.window.clone());
++
+         column.update_config(
+             self.view_size,
+             self.working_area,
+@@ -986,6 +1031,10 @@
+         );
+         self.data.insert(idx, ColumnData::new(&column));
+         self.columns.insert(idx, column);
++        if let Some(old_window) = old_window {
++            let new_window = self.columns[idx].tiles[self.columns[idx].active_tile_idx].window().id().clone();
++            self.resize_pair = Some((old_window, new_window));
++        }
+ 
+         if !was_empty && idx <= self.active_column_idx {
+             self.active_column_idx += 1;
+@@ -1549,6 +1598,7 @@
+     }
+ 
+     pub fn focus_left(&mut self) -> bool {
++        self.release_pair_anchor();
+         if self.active_column_idx == 0 {
+             return false;
+         }
+@@ -1557,6 +1607,7 @@
+     }
+ 
+     pub fn focus_right(&mut self) -> bool {
++        self.release_pair_anchor();
+         if self.active_column_idx + 1 >= self.columns.len() {
+             return false;
+         }
+@@ -2225,8 +2276,40 @@
              self.active_column_idx
          };
  
 -        // We can reasonably center only the active column.
++        if col_idx != self.active_column_idx && col_idx.abs_diff(self.active_column_idx) == 1 {
++            let active = &self.columns[self.active_column_idx];
++            let other = &self.columns[col_idx];
++            self.resize_pair = Some((
++                active.tiles[active.active_tile_idx].window().id().clone(),
++                other.tiles[other.active_tile_idx].window().id().clone(),
++            ));
++            // The edge lock, rather than a second camera animation, owns the
++            // viewport until the clients' resize animations have completed.
++            if self.pair_anchor.is_some() {
++                return;
++            }
++        }
++
 +        // An explicit adjacent, inactive window asks to frame its pair with
 +        // the active column. Keep keyboard focus unchanged. This also restores
 +        // the view after a full-width column shrinks at either edge.
@@ -28,3 +154,99 @@
              return;
          }
  
+@@ -2291,12 +2374,59 @@
+         self.animate_view_offset_to_column(None, self.active_column_idx, None);
+     }
+ 
++    fn begin_pair_anchor(&mut self, col_idx: usize, right_edge: bool) {
++        if self.pair_anchor.is_some() {
++            return;
++        }
++        let col = &self.columns[col_idx];
++        let tile = &col.tiles[col.active_tile_idx];
++        let tile_x = col.tiles().find(|(t, _)| t.window().id() == tile.window().id())
++            .map(|(_, pos)| pos.x).unwrap_or(0.);
++        let edge = self.column_x(col_idx) + col.render_offset().x + tile_x
++            + tile.render_offset().x
++            + if right_edge { tile.animated_tile_size().w } else { 0. };
++        self.pair_anchor = Some(PairResizeAnchor {
++            window: tile.window().id().clone(), right_edge,
++            screen_edge: edge - self.view_pos(),
++            initial_width: tile.tile_size().w,
++            started: false,
++            deadline: self.clock.now_unadjusted() + Duration::from_secs(2),
++        });
++    }
++
++    fn anchored_view_pos(&self, animated: bool) -> Option<f64> {
++        let anchor = self.pair_anchor.as_ref()?;
++        self.columns.iter().enumerate().find_map(|(idx, col)| {
++            col.tiles().find(|(tile, _)| tile.window().id() == &anchor.window)
++                .map(|(tile, pos)| {
++                    let width = if animated { tile.animated_tile_size().w } else { tile.tile_size().w };
++                    let offset = if animated { col.render_offset().x + tile.render_offset().x } else { 0. };
++                    self.column_x(idx) + pos.x + offset
++                        + if anchor.right_edge { width } else { 0. }
++                        - anchor.screen_edge
++                })
++        })
++    }
++
++    fn release_pair_anchor(&mut self) {
++        if self.pair_anchor.is_none() {
++            return;
++        }
++        let view = if self.columns.is_empty() { 0. } else { self.view_pos() };
++        self.pair_anchor = None;
++        self.view_offset = ViewOffset::Static(
++            if self.columns.is_empty() { 0. } else { view - self.column_x(self.active_column_idx) },
++        );
++    }
++
+     pub fn view_pos(&self) -> f64 {
+-        self.column_x(self.active_column_idx) + self.view_offset.current()
++        self.anchored_view_pos(true)
++            .unwrap_or_else(|| self.column_x(self.active_column_idx) + self.view_offset.current())
+     }
+ 
+     pub fn target_view_pos(&self) -> f64 {
+-        self.column_x(self.active_column_idx) + self.view_offset.target()
++        self.anchored_view_pos(false)
++            .unwrap_or_else(|| self.column_x(self.active_column_idx) + self.view_offset.target())
+     }
+ 
+     // HACK: pass a self.data iterator in manually as a workaround for the lack of method partial
+@@ -2609,6 +2739,25 @@
+             return;
+         }
+ 
++        if let Some((first, second)) = &self.resize_pair {
++            let first_idx = self.columns.iter().position(|col| col.contains(first));
++            let second_idx = self.columns.iter().position(|col| col.contains(second));
++            if let (Some(first_idx), Some(second_idx)) = (first_idx, second_idx) {
++                let target_idx = window.and_then(|window| self.columns.iter().position(|col| col.contains(window)))
++                    .unwrap_or(self.active_column_idx);
++                let full_width = self.working_area.size.w - self.options.layout.gaps * 2.;
++                let becoming_full = matches!(change, SizeChange::SetProportion(value) if value >= 99.8)
++                    || matches!(change, SizeChange::SetFixed(value) if value as f64 >= full_width - 2.);
++                if target_idx == self.active_column_idx
++                    && (target_idx == first_idx || target_idx == second_idx)
++                    && (becoming_full || self.data[target_idx].width >= full_width - 2.)
++                {
++                    let peer_idx = if target_idx == first_idx { second_idx } else { first_idx };
++                    self.begin_pair_anchor(target_idx, peer_idx < target_idx);
++                }
++            }
++        }
++
+         let (col, tile_idx) = if let Some(window) = window {
+             self.columns
+                 .iter_mut()
+@@ -3010,6 +3159,7 @@
+     }
+ 
+     pub fn view_offset_gesture_begin(&mut self, is_touchpad: bool) {
++        self.release_pair_anchor();
+         if self.columns.is_empty() {
+             return;
+         }

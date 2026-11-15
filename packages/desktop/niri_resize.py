@@ -113,7 +113,11 @@ class ResizeState:
                         point[0] + w['layout']['tile_size'][0] <= width - GAP + 2)
         return next((w for w in adjacent if visible(w)), adjacent[0] if adjacent else None)
 
-    def apply(self, windows, changes, frame=None, fixed=None):
+    def apply(self, windows, changes, frame=None, fixed=None, anchor=None):
+        # Declare the pair before a client can commit the full-width change.
+        # The compositor then anchors the outer edge throughout the animation.
+        if frame or anchor:
+            self.frame(*(frame or anchor))
         changed = []
         for target, value in changes:
             width = output_width(target)
@@ -163,7 +167,7 @@ class ResizeState:
                 'partner': neighbor['id'], 'width': percentage(target, output_width(target)),
                 'pixels': target['layout']['window_size'][0],
             })
-            self.apply(windows, [(target, 100.0)])
+            self.apply(windows, [(target, 100.0)], anchor=(target, neighbor))
             return
         self.remember_pair(target, neighbor)
         self.data['full'].pop(str(target['id']), None)

@@ -113,6 +113,18 @@ class ResizeTests(unittest.TestCase):
         state.focus(copy.deepcopy(self.desktop.windows), copy.deepcopy(c), copy.deepcopy(b))
         self.assertEqual(self.desktop.values(), [60, 40, 60])
 
+    def test_pair_is_declared_before_resize_commits(self):
+        state = resize.ResizeState()
+        a, b, _ = self.desktop.windows
+        state.remember_pair(a, b)
+        state.resize_to(copy.deepcopy(self.desktop.windows), copy.deepcopy(b), 100)
+        self.assertIn('CenterWindow', self.desktop.actions[0])
+        self.assertIn('SetWindowWidth', self.desktop.actions[1])
+        self.desktop.actions.clear()
+        state.resize_to(copy.deepcopy(self.desktop.windows), copy.deepcopy(b), 50)
+        self.assertIn('CenterWindow', self.desktop.actions[0])
+        self.assertIn('SetWindowWidth', self.desktop.actions[1])
+
     def test_unchanged_width_does_not_refresh_history(self):
         state = resize.ResizeState()
         a, b, _ = self.desktop.windows

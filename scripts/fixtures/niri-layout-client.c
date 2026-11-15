@@ -84,7 +84,11 @@ static void surface_configure(void *data, struct xdg_surface *surface, uint32_t 
     wl_surface_commit(w->surface);
 }
 static const struct xdg_surface_listener surface_listener = {.configure = surface_configure};
-int main(void) {
+int main(int argc, char **argv) {
+    int count = argc > 1 ? atoi(argv[1]) : 3;
+    const char *prefix = argc > 2 ? argv[2] : "niri-test";
+    int color_offset = argc > 3 ? atoi(argv[3]) : 0;
+    if (count < 1 || count > 3 || color_offset < 0 || color_offset > 2) return 2;
     struct wl_display *display = wl_display_connect(NULL);
     if (!display) return 2;
     struct wl_registry *registry = wl_display_get_registry(display);
@@ -93,16 +97,16 @@ int main(void) {
     if (!compositor || !shm || !shell) return 2;
     struct test_window windows[3] = {0};
     const uint32_t colors[] = {0xffcc3333, 0xff33cc33, 0xff3333cc};
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < count; i++) {
         struct test_window *w = &windows[i];
-        w->width = 500; w->height = 500; w->color = colors[i];
+        w->width = 500; w->height = 500; w->color = colors[(i + color_offset) % 3];
         w->surface = wl_compositor_create_surface(compositor);
         w->xdg = xdg_wm_base_get_xdg_surface(shell, w->surface);
         xdg_surface_add_listener(w->xdg, &surface_listener, w);
         w->top = xdg_surface_get_toplevel(w->xdg);
         xdg_toplevel_add_listener(w->top, &top_listener, w);
         char title[32];
-        snprintf(title, sizeof(title), "niri-test-%d", i + 1);
+        snprintf(title, sizeof(title), "%s-%d", prefix, i + 1);
         xdg_toplevel_set_title(w->top, title);
         xdg_toplevel_set_app_id(w->top, title);
         wl_surface_commit(w->surface);
