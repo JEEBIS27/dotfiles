@@ -23,7 +23,7 @@ pkgs.buildFHSEnv {
       exec "$@"
     fi
     shopt -s nullglob
-    installations=("$HOME"/MATLAB/R*/bin/matlab)
+    installations=("''${XDG_DATA_HOME:-$HOME/.local/share}"/MATLAB/R*/bin/matlab)
     if [ "''${#installations[@]}" -eq 0 ]; then
       echo 'Install MATLAB first: matlab-nix /path/to/installer/install' >&2
       exit 1

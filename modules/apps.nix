@@ -10,7 +10,7 @@
     genericName = "Scientific Computing";
     comment = "MATLAB in the Nix runtime environment";
     exec = "${config.home.homeDirectory}/.local/bin/matlab-nix";
-    icon = "${config.home.homeDirectory}/MATLAB/R2026b/bin/glnxa64/cef_resources/matlab_icon.png";
+    icon = "${config.xdg.dataHome}/MATLAB/R2026b/bin/glnxa64/cef_resources/matlab_icon.png";
     terminal = false;
     categories = [ "Education" "Science" "Math" ];
     startupNotify = false;

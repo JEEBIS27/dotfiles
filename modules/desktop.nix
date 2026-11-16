@@ -240,7 +240,7 @@ in
           ConditionPathExists = "${config.xdg.stateHome}/${if native then "jeebis-desktop" else "omarchy"}/current/home-background";
         };
         Service = {
-          ExecStart = "${appPkgs.mpvpaper}/bin/mpvpaper -o 'no-audio loop-file=inf image-display-duration=inf' '*' ${config.xdg.stateHome}/${if native then "jeebis-desktop" else "omarchy"}/current/home-background";
+          ExecStart = "${appPkgs.mpvpaper}/bin/mpvpaper -o 'no-audio loop-file=inf image-display-duration=inf panscan=1' '*' ${config.xdg.stateHome}/${if native then "jeebis-desktop" else "omarchy"}/current/home-background";
           Restart = "on-failure"; RestartSec = 3;
         };
         Install.WantedBy = [ "graphical-session.target" ];

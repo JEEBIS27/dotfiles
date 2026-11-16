@@ -13,7 +13,7 @@ Run the downloaded, extracted official installer inside it:
 ~/.local/state/matlab-nix/bin/matlab-nix ~/Downloads/install
 ```
 
-Sign in with a licensed MathWorks account and select `~/MATLAB/R2026b`
+Sign in with a licensed MathWorks account and select `~/.local/share/MATLAB/R2026b`
 (use the absolute home path in the installer). MATLAB binaries, license data,
 and account state stay outside Git and the Nix store.
 
@@ -29,11 +29,12 @@ so the application island can identify the running window. When upgrading
 MATLAB, update the release and window class in `modules/apps.nix`.
 
 With no arguments, the launcher selects the last release alphabetically under
-`~/MATLAB/R*/bin/matlab`. To select a release or pass MATLAB options, supply its
+`$XDG_DATA_HOME/MATLAB/R*/bin/matlab` (default: `~/.local/share/MATLAB/R*/bin/matlab`).
+To select a release or pass MATLAB options, supply its
 executable explicitly:
 
 ```sh
-matlab-nix ~/MATLAB/R2026b/bin/matlab -batch 'disp(version)'
+matlab-nix ~/.local/share/MATLAB/R2026b/bin/matlab -batch 'disp(version)'
 ```
 
 The environment uses Nix libraries and X11/XWayland for the Qt interface.

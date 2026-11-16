@@ -36,9 +36,9 @@ in {
     fcitx5-gtk = gtkModule;
   });
   i18n.inputMethod.fcitx5.waylandFrontend = true;
-  environment.sessionVariables.GIO_EXTRA_MODULES = [
-    "${gtkModule}/lib/gtk-4.0/4.0.0/immodules"
-  ];
+  # GTK_PATH selects the matching GTK major from the Fcitx package.
+  # GIO_EXTRA_MODULES is toolkit-independent: putting GTK4 IM modules there
+  # loads GTK4 into GTK3 applications such as mejiro-settings.
   home-manager.users.jeebis.xdg.dataFile."fcitx5/addon/classicui.conf".source =
     "${package}/share/mejiroime/fcitx5/classicui.conf";
 }

@@ -22,6 +22,15 @@ let
     '';
   };
   outputPython = pkgs.python3.withPackages (ps: [ ps.pyte ]);
+  tmuxOnePassword = import ../packages/tmux-1password.nix { pkgs = appPkgs; };
+  tmuxStatus = pkgs.writeShellApplication {
+    name = "jeebis-tmux-status";
+    runtimeInputs = [ appPkgs.tmux appPkgs.gitmux ];
+    text = ''
+      export JEEBIS_GITMUX_CONFIG=${../files/tmux/gitmux.yml}
+      exec ${pkgs.python3}/bin/python3 ${../files/tmux/status.py} "$@"
+    '';
+  };
   launcher = pkgs.writeShellApplication {
     name = "jeebis-terminal";
     runtimeInputs = [ appPkgs.ghostty ];
@@ -76,12 +85,14 @@ in {
       enable = true;
       package = appPkgs.tmux;
       terminal = "tmux-256color";
-      escapeTime = 0;
+      escapeTime = 50;
       historyLimit = 50000;
       mouse = true;
       shell = "${recordedFish}/bin/jeebis-recorded-fish";
+      plugins = [ tmuxOnePassword ];
       extraConfig = builtins.replaceStrings
-        [ "@fish@" ] [ "${config.jeebis.shell.package}/bin/fish" ]
+        [ "@fish@" "@tmux-helper@" ]
+        [ "${config.jeebis.shell.package}/bin/fish" "${tmuxStatus}/bin/jeebis-tmux-status" ]
         (builtins.readFile ../files/tmux/tmux.conf)
         + "\n" + import ../files/tmux/copy-keys.nix { inherit lib; };
     };

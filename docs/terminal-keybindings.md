@@ -20,11 +20,11 @@ TUIOS時代の対応表は[tuios-terminal-keybindings.md](tuios-terminal-keybind
 | Alt+1〜9 | ウィンドウ選択（1始まり） | タブ選択。標準のスペース選択を変更 |
 | Alt+Tab・Alt+PageDown / Shift+Tab・PageUp | 次 / 前ウィンドウ | 次 / 前タブ |
 | Alt+Shift+PageDown / PageUp | 次 / 前セッション | 次 / 前スペース |
-| Alt+S / Alt+G | ウィンドウ / セッション一覧 | スペース・タブ・エージェントのpicker |
+| Alt+S / Alt+G | ウィンドウ / セッション一覧（rでウィンドウ名、Shift+Rでセッション名を変更） | スペース・タブ・エージェントのpicker |
 | Alt+F | コピーモードを開いて検索 | 端末の検索バー |
 | Alt+Shift+Y | コピーモード | Appには旧版のキーボードコピーモードがない |
 | Alt+Y | 右分割でfishのYazi関数を起動 | 同じ |
-| Alt+T | シェルpopup（80%） | Appには旧版のシェルpopupがない |
+| Alt+T | シェルpopupの表示／非表示（80%、シェルの状態を保持） | Appには旧版のシェルpopupがない |
 | Alt+Shift+T | ペインレイアウト切替 | Appの画面レイアウト切替 |
 | Alt+D | デタッチ | ウィンドウを閉じる。coreの端末は保持 |
 | Alt+Shift+D | セッションを閉じる（確認あり） | スペースを閉じる |
@@ -93,3 +93,7 @@ Ghosttyは再読込、Herdr Appは次回起動またはライブ反映で更新�
 `scripts/check-native-keybindings.py --tmux-config FILE --ghostty-config FILE`は
 Ghosttyの実効キー、私有tmuxサーバーの各テーブル、Herdrの公開コマンドとローカル設定の
 マージを検証する。物理キー・IME・Herdr GUIの各機能は別途実機確認が必要。
+
+tmux のペイン名変更は `Ctrl+Space` → `Shift+P`（または `Ctrl+B` → `Shift+P`）。端末応答との衝突を避けるため、単独の `Alt+Shift+P` は使わない。
+
+ステータスバーとプラグインの設定は [tmux-customization.md](tmux-customization.md) を参照。

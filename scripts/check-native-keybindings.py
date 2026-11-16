@@ -44,8 +44,11 @@ def main():
                                 'M-k':'select-pane -U', 'M-l':'select-pane -R',
                                 'M-H':'resize-pane -L 5', 'M-Enter':'split-window -h',
                                 'M-S-Enter':'split-window -v', 'M-n':'new-window',
-                                'M-N':'new-session', 'M-Y':'copy-mode', 'M-t':'display-popup'}.items():
+                                'M-N':'new-session', 'M-Y':'copy-mode', 'M-t':'if-shell'}.items():
                 assert any(key in line.split() and action in line for line in root.splitlines()), (key, action)
+            assert not any('M-P' in line.split() for line in root.splitlines())
+            assert '__popup_' in root and 'detach-client' in root and 'display-popup' in root
+            assert tmux('show-options', '-sv', 'escape-time').strip() == '50'
             assert '1' == tmux('show-options', '-gv', 'base-index').strip()
             copy = tmux('list-keys', '-T', 'copy-mode-vi')
             for key, action in {'h':'cursor-left','a':'cursor-down','o':'cursor-up','e':'cursor-right','l':'next-word-end'}.items():
