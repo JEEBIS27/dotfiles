@@ -13,6 +13,32 @@ def compatible_connections(device, access_point):
     )
 
 
+
+def enable_eap_negotiation(setting):
+    """Offer only TLS tunnels compatible with the configured inner credentials.
+
+    Let wpa_supplicant accept the server's EAP request instead of NAKing PEAP
+    simply because a saved password profile happened to specify FAST. Never
+    invent client certificates, PACs, inner methods, or weaker TLS/CA settings.
+    """
+    if setting is None:
+        return False
+    methods = [setting.get_eap_method(i) for i in range(setting.get_num_eap_methods())]
+    if (not methods or not set(methods) <= {'peap', 'ttls', 'fast'}
+            or setting.get_phase2_auth() != 'mschapv2'
+            or setting.get_phase2_autheap()
+            or setting.get_pac_file()
+            or setting.get_client_cert_scheme() != 0
+            or setting.get_private_key_scheme() != 0):
+        return False
+    changed = False
+    for method in ('peap', 'ttls'):
+        if method not in methods:
+            setting.add_eap_method(method)
+            changed = True
+    return changed
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('device')
@@ -69,7 +95,18 @@ def main():
             loop.quit()
 
     if saved and not args.preview:
-        client.activate_connection_async(saved[0], device, ap.get_path(), None, finish, False)
+        connection = saved[0]
+        if enable_eap_negotiation(connection.get_setting_802_1x()):
+            def updated(source, result, unused):
+                try:
+                    source.commit_changes_finish(result)
+                    client.activate_connection_async(connection, device, ap.get_path(), None, finish, False)
+                except GLib.Error as error:
+                    errors.append(error.message)
+                    loop.quit()
+            connection.commit_changes_async(True, None, updated, None)
+        else:
+            client.activate_connection_async(connection, device, ap.get_path(), None, finish, False)
         wait_for_activation()
     else:
         connection = NM.SimpleConnection.new()
@@ -93,6 +130,7 @@ def main():
         response = dialog.run()
         if response == Gtk.ResponseType.OK and not args.preview:
             configured, selected_device, selected_ap = dialog.get_connection()
+            enable_eap_negotiation(configured.get_setting_802_1x())
             # Reject a profile inconsistent with the AP before touching NM.
             if not ap.connection_valid(configured):
                 errors.append('The selected authentication method does not match this network.')

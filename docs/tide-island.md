@@ -101,3 +101,24 @@ updated-unit activation cases. Targeted installation of the authentication
 agent also keeps a GC root at
 `~/.local/state/jeebis-desktop/network-agent-deployment`; the managed activation
 releases it together with the Tide deployment pin.
+
+### EAP method negotiation
+
+For password profiles using inner MSCHAPv2, Tide offers compatible PEAP and TTLS
+methods together with the already configured tunneled method. NetworkManager /
+wpa_supplicant can then accept the server's EAP request instead of rejecting
+PEAP because a saved profile happened to specify FAST. This applies to saved and
+new profiles and does not depend on the SSID. The updated EAP list is persisted
+so NetworkManager's subsequent automatic connections use it too.
+
+PAC-bound FAST, client-certificate/private-key profiles, EAP-TLS, other inner
+methods and non-tunneled EAP profiles retain their explicit configuration.
+FAST is never newly enabled. No identities, passwords, CA/server validation,
+TLS policy or inner authentication settings are changed. A server request can
+select among compatible configured methods; it cannot supply missing account
+credentials, client certificates or an institution's CA trust configuration.
+
+The isolated suite includes five additional negotiation tests: FAST-to-PEAP,
+PEAP/TTLS negotiation and idempotence, and preservation of certificate auth,
+PAP-only inner auth and PAC-bound FAST. It also compares all non-EAP properties,
+including credentials and trust settings, before and after negotiation.

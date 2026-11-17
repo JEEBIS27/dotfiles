@@ -111,4 +111,50 @@ class WifiTests(DBusTestCase):
         self.assertEqual(wifi.compatible_connections(Device(), ap), [correct])
 
 
+class EapNegotiationTests(unittest.TestCase):
+    def setting(self, method='fast', inner='mschapv2'):
+        setting = NM.Setting8021x.new()
+        setting.add_eap_method(method)
+        setting.props.phase2_auth = inner
+        setting.props.identity = 'test-identity'
+        setting.props.password = 'test-only-password'
+        setting.props.domain_suffix_match = 'radius.example.test'
+        setting.props.system_ca_certs = True
+        return setting
+
+    def test_fast_accepts_server_peap_without_changing_credentials_or_trust(self):
+        setting = self.setting()
+        before = setting.duplicate()
+        self.assertTrue(wifi.enable_eap_negotiation(setting))
+        self.assertEqual([setting.get_eap_method(i) for i in range(setting.get_num_eap_methods())],
+                         ['fast', 'peap', 'ttls'])
+        # Once the EAP list is restored, every setting including secrets and
+        # certificate validation must still equal the original profile.
+        setting.clear_eap_methods()
+        setting.add_eap_method('fast')
+        self.assertTrue(setting.compare(before, NM.SettingCompareFlags.EXACT))
+
+    def test_peap_can_negotiate_ttls_but_never_adds_fast(self):
+        setting = self.setting('peap')
+        self.assertTrue(wifi.enable_eap_negotiation(setting))
+        self.assertEqual([setting.get_eap_method(i) for i in range(setting.get_num_eap_methods())], ['peap','ttls'])
+        self.assertFalse(wifi.enable_eap_negotiation(setting))
+
+    def test_certificate_auth_is_not_changed(self):
+        setting = self.setting('tls')
+        self.assertFalse(wifi.enable_eap_negotiation(setting))
+        self.assertEqual(setting.get_num_eap_methods(), 1)
+
+    def test_incompatible_inner_auth_is_not_changed(self):
+        setting = self.setting('ttls', 'pap')
+        self.assertFalse(wifi.enable_eap_negotiation(setting))
+        self.assertEqual(setting.get_num_eap_methods(), 1)
+
+    def test_pac_bound_auth_is_not_changed(self):
+        setting = self.setting()
+        setting.props.pac_file = '/test-only.pac'
+        self.assertFalse(wifi.enable_eap_negotiation(setting))
+        self.assertEqual(setting.get_num_eap_methods(), 1)
+
+
 if __name__ == '__main__': unittest.main()
