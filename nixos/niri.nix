@@ -10,7 +10,6 @@
   environment.systemPackages = [ pkgs.xwayland-satellite ];
   # Niri's NixOS module supplies the session units and GNOME/GTK portals.
   services.displayManager.defaultSession = lib.mkForce "niri";
-  # SDDM keeps the isolated Hyprland greeter from desktop.nix so its own
-  # accelerometer watcher can rotate the login UI before a user session exists.
+  # SDDM uses an independent Weston kiosk compositor for the login screen.
   home-manager.users.jeebis.jeebis.desktop.compositor = "niri";
 }

@@ -6,14 +6,6 @@
   ...
 }:
 let
-  rotation = import ../packages/display-rotation.nix { pkgs = appPkgs; };
-  greeterRotation = pkgs.writeText "jeebis-greeter-rotation.json" (
-    builtins.toJSON config.jeebis.machine.greeterRotation
-  );
-  greeterConfig = pkgs.writeText "jeebis-greeter.lua" ''
-    hl.config({ misc = { disable_hyprland_logo = true, disable_splash_rendering = true }, animations = { enabled = false } })
-    hl.on("hyprland.start", function() hl.exec_cmd("${rotation}/bin/jeebis-display-rotation greeter ${greeterRotation}") end)
-  '';
   helium = import ../packages/helium.nix { inherit pkgs; };
   loginTheme = import ../packages/jeebis-login-theme.nix { pkgs = appPkgs; };
   fish = import ../packages/fish.nix { pkgs = appPkgs; };
@@ -63,7 +55,7 @@ in
   services.displayManager.sddm.enable = lib.mkDefault true;
   services.displayManager.sddm.wayland.enable = lib.mkDefault true;
   services.displayManager.sddm.wayland.compositorCommand =
-    "${appPkgs.hyprland}/bin/start-hyprland -- --config ${greeterConfig}";
+    "${pkgs.weston}/bin/weston --shell=kiosk-shell.so";
   systemd.tmpfiles.rules = [ "d /var/lib/jeebis-theme 0755 jeebis users -" ];
   services.displayManager.sddm.theme = "jeebis-login-theme";
   services.displayManager.sddm.extraPackages = with pkgs.kdePackages; [

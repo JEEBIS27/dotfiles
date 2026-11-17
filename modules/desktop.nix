@@ -9,7 +9,10 @@ let
   cfg = config.jeebis.desktop;
   native = cfg.backend == "nixos";
   legacy = cfg.compositor == "hyprland";
-  rotation = import ../packages/display-rotation.nix { pkgs = appPkgs; };
+  rotation = import ../packages/display-rotation.nix {
+    pkgs = appPkgs;
+    compositor = cfg.compositor;
+  };
   quickshell = import ../packages/quickshell.nix { pkgs = appPkgs; };
   runtime = if legacy then import ../packages/desktop/runtime.nix { pkgs = appPkgs; } else null;
   themeDir = "${config.xdg.stateHome}/${
