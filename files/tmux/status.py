@@ -1,9 +1,7 @@
 """Local tmux status and rename helpers; never query 1Password on a timer."""
-import os
 import json
 import hashlib
 import shlex
-import re
 import unicodedata
 from pathlib import Path
 import subprocess
@@ -51,11 +49,6 @@ def visible(text):
     return sum(2 if unicodedata.east_asian_width(c) in {'W', 'F'} else 1 for c in text)
 
 
-def pill(text, fg='blue', bg='#313244'):
-    return (f'#[fg={bg},bg=default]#[fg={fg},bg={bg},bold] {clean(text)} '
-            f'#[fg={bg},bg=default]#[default]')
-
-
 def clip(text, width):
     if visible(text) <= width:
         return text
@@ -67,33 +60,24 @@ def clip(text, width):
     return output + '…'
 
 
-def status(pane, width):
+def context(pane):
     path, pid, command = tmux('display-message', '-p', '-t', pane,
                               '#{pane_current_path}\t#{pane_pid}\t#{pane_current_command}').split('\t', 2)
     command, actual_path = foreground(pid, command)
-    path = actual_path or path
-    home = str(Path.home())
-    label = '~' + path[len(home):] if path == home or path.startswith(home + '/') else path
-    limit = max(8, min(36, width // (6 if width < 80 else 4)))
-    if visible(label) > limit:
-        while visible(label) > limit - 1:
-            label = label[1:]
-        label = '…' + label
-    current_tool = clip(command, max(4, min(16, width // (12 if width < 80 else 6))))
-    parts = [pill(label), pill(current_tool, fg='#1e1e2e', bg='green')]
-    used = visible(label) + visible(current_tool) + 9
-    budget = max(12, width - (34 if width >= 100 else 20))
-    try:
-        git = subprocess.check_output(['gitmux', '-timeout', '500ms', '-cfg',
-                                       os.environ['JEEBIS_GITMUX_CONFIG'], path],
-                                      text=True, stderr=subprocess.DEVNULL, timeout=1).strip()
-        git = re.sub(r'#\[[^]]*\]', '', git).replace('##', '#').strip()
-        remaining = budget - used - 5
-        if git and remaining >= 4:
-            parts.append(pill(clip(git, remaining), fg='blue'))
-    except (subprocess.SubprocessError, OSError, KeyError):
-        pass
-    print(' '.join(parts))
+    return command, actual_path or path
+
+
+def directory(pane, width):
+    _, path = context(pane)
+    label = '~' if path == str(Path.home()) else Path(path).name or '/'
+    label = clean(clip(label, max(6, min(24, width // 3))))
+    print('#[fg=#f5c2e7,bg=default]#[fg=#1e1e2e,bg=#f5c2e7] '
+          f'#[fg=default,bg=#181825] {label} #[fg=#181825,bg=default]#[default]')
+
+
+def tool(pane):
+    command, _ = context(pane)
+    print(clean(clip(command, 16)))
 
 
 def topology():
@@ -141,8 +125,10 @@ def rename(kind, client):
 
 if __name__ == '__main__':
     try:
-        if sys.argv[1] == 'status':
-            status(sys.argv[2], int(sys.argv[3]))
+        if sys.argv[1] == 'directory':
+            directory(sys.argv[2], int(sys.argv[3]))
+        elif sys.argv[1] == 'tool':
+            tool(sys.argv[2])
         elif sys.argv[1] == 'confirm-delete':
             confirm_delete(sys.argv[2], sys.argv[3])
         elif sys.argv[1] == 'delete-confirmed':

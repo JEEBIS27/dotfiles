@@ -1,9 +1,0 @@
-tmux:
-  layout: [branch, " ", divergence, " ", flags]
-  options:
-    branch_max_len: 24
-    hide_clean: true
-  styles:
-    branch: '#[fg=blue,bold]'
-    divergence: '#[fg=yellow]'
-    clear: '#[default]'

@@ -27,9 +27,9 @@ with tempfile.TemporaryDirectory(prefix='tmux-workflow-') as directory:
         while select.select([master], [], [], 0)[0]:
             os.read(master, 65536)
 
-    def keys(value):
+    def keys(value, pause=0.25):
         os.write(master, value)
-        time.sleep(0.25)
+        time.sleep(pause)
         drain()
 
     def until(check):
@@ -55,12 +55,13 @@ with tempfile.TemporaryDirectory(prefix='tmux-workflow-') as directory:
         keys(b'\x1bs')
         assert tmux('display-message', '-p', '#{pane_mode}') == 'tree-mode'
         keys(b'\x1b[B')  # Highlight the other window, without selecting it.
-        keys(b'r')
+        # The shell-launched helper opens its prompt asynchronously.
+        keys(b'r', pause=1)
         keys(b'\x15renamed "quote"; literal\r')
         until(lambda: tmux('display-message', '-p', '-t', second, '#{window_name}') == 'renamed "quote"; literal')
         assert tmux('display-message', '-p', '-t', first, '#{window_name}') == 'first'
         assert tmux('display-message', '-p', '#{pane_mode}') == 'tree-mode'
-        keys(b'R')
+        keys(b'R', pause=1)
         keys(b'\x15renamed-session\r')
         until(lambda: tmux('display-message', '-p', '#{session_name}') == 'renamed-session')
         # Delete acts on the highlighted window, with cancel and confirmation.
@@ -98,23 +99,20 @@ with tempfile.TemporaryDirectory(prefix='tmux-workflow-') as directory:
         # Outside the chooser, r/R must still reach the application literally.
         keys(b'printf rR-forwarded\\n\r')
         assert 'rR-forwarded' in tmux('capture-pane', '-p')
-        assert tmux('show-options', '-gv', 'status') == '2'
-        # Exercise Git output and foreground-tool discovery through script(1).
+        assert tmux('show-options', '-gv', 'status') == 'on'
+        # Resolve the real foreground tool/cwd through the recording PTY.
         repo = Path(directory) / 'repo'
-        subprocess.run(['git', 'init', '-q', '-b', 'feature/tmux', str(repo)], check=True)
-        (repo / 'untracked.txt').write_text('fixture')
+        (repo / 'nested').mkdir(parents=True)
         pane = tmux('new-window', '-P', '-F', '#{pane_id}', '-c', str(repo),
-                    "script -q -c 'sleep 60' /dev/null")
+                    "script -q -c 'cd nested; sleep 60' /dev/null")
         config = Path(args.config).read_text()
-        helper = re.search(r'#\((/nix/store/[^ ]+/bin/jeebis-tmux-status) status', config).group(1)
-        def status():
-            return subprocess.check_output([helper, 'status', pane, '180'], text=True,
+        helper = re.search(r'#\((/nix/store/[^ ]+/bin/jeebis-tmux-status) directory', config).group(1)
+        def context(action):
+            return subprocess.check_output([helper, action, pane, '180'], text=True,
                 env=dict(os.environ, TMUX=f'{directory}/socket,1,0'))
-        until(lambda: 'sleep' in status())
-        output = status()
-        assert 'feature/tmux' in output and 'sleep' in output, output
-        assert 'untracked' not in output  # Counts/flags, not file contents or names.
-        print('PASS: selected-window/session rename, quoted names, Delete confirm/cancel, popup toggle, literal input, two-row status, Git and foreground tools')
+        until(lambda: context('tool').strip() == 'sleep')
+        assert 'nested' in context('directory'), context('directory')
+        print('PASS: selected-window/session rename, quoted names, Delete confirm/cancel, popup toggle, literal input, one-row status, foreground tool/cwd')
     finally:
         subprocess.run([*cmd, 'kill-server'], check=False, capture_output=True)
         os.close(master)

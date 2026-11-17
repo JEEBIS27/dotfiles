@@ -25,9 +25,8 @@ let
   tmuxOnePassword = import ../packages/tmux-1password.nix { pkgs = appPkgs; };
   tmuxStatus = pkgs.writeShellApplication {
     name = "jeebis-tmux-status";
-    runtimeInputs = [ appPkgs.tmux appPkgs.gitmux ];
+    runtimeInputs = [ appPkgs.tmux ];
     text = ''
-      export JEEBIS_GITMUX_CONFIG=${../files/tmux/gitmux.yml}
       exec ${pkgs.python3}/bin/python3 ${../files/tmux/status.py} "$@"
     '';
   };
