@@ -106,3 +106,7 @@ Nixのインストール自体やAndroidアプリの導入は、このコマン�
 | Super+Shift+Esc | Tide Island設定 |
 
 Hyprlandが処理する。旧Ruixen用のSuper+Alt+Space・Super+Shift+Alt+Space・Super+R・Super+Shift+Rは解除する。既存のSuper+Escはシステムメニューとして維持する。
+
+## 開発環境
+
+Python・Node.js・Rust・GoはNixでバージョンを固定し、uvでPythonの依存を管理する。direnvによるプロジェクト環境の自動切り替えと、Nixで対応できない場合のmiseも導入する。[開発環境の使い方](docs/development.md)を参照。

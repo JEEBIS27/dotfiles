@@ -9,15 +9,13 @@ let
   themeDir = "${config.xdg.stateHome}/${if native then "jeebis-desktop" else "omarchy"}/current/theme";
   coreSource = ../files/desktop;
   tide = import ../packages/tide-island.nix { pkgs = appPkgs; withNiri = cfg.compositor == "niri"; };
-  tideDefaults = pkgs.writeText "tide-island-userconfig.json" (builtins.toJSON {
-        iconFontFamily = "HackGen35 Console NF";
-        islandExclusiveZone = 0;
+  tideDefaults = pkgs.writeText "tide-island-userconfig.json" (builtins.toJSON ((builtins.fromJSON (builtins.readFile ../files/desktop/tide-preferences.json)) // {
         wallpaperLibraryPath = "${config.xdg.dataHome}/jeebis-desktop/backgrounds";
         wallpaperPath = "${config.xdg.stateHome}/${if native then "jeebis-desktop" else "omarchy"}/current/home-background";
         wallpaperCustomCommandEnabled = true;
         wallpaperCustomCommand = "${package}/bin/jeebis-desktop wallpaper set \"$1\"";
         wallpaperPywalEnabled = false;
-      });
+      }));
   presetDefinitions = builtins.fromJSON (builtins.readFile ../files/desktop/presets.json);
   presetFiles = builtins.listToAttrs (map (preset: {
     name = "omarchy/themes/${preset.name}/colors.toml";
@@ -198,12 +196,10 @@ in
           run rm -f "${config.xdg.stateHome}/jeebis-desktop/network-agent-deployment"
         fi
       '';
-      # Seed once; subsequent GUI changes belong to the user.
+      # Merge portable GUI preferences and generated integration settings.
       initializeTideConfig = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
-        if [ ! -e "${config.xdg.configHome}/tide-island/userconfig.json" ]; then
-          run mkdir -p "${config.xdg.configHome}/tide-island"
-          run install -m600 ${tideDefaults} "${config.xdg.configHome}/tide-island/userconfig.json"
-        fi
+        run ${pkgs.python3}/bin/python3 ${../scripts/tide-config.py} apply ${tideDefaults} \
+          --config "${config.xdg.configHome}/tide-island/userconfig.json"
       '';
 
       initializeHyprMonitors = lib.mkIf (cfg.compositor == "hyprland") (lib.hm.dag.entryAfter [ "linkGeneration" ] ''

@@ -25,7 +25,7 @@ in
   # Install servers used by Helix's bundled language definitions. Optional
   # alternatives in those definitions need not all be installed.
   home.packages = with appPkgs; [
-    lua-language-server shfmt go gopls
+    lua-language-server shfmt gopls
     typescript-language-server prisma-language-server
     vscode-langservers-extracted jsonnet-language-server
     yaml-language-server bash-language-server

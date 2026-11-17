@@ -21,6 +21,13 @@ in
     package = appPkgs._1password-gui;
     polkitPolicyOwners = [ "jeebis" ];
   };
+  # Start Docker on demand through its Unix socket; access requires sudo.
+  # The Nix package includes Compose and Buildx.
+  virtualisation.docker = {
+    enable = true;
+    enableOnBoot = false;
+    package = appPkgs.docker;
+  };
   programs.dconf.enable = true;
   services.gnome.gnome-keyring.enable = true;
   security.pam.services.sddm.enableGnomeKeyring = true;

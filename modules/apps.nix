@@ -27,8 +27,5 @@
     appPkgs._1password-cli appPkgs._1password-gui
   ] ++ lib.optionals (config.jeebis.desktop.compositor == "hyprland") [
     (import ../packages/tuios.nix { pkgs = appPkgs; })
-  ] ++ lib.optionals (config.jeebis.desktop.backend == "nixos") (with appPkgs; [
-    # Retained Neovim fallback plugin build runtimes.
-    nodejs cargo rustc
-  ]);
+  ];
 }

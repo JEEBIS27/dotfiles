@@ -5,6 +5,10 @@ set shell := ["bash", "-euc"]
 default:
     @"{{just_executable()}}" --list
 
+# Import reviewed Tide GUI preferences before switch/commit.
+tide-import:
+    nix --extra-experimental-features 'nix-command flakes' shell "path:$PWD#python3" -c python3 scripts/tide-config.py import files/desktop/tide-preferences.json
+
 # Install/apply the configuration for this OS.
 switch:
     @bash scripts/manage.sh switch

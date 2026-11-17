@@ -24,7 +24,7 @@
 
     # Published source only: target PCs do not need the local development checkout.
     mejiroime = {
-      url = "git+https://github.com/JEEBIS27/MejiroIME.git?ref=develop";
+      url = "git+https://github.com/JEEBIS27/MejiroIME.git";
       flake = false;
     };
 
@@ -105,6 +105,7 @@
         herdr-core = import ./packages/herdr-core.nix { pkgs = nixpkgs.legacyPackages.${system}; };
         tide-island = import ./packages/tide-island.nix { pkgs = appPkgs; };
         just = appPkgs.just;
+        python3 = appPkgs.python3;
         sbctl = pcPkgs.sbctl;
         spotify = import ./packages/spotify.nix { pkgs = pcPkgs; };
         jeebis-login-theme = import ./packages/jeebis-login-theme.nix { pkgs = appPkgs; };
@@ -115,6 +116,7 @@
         helix-steel-plugins = steel.plugins;
         helix-steel-terminal = steel.terminal;
       };
+      devShells.${system} = import ./development/shells.nix { pkgs = appPkgs; };
       homeConfigurations = {
         "jeebis@omarchy" = mkHome ./hosts/omarchy.nix;
         "jeebis@nixos" = mkHome ./hosts/nixos.nix;
