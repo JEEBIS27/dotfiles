@@ -17,8 +17,17 @@ pkgs.tmuxPlugins.mkTmuxPlugin {
       --replace-fail 'tmux bind-key "$(options::keybinding)"' \
                      'tmux bind-key -n "$(options::keybinding)"'
     substituteInPlace scripts/options.sh \
-      --replace-fail '@1password-key" "u"' '@1password-key" "M-u"'
+      --replace-fail '@1password-key" "u"' '@1password-key" "M-u"' \
+      --replace-fail '@1password-account" "my"' '@1password-account" ""'
     substituteInPlace scripts/main.sh \
+      --replace-fail 'items="$(op::get_all_items)"' \
+        'items="$(op::get_all_items)" || { spinner::stop; op::failure "項目一覧を取得できませんでした。"; return 1; }' \
+      --replace-fail 'selected_item_password="$(op::get_item_password "$selected_item_uuid")"' \
+        'selected_item_password="$(op::get_item_password "$selected_item_uuid")" || { spinner::stop; op::failure "パスワードを取得できませんでした。"; return 1; }' \
+      --replace-fail 'selected_item_password="$(op::get_item_totp "$selected_item_uuid")"' \
+        'selected_item_password="$(op::get_item_totp "$selected_item_uuid")" || { spinner::stop; op::failure "ワンタイムパスワードを取得できませんでした。"; return 1; }' \
+      --replace-fail 'clipboard::copy "$selected_item_password"' \
+        'clipboard::copy "$selected_item_password" || { op::failure "クリップボードへコピーできませんでした。"; return 1; }' \
       --replace-fail 'tmux send-keys -t "$ACTIVE_PANE" "$selected_item_password"' \
                      'tmux send-keys -l -t "$ACTIVE_PANE" -- "$selected_item_password"'
   '';

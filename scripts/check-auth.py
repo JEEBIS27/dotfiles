@@ -11,6 +11,33 @@ class AuthTests(unittest.TestCase):
     def shell(self, body):
         return subprocess.run(['bash', '-c', 'source "$1"\n' + body, 'test', str(ROOT / 'auth.sh')], text=True, capture_output=True)
 
+    def test_op_auth_signs_in_before_checking_and_hides_token(self):
+        r = self.shell('''
+need() { :; }
+function 1password { :; }
+op_cli() {
+  case $1 in
+    signin) echo synthetic-session-token ;;
+    whoami) echo AUTHENTICATED ;;
+    *) return 2 ;;
+  esac
+}
+main op
+''')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn('AUTHENTICATED', r.stdout)
+        self.assertNotIn('synthetic-session-token', r.stdout + r.stderr)
+
+    def test_op_auth_stops_when_signin_fails(self):
+        r = self.shell('''
+need() { :; }
+function 1password { :; }
+op_cli() { if [[ $1 == signin ]]; then return 1; fi; echo WHOAMI_CALLED; }
+main op
+''')
+        self.assertNotEqual(r.returncode, 0)
+        self.assertNotIn('WHOAMI_CALLED', r.stdout)
+
     def test_op_failure_never_runs_gh(self):
         r = self.shell('need() { :; }; op_cli() { return 1; }; gh() { echo GH_CALLED; }; main git op://vault/item/token')
         self.assertNotEqual(r.returncode, 0)

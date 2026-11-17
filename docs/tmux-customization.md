@@ -12,9 +12,11 @@ Alt+S は従来どおり標準のウィンドウ一覧を開く。矢印で項�
 
 背景は端末に馴染む暗色とし、色付き背景はアイコンと選択番号を中心に使う。Git・時計・ホスト名・モード・1Passwordのキー案内はバーに常設しない。出力記録用の script(1) が間にある場合も、Linuxの /proc から前景プロセスと実際の作業ディレクトリを確認する。SSH先のプロセス名ではなく、ローカルの ssh が表示される。
 
-[tmux-1password](https://github.com/yardnsm/tmux-1password) は `Alt+U`（プレフィックス不要）で開く。Enter でパスワード、Ctrl+U でワンタイムパスワードをクリップボードへコピーする。Waylandの sensitive ヒントを付け、最初の貼り付け要求でクリップボードの提供を終了する。端末へ自動入力しない。1PasswordアプリのCLI連携が有効である必要がある。既定のアカウント指定は上流と同じ `my`。別のアカウントでは `set -g @1password-account 'アカウントの略称'` を設定する。
+[tmux-1password](https://github.com/yardnsm/tmux-1password) は `Alt+U`（プレフィックス不要）で開く。Enter でパスワード、Ctrl+U でワンタイムパスワードをクリップボードへコピーする。Waylandの sensitive ヒントを付け、最初の貼り付け要求でクリップボードの提供を終了する。端末へ自動入力しない。1PasswordアプリのCLI連携が有効である必要がある。起動時に `op signin` で認証し、既定ではCLIがアカウントを自動選択する（複数アカウントの場合は選択画面）。アカウントを固定する場合は `set -g @1password-account 'アカウントの略称'` を設定する。
 
-上流のコミットをNixで固定し、Wayland対応と現行CLIのデスクトップ連携を追加している。セッショントークンをファイルに保存せず、op の認証はユーザーがプラグインを開いたときだけ実行する。ステータス更新では実行しない。TPMの手動インストールは不要。
+上流のコミットをNixで固定し、Wayland対応と現行CLIのデスクトップ連携を追加している。セッショントークンをファイルに保存せず、op の認証はユーザーがプラグインを開いたときだけ実行する。ステータス更新では実行しない。NixOSでは `/run/wrappers/bin/op` を優先する。認証・一覧取得・コピーなどに失敗した場合は、エラーを表示したペインをEnterまで残す。TPMの手動インストールは不要。
+
+初回は `just op-auth` でサインインする。アプリのCLI連携を有効化した後、通常はOSの再起動は不要。`op whoami` は状態確認のみなので、未認証なら先に `op signin` が必要。
 
 設定本体は files/tmux/tmux.conf、表示の補助処理は files/tmux/status.py、プラグイン定義は packages/tmux-1password.nix。Home Managerで生成・適用する。
 
@@ -31,8 +33,9 @@ COPY/PREFIXなどはtmux標準のformatで表示できるので、そのため�
 検証:
 
 ```sh
+python3 scripts/check-tmux-1password.py
 python3 scripts/check-tmux-workflow.py --config ~/.config/tmux/tmux.conf
 python3 scripts/check-native-keybindings.py --tmux-config ~/.config/tmux/tmux.conf --ghostty-config ~/.config/ghostty/config
 ```
 
-前者は私有tmuxサーバーとPTYで、選択中ウィンドウ/セッションの名前変更、引用符を含む名前、一覧の維持、popupの開閉、通常入力の転送を確認する。1Passwordの実アカウントから秘密を取得するテストは行わない。
+`check-tmux-1password.py` は認証アダプターをモックで検証する。`check-tmux-workflow.py` は私有tmuxサーバーとPTYで、選択中ウィンドウ/セッションの名前変更、引用符を含む名前、一覧の維持、popupの開閉、通常入力の転送を確認する。1Passwordの実アカウントから秘密を取得するテストは行わない。

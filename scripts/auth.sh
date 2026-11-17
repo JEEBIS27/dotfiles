@@ -39,6 +39,8 @@ main() {
       if command -v 1password >/dev/null; then
         (1password >/dev/null 2>&1 &)
       fi
+      # Authenticate first; never print or evaluate a session token.
+      op_cli signin >/dev/null
       op_cli whoami
       ;;
     git)
