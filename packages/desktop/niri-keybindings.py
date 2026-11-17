@@ -68,6 +68,7 @@ def describe(action, applications):
         return {
             'lock': '画面をロック lock',
             'settings': 'Tide設定 settings',
+            'shell tide toggleControlCenter': 'コントロールセンター control center keyboard navigation hints',
             'shell tide togglePowerMenu': '電源メニュー power shutdown reboot suspend logout',
             'shell tide toggleApplicationLauncher': 'アプリランチャー launcher',
             'shell island toggle': 'Tide Island表示切替 toggle',

@@ -1,0 +1,409 @@
+"""Add keyboard navigation and Vimium-style hints to Tide's control center."""
+
+from pathlib import Path
+import sys
+
+
+root = Path(sys.argv[1])
+path = root / "qml/controlcenter/ControlCenterLayer.qml"
+source = path.read_text()
+
+
+def replace_once(old: str, new: str, label: str) -> None:
+    global source
+    if source.count(old) != 1:
+        raise RuntimeError(f"upstream ControlCenterLayer changed: {label}")
+    source = source.replace(old, new, 1)
+
+
+replace_once(
+    "    property bool powerViewActive: false\n",
+    """    property bool powerViewActive: false
+    property bool keyboardHintsVisible: false
+    property int keyboardSelection: 0
+    property string powerConfirmation: ""
+    property int powerSelection: 0
+    focus: showCondition
+    activeFocusOnTab: true
+""",
+    "keyboard state",
+)
+
+replace_once(
+    "    function triggerShutdown() {\n",
+    """    function keyboardTargets() {
+        return [
+            { item: dateLabel, hint: "C", action: function() { controlCenter.calendarRequested(); } },
+            { item: weatherChip, hint: "E", action: function() { controlCenter.weatherRequested(); } },
+            { item: wifiDetailButton, hint: "W", action: function() { controlCenter.toggleConnectivityOverlay("wifi"); } },
+            { item: wifiSwitchTrack, hint: "⇧W", action: function() { controlCenter.toggleWifiEnabled(); } },
+            { item: bluetoothDetailButton, hint: "B", action: function() { controlCenter.toggleConnectivityOverlay("bluetooth"); } },
+            { item: bluetoothSwitchTrack, hint: "⇧B", action: function() { controlCenter.toggleBluetoothEnabled(); } },
+            { item: batteryDrawerHandle, hint: "P", action: function() { controlCenter.toggleBatteryDrawer(); } },
+            { item: focusButton, hint: "S", action: function() { controlCenter.toggleFocus(); } },
+            { item: nightLightButton, hint: "N", action: function() { controlCenter.toggleNightLight(); } },
+            { item: brightnessCard, hint: "D", slider: "brightness" },
+            { item: volumeCard, hint: "V", slider: "volume" }
+        ].filter(function(target) { return target.item && target.item.visible && target.item.enabled; });
+    }
+
+    function normalizedKeyboardSelection() {
+        const targets = keyboardTargets();
+        if (targets.length === 0) return -1;
+        keyboardSelection = Math.max(0, Math.min(keyboardSelection, targets.length - 1));
+        return keyboardSelection;
+    }
+
+    function moveKeyboardSelection(delta) {
+        const targets = keyboardTargets();
+        if (targets.length === 0) return;
+        keyboardSelection = (normalizedKeyboardSelection() + delta + targets.length) % targets.length;
+    }
+
+    function activateKeyboardSelection() {
+        const targets = keyboardTargets();
+        const index = normalizedKeyboardSelection();
+        if (index < 0) return;
+        const target = targets[index];
+        if (target.action) target.action();
+    }
+
+    function adjustSelectedSlider(delta) {
+        const targets = keyboardTargets();
+        const index = normalizedKeyboardSelection();
+        if (index < 0 || !targets[index].slider) return false;
+        if (targets[index].slider === "brightness") {
+            queueBrightness(localBrightness + delta);
+            brightnessApplyTimer.stop();
+            flushBrightness(true);
+        } else {
+            queueVolume(localVolume + delta);
+            volumeApplyTimer.stop();
+            flushVolume(true);
+        }
+        return true;
+    }
+
+    function activateHint(key, modifiers) {
+        const shifted = (modifiers & Qt.ShiftModifier) !== 0;
+        if (key === Qt.Key_C) { calendarRequested(); return true; }
+        if (key === Qt.Key_E) { weatherRequested(); return true; }
+        if (key === Qt.Key_W) {
+            if (shifted) toggleWifiEnabled(); else toggleConnectivityOverlay("wifi");
+            return true;
+        }
+        if (key === Qt.Key_B) {
+            if (shifted) toggleBluetoothEnabled(); else toggleConnectivityOverlay("bluetooth");
+            return true;
+        }
+        if (key === Qt.Key_P) { toggleBatteryDrawer(); return true; }
+        if (key === Qt.Key_S) { toggleFocus(); return true; }
+        if (key === Qt.Key_N) { toggleNightLight(); return true; }
+        if (key === Qt.Key_D || key === Qt.Key_V) {
+            const targets = keyboardTargets();
+            const wanted = key === Qt.Key_D ? "brightness" : "volume";
+            for (let i = 0; i < targets.length; ++i) {
+                if (targets[i].slider === wanted) {
+                    keyboardSelection = i;
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    function requestPowerAction(index) {
+        powerSelection = index;
+        if (index === 0) { triggerLock(); return; }
+        if (index === 1) { triggerSleep(); return; }
+        powerConfirmation = index === 2 ? "restart" : "shutdown";
+    }
+
+    function confirmPowerAction() {
+        if (powerConfirmation === "restart") triggerRestart();
+        else if (powerConfirmation === "shutdown") triggerShutdown();
+        powerConfirmation = "";
+    }
+
+    function handleKeyboard(event) {
+        if (!showCondition) return;
+
+        if (powerConfirmation !== "") {
+            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space)
+                confirmPowerAction();
+            else if (event.key === Qt.Key_Escape)
+                powerConfirmation = "";
+            else
+                return;
+            event.accepted = true;
+            return;
+        }
+
+        if (event.key === Qt.Key_F) {
+            keyboardHintsVisible = !keyboardHintsVisible;
+            event.accepted = true;
+            return;
+        }
+
+        if (keyboardHintsVisible) {
+            const handled = powerViewActive
+                ? ((event.key === Qt.Key_L && (requestPowerAction(0), true))
+                    || (event.key === Qt.Key_S && (requestPowerAction(1), true))
+                    || (event.key === Qt.Key_R && (requestPowerAction(2), true))
+                    || (event.key === Qt.Key_P && (requestPowerAction(3), true)))
+                : activateHint(event.key, event.modifiers);
+            if (handled) {
+                keyboardHintsVisible = false;
+                event.accepted = true;
+                return;
+            }
+        }
+
+        if (event.key === Qt.Key_Escape && keyboardHintsVisible) {
+            keyboardHintsVisible = false;
+            event.accepted = true;
+            return;
+        }
+
+        if (!powerViewActive && (event.key === Qt.Key_Left || event.key === Qt.Key_H)
+                && adjustSelectedSlider((event.modifiers & Qt.ShiftModifier) ? -0.01 : -0.05)) {
+            event.accepted = true;
+            return;
+        }
+        if (!powerViewActive && (event.key === Qt.Key_Right || event.key === Qt.Key_L)
+                && adjustSelectedSlider((event.modifiers & Qt.ShiftModifier) ? 0.01 : 0.05)) {
+            event.accepted = true;
+            return;
+        }
+        if (event.key === Qt.Key_Tab || event.key === Qt.Key_Right || event.key === Qt.Key_Down
+                || event.key === Qt.Key_L || event.key === Qt.Key_J) {
+            const backwards = event.key === Qt.Key_Tab && (event.modifiers & Qt.ShiftModifier);
+            if (powerViewActive)
+                powerSelection = (powerSelection + (backwards ? 3 : 1)) % 4;
+            else
+                moveKeyboardSelection(backwards ? -1 : 1);
+            event.accepted = true;
+            return;
+        }
+        if (event.key === Qt.Key_Backtab || event.key === Qt.Key_Left || event.key === Qt.Key_Up
+                || event.key === Qt.Key_H || event.key === Qt.Key_K) {
+            if (powerViewActive)
+                powerSelection = (powerSelection + 3) % 4;
+            else
+                moveKeyboardSelection(-1);
+            event.accepted = true;
+            return;
+        }
+        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
+            if (powerViewActive) requestPowerAction(powerSelection);
+            else activateKeyboardSelection();
+            event.accepted = true;
+        }
+    }
+
+    Keys.onPressed: function(event) { controlCenter.handleKeyboard(event); }
+
+    function triggerShutdown() {
+""",
+    "keyboard controller",
+)
+
+replace_once(
+    """    onShowConditionChanged: {
+        if (showCondition) {
+            syncLevelsFromProps();
+""",
+    """    onShowConditionChanged: {
+        if (showCondition) {
+            keyboardHintsVisible = false;
+            keyboardSelection = 0;
+            powerSelection = 0;
+            powerConfirmation = "";
+            Qt.callLater(function() { controlCenter.forceActiveFocus(); });
+            syncLevelsFromProps();
+""",
+    "focus on open",
+)
+
+replace_once(
+    """    Item {
+        anchors.fill: parent
+        visible: controlCenter.powerViewActive
+""",
+    """    Rectangle {
+        id: keyboardFocusRing
+        z: 80
+        color: StyleTokens.transparent
+        radius: 14
+        border.width: 2
+        border.color: StyleTokens.accent
+        visible: controlCenter.showCondition && !controlCenter.powerViewActive
+            && controlCenter.keyboardTargets().length > 0
+        property var target: visible
+            ? controlCenter.keyboardTargets()[controlCenter.normalizedKeyboardSelection()].item : null
+        x: target ? target.mapToItem(controlCenter, 0, 0).x - 3 : 0
+        y: target ? target.mapToItem(controlCenter, 0, 0).y - 3 : 0
+        width: target ? target.width + 6 : 0
+        height: target ? target.height + 6 : 0
+
+        Behavior on x { NumberAnimation { duration: 90 } }
+        Behavior on y { NumberAnimation { duration: 90 } }
+        Behavior on width { NumberAnimation { duration: 90 } }
+        Behavior on height { NumberAnimation { duration: 90 } }
+    }
+
+    Repeater {
+        model: controlCenter.keyboardHintsVisible && !controlCenter.powerViewActive
+            ? controlCenter.keyboardTargets() : []
+        delegate: Rectangle {
+            required property var modelData
+            z: 100
+            width: hintText.implicitWidth + 10
+            height: 20
+            radius: 6
+            color: StyleTokens.accent
+            x: modelData.item.mapToItem(controlCenter, modelData.item.width, 0).x - width / 2
+            y: modelData.item.mapToItem(controlCenter, 0, 0).y - height / 2
+            border.width: 1
+            border.color: StyleTokens.textPrimaryBright
+
+            Text {
+                id: hintText
+                anchors.centerIn: parent
+                text: modelData.hint
+                color: StyleTokens.module
+                font.family: controlCenter.textFontFamily
+                font.pixelSize: 11
+                font.weight: Font.Bold
+            }
+        }
+    }
+
+    Item {
+        id: powerKeyboardView
+        anchors.fill: parent
+        visible: controlCenter.powerViewActive
+""",
+    "focus overlay",
+)
+
+replace_once(
+    """                delegate: Item {
+                    width: 56
+                    height: 56
+
+                    Text {
+""",
+    """                delegate: Item {
+                    width: 68
+                    height: 78
+                    property var powerKeys: ["L", "S", "R", "P"]
+                    property var powerLabels: ["Lock", "Sleep", "Restart", "Power off"]
+
+                    Rectangle {
+                        anchors.fill: parent
+                        anchors.margins: -4
+                        radius: 16
+                        color: StyleTokens.transparent
+                        border.width: controlCenter.powerSelection === index ? 2 : 0
+                        border.color: StyleTokens.accent
+                    }
+
+                    Text {
+""",
+    "power focus",
+)
+
+replace_once(
+    """                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+                            if (controlCenter[modelData.action])
+                                controlCenter[modelData.action]();
+                        }
+                    }
+""",
+    """                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.bottom: parent.bottom
+                        text: parent.powerLabels[index]
+                        color: StyleTokens.textSecondary
+                        font.family: controlCenter.textFontFamily
+                        font.pixelSize: 10
+                    }
+
+                    Rectangle {
+                        visible: controlCenter.keyboardHintsVisible
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        width: 22
+                        height: 20
+                        radius: 6
+                        color: StyleTokens.accent
+                        border.width: 1
+                        border.color: StyleTokens.textPrimaryBright
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: parent.parent.powerKeys[index]
+                            color: StyleTokens.module
+                            font.family: controlCenter.textFontFamily
+                            font.pixelSize: 11
+                            font.weight: Font.Bold
+                        }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: controlCenter.requestPowerAction(index)
+                    }
+""",
+    "power activation",
+)
+
+replace_once(
+    """        }
+    }
+}
+""",
+    """        }
+
+        Rectangle {
+            anchors.centerIn: parent
+            z: 120
+            visible: controlCenter.powerConfirmation !== ""
+            width: 260
+            height: 112
+            radius: 20
+            color: StyleTokens.panel
+            border.width: 2
+            border.color: StyleTokens.accent
+
+            Column {
+                anchors.centerIn: parent
+                spacing: 10
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: controlCenter.powerConfirmation === "restart"
+                        ? "Restart the computer?" : "Power off the computer?"
+                    color: StyleTokens.textPrimaryBright
+                    font.family: controlCenter.textFontFamily
+                    font.pixelSize: 14
+                    font.weight: Font.DemiBold
+                }
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "Enter to confirm  ·  Esc to cancel"
+                    color: StyleTokens.textSecondary
+                    font.family: controlCenter.textFontFamily
+                    font.pixelSize: 11
+                }
+            }
+        }
+    }
+}
+""",
+    "power confirmation",
+)
+
+path.write_text(source)

@@ -841,6 +841,10 @@ for _, key in ipairs({ "SUPER + R", "SUPER + SHIFT + R", "SUPER + ALT + SPACE", 
     hl.unbind(key)
 end
 desktop.bind("SUPER + SHIFT + ESCAPE", "Ruixen Settings", desktop.command("shell", "shell", "toggle", "ruixen.launcher", '{"extension":"settings"}'))
+hl.unbind("SUPER + ALT + ESCAPE")
+hl.unbind("SUPER + CTRL + ESCAPE")
+desktop.bind("SUPER + ALT + ESCAPE", "Tide Control Center", desktop.command("shell", "tide", "toggleControlCenter"))
+desktop.bind("SUPER + CTRL + ESCAPE", "Tide Power Menu", desktop.command("shell", "tide", "togglePowerMenu"))
 
 -- Install app launches last, after default/legacy unbinds above.
 require("hypr.app-bindings").setup(desktop)

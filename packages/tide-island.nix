@@ -23,6 +23,7 @@ in pkgs.stdenv.mkDerivation rec {
   postPatch = ''
     rm -rf tests Tide-island-app/tests
     ${pkgs.python3}/bin/python3 ${./desktop/tide-integration.py} .
+    ${pkgs.python3}/bin/python3 ${./desktop/tide-keyboard.py} .
   '';
   doCheck = false;
   dontWrapQtApps = true;

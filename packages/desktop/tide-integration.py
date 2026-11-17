@@ -45,3 +45,56 @@ s=s[:at]+'''        function lockStatus(): bool { return lockScreenController.se
 p=r/'qml/lockscreen/LockScreenView.qml'
 s=p.read_text().replace('objectName: "lockWallpaper"', 'objectName: "lockWallpaper"\n            cache: false')
 p.write_text(s)
+
+# PulseAudio localizes `pactl subscribe` output. Treat every non-empty event as
+# a reason to re-read the default sink instead of guessing the event type from
+# translated words such as "sink". The existing debounce keeps event bursts
+# cheap, and `wpctl get-volume` remains the source of truth for both volume and
+# mute state.
+p=r/'backend/SysBackend.cpp'
+s=p.read_text()
+old='''void SysBackend::handleVolumeEvent() {
+    QByteArray output = m_paSubscriber->readAllStandardOutput();
+
+    if (output.contains("sink") || output.contains("card") || output.contains("server")) {
+        if (m_audioDebounceTimer) m_audioDebounceTimer->start();
+    }
+}'''
+new='''void SysBackend::handleVolumeEvent() {
+    const QByteArray output = m_paSubscriber->readAllStandardOutput();
+    if (!output.trimmed().isEmpty() && m_audioDebounceTimer)
+        m_audioDebounceTimer->start();
+}'''
+if old not in s:
+    raise RuntimeError('upstream SysBackend::handleVolumeEvent changed')
+p.write_text(s.replace(old,new))
+
+# Carry the observed mute state into the control center as well as the transient
+# island OSD. Muting intentionally keeps the stored volume/slider position; the
+# icon is the mute indicator.
+p=r/'qml/controlcenter/ControlCenterLayer.qml'
+s=p.read_text()
+replacements={
+    '    property real volumeLevel: -1\n    property real brightnessLevel: -1':
+        '    property real volumeLevel: -1\n    property bool volumeMuted: false\n    property real brightnessLevel: -1',
+    '    readonly property string volumeIconGlyph: "\\u{F057E}"':
+        '    readonly property string volumeIconGlyph: volumeMuted ? "\\u{F075F}" : "\\u{F057E}"',
+    '        function onVolumeSnapshotReady(value, muted, errorString) {\n            if (errorString === "")\n                controlCenter.applyVolumeSnapshot(value);\n        }':
+        '        function onVolumeSnapshotReady(value, muted, errorString) {\n            if (errorString === "") {\n                controlCenter.volumeMuted = muted;\n                controlCenter.applyVolumeSnapshot(value);\n            }\n        }'
+}
+for old,new in replacements.items():
+    if old not in s:
+        raise RuntimeError(f'upstream ControlCenterLayer changed: {old!r}')
+    s=s.replace(old,new)
+p.write_text(s)
+
+p=r/'DynamicIslandWindow.qml'
+s=p.read_text()
+old='''                        volumeLevel: islandContainer.currentVolume
+                        brightnessLevel: islandContainer.currentBrightness'''
+new='''                        volumeLevel: islandContainer.currentVolume
+                        volumeMuted: islandContainer.isMuted
+                        brightnessLevel: islandContainer.currentBrightness'''
+if old not in s:
+    raise RuntimeError('upstream ControlCenterLayer property wiring changed')
+p.write_text(s.replace(old,new))

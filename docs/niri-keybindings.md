@@ -35,6 +35,7 @@ Spotify, Obsidian, Nautilus, LocalSend, Zathura and btop are declared packages.
 | Super+1..0 / Super+Shift+1..0 | Select / move window to named workspace 1..10 |
 | Super+O | Toggle Overview (workspace/window overview) |
 | Super+F / Super+Shift+Escape | Tide launcher / settings |
+| Super+Alt+Escape | Tide Control Center |
 | Super+N / Super+Shift+B / Super+Shift+N | Toggle / show / hide Tide Island |
 | Super+Alt+T | Cycle shared theme |
 | Super+Alt+Shift+K | Search keybindings by typing (Fuzzel) |
@@ -45,6 +46,11 @@ Spotify, Obsidian, Nautilus, LocalSend, Zathura and btop are declared packages.
 | Super+Shift+S or Print | Screenshot |
 | Super+Escape | Tide session lock |
 | Super+Ctrl+Escape | Tide power menu (shutdown/reboot/suspend/logout) |
+
+Control Center and the power menu accept `Tab`/`Shift+Tab`, arrows, or
+`H/J/K/L` for focus movement, and `Enter`/`Space` for activation. Press `F` to
+show Vimium-style direct-action hints; hints stay hidden until requested.
+Restart and power-off actions require `Enter` confirmation.
 
 ## Window selection and split placement
 
