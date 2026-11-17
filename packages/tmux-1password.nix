@@ -33,10 +33,20 @@ pkgs.tmuxPlugins.mkTmuxPlugin {
   '';
   postInstall = ''
     for script in "$target/plugin.tmux" "$target/scripts/main.sh"; do
-      wrapProgram "$script" --prefix PATH : ${pkgs.lib.makeBinPath [
-        pkgs.bash pkgs.tmux pkgs._1password-cli pkgs.fzf pkgs.jq
-        pkgs.coreutils pkgs.gnugrep pkgs.gawk pkgs.ncurses pkgs.wl-clipboard
-      ]}
+      wrapProgram "$script" --prefix PATH : ${
+        pkgs.lib.makeBinPath [
+          pkgs.bash
+          pkgs.tmux
+          pkgs._1password-cli
+          pkgs.fzf
+          pkgs.jq
+          pkgs.coreutils
+          pkgs.gnugrep
+          pkgs.gawk
+          pkgs.ncurses
+          pkgs.wl-clipboard
+        ]
+      }
     done
   '';
 }

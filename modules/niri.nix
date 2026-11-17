@@ -1,4 +1,10 @@
-{ appPkgs, config, lib, pkgs, ... }:
+{
+  appPkgs,
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
   cfg = config.jeebis.desktop;
   niri = import ../packages/niri.nix { inherit pkgs; };
@@ -8,7 +14,12 @@ let
   catalog = pkgs.writeText "jeebis-desktop-applications.json" (builtins.toJSON applications);
   actions = pkgs.writeShellApplication {
     name = "jeebis-niri";
-    runtimeInputs = [ pkgs.python3 pkgs.libnotify pkgs.wtype resize ];
+    runtimeInputs = [
+      pkgs.python3
+      pkgs.libnotify
+      pkgs.wtype
+      resize
+    ];
     text = ''
       exec python3 ${../packages/desktop/niri-actions.py} --catalog ${catalog} "$@"
     '';
@@ -22,30 +33,70 @@ let
   };
   keySearch = pkgs.writeShellApplication {
     name = "jeebis-niri-keybindings";
-    runtimeInputs = [ pkgs.python3 pkgs.fuzzel ];
+    runtimeInputs = [
+      pkgs.python3
+      pkgs.fuzzel
+    ];
     text = ''
       exec python3 ${../packages/desktop/niri-keybindings.py} \
         --config ${lib.escapeShellArg "${config.xdg.configHome}/niri/config.kdl"} \
         --applications ${lib.escapeShellArg "${config.xdg.configHome}/jeebis/applications.json"} "$@"
     '';
   };
-  appBindings = lib.concatStringsSep "\n" (lib.concatLists (lib.mapAttrsToList (id: app:
-    lib.optional (id != "terminal")
-      ''Mod+Alt+${app.key} { spawn "${actions}/bin/jeebis-niri" "launch" "${id}"; }''
-    ++ [ ''Mod+Alt+Shift+${app.key} { spawn "${actions}/bin/jeebis-niri" "launch" "${id}" "--below"; }'' ]
-  ) (lib.filterAttrs (_: app: app.key != null) applications)));
-  workspaceBindings = lib.concatStringsSep "\n" (map (number:
-    let name = toString number; key = if number == 10 then "0" else name;
-    in ''
-      Mod+${key} { focus-workspace "${name}"; }
-      Mod+Shift+${key} { move-window-to-workspace "${name}"; }
-    '') (lib.range 1 10));
+  appBindings = lib.concatStringsSep "\n" (
+    lib.concatLists (
+      lib.mapAttrsToList (
+        id: app:
+        lib.optional (
+          id != "terminal"
+        ) ''Mod+Alt+${app.key} { spawn "${actions}/bin/jeebis-niri" "launch" "${id}"; }''
+        ++ [
+          ''Mod+Alt+Shift+${app.key} { spawn "${actions}/bin/jeebis-niri" "launch" "${id}" "--below"; }''
+        ]
+      ) (lib.filterAttrs (_: app: app.key != null) applications)
+    )
+  );
+  workspaceBindings = lib.concatStringsSep "\n" (
+    map (
+      number:
+      let
+        name = toString number;
+        key = if number == 10 then "0" else name;
+      in
+      ''
+        Mod+${key} { focus-workspace "${name}"; }
+        Mod+Shift+${key} { move-window-to-workspace "${name}"; }
+      ''
+    ) (lib.range 1 10)
+  );
   workspaces = lib.concatMapStringsSep "\n" (n: ''workspace "${toString n}"'') (lib.range 1 10);
-  text = builtins.replaceStrings
-    [ "@machine@" "@terminal@" "@desktop@" "@actions@" "@applications@" "@workspace-bindings@" "@workspaces@" "@key-search@" "@resize@" ]
-    [ config.jeebis.machine.niriConfiguration config.jeebis.terminal.command cfg.command "${actions}/bin/jeebis-niri" appBindings workspaceBindings workspaces "${keySearch}/bin/jeebis-niri-keybindings" "${resize}/bin/jeebis-niri-resize" ]
-    (builtins.readFile ../files/niri/config.kdl);
-in {
+  text =
+    builtins.replaceStrings
+      [
+        "@machine@"
+        "@terminal@"
+        "@desktop@"
+        "@actions@"
+        "@applications@"
+        "@workspace-bindings@"
+        "@workspaces@"
+        "@key-search@"
+        "@resize@"
+      ]
+      [
+        config.jeebis.machine.niriConfiguration
+        config.jeebis.terminal.command
+        cfg.command
+        "${actions}/bin/jeebis-niri"
+        appBindings
+        workspaceBindings
+        workspaces
+        "${keySearch}/bin/jeebis-niri-keybindings"
+        "${resize}/bin/jeebis-niri-resize"
+      ]
+      (builtins.readFile ../files/niri/config.kdl);
+in
+{
   config = lib.mkIf (cfg.compositor == "niri") {
     systemd.user.services.jeebis-niri-auto-width = {
       Unit = {
@@ -67,7 +118,25 @@ in {
       force = true;
     };
     xdg.configFile."jeebis/applications.json".source = catalog;
-    home.packages = with appPkgs; [ actions keySearch resize xwayland-satellite btop brightnessctl wireplumber
-      nautilus localsend zathura ] ++ [ (waylandIme appPkgs.slack) (waylandIme appPkgs.obsidian) spotify niri ];
+    home.packages =
+      with appPkgs;
+      [
+        actions
+        keySearch
+        resize
+        xwayland-satellite
+        btop
+        brightnessctl
+        wireplumber
+        nautilus
+        localsend
+        zathura
+      ]
+      ++ [
+        (waylandIme appPkgs.slack)
+        (waylandIme appPkgs.obsidian)
+        spotify
+        niri
+      ];
   };
 }

@@ -2,8 +2,14 @@
 # Not imported by default. GPU and boot/disk configuration belong to NixOS.
 { ... }: {
   jeebis.machine = {
-    keyboard = { layout = "jp"; model = "jp106"; };
-    touchpad = { tap = true; naturalScroll = true; };
+    keyboard = {
+      layout = "jp";
+      model = "jp106";
+    };
+    touchpad = {
+      tap = true;
+      naturalScroll = true;
+    };
     # outputs."eDP-1" = {
     #   scale = 1.25;
     #   mode = "1920x1080@60";

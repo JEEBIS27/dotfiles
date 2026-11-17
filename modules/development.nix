@@ -2,8 +2,13 @@
 {
   # Runtime versions are selected by the committed nixpkgs-apps lock.
   home.packages = with appPkgs; [
-    python3 uv nodejs
-    rustc cargo rustfmt clippy
+    python3
+    uv
+    nodejs
+    rustc
+    cargo
+    rustfmt
+    clippy
     go
     mise
   ];

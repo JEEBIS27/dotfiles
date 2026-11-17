@@ -1,8 +1,17 @@
-{ appPkgs, config, lib, pkgs, ... }:
+{
+  appPkgs,
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
   recordedFish = pkgs.writeShellApplication {
     name = "jeebis-recorded-fish";
-    runtimeInputs = [ pkgs.util-linux pkgs.coreutils ];
+    runtimeInputs = [
+      pkgs.util-linux
+      pkgs.coreutils
+    ];
     text = ''
       # tmux sets SHELL to default-shell, which is this wrapper. script uses
       # SHELL to launch --command: point it at fish to prevent recursion.
@@ -35,7 +44,8 @@ let
     runtimeInputs = [ appPkgs.ghostty ];
     text = builtins.readFile ../files/desktop/helpers/jeebis-terminal;
   };
-in {
+in
+{
   options.jeebis.terminal.command = lib.mkOption {
     type = lib.types.str;
     readOnly = true;
@@ -43,12 +53,16 @@ in {
     description = "Compositor-independent terminal launcher.";
   };
   config = {
-    home.packages = [ launcher recordedFish (pkgs.writeShellScriptBin "jeebis-last-output"
-      "exec ${outputPython}/bin/python3 ${../files/desktop/helpers/jeebis-last-output.py} \"$@\"") (pkgs.writeShellApplication {
-      name = "jeebis-ghostty-reload";
-      runtimeInputs = [ pkgs.python3 ];
-      text = "exec python3 ${../packages/desktop/reload-ghostty.py}";
-    }) ];
+    home.packages = [
+      launcher
+      recordedFish
+      (pkgs.writeShellScriptBin "jeebis-last-output" "exec ${outputPython}/bin/python3 ${../files/desktop/helpers/jeebis-last-output.py} \"$@\"")
+      (pkgs.writeShellApplication {
+        name = "jeebis-ghostty-reload";
+        runtimeInputs = [ pkgs.python3 ];
+        text = "exec python3 ${../packages/desktop/reload-ghostty.py}";
+      })
+    ];
     home.sessionVariables.TERMINAL = "jeebis-terminal";
     programs.ghostty = {
       enable = true;
@@ -89,11 +103,13 @@ in {
       mouse = true;
       shell = "${recordedFish}/bin/jeebis-recorded-fish";
       plugins = [ tmuxOnePassword ];
-      extraConfig = builtins.replaceStrings
-        [ "@fish@" "@tmux-helper@" ]
-        [ "${config.jeebis.shell.package}/bin/fish" "${tmuxStatus}/bin/jeebis-tmux-status" ]
-        (builtins.readFile ../files/tmux/tmux.conf)
-        + "\n" + import ../files/tmux/copy-keys.nix { inherit lib; };
+      extraConfig =
+        builtins.replaceStrings
+          [ "@fish@" "@tmux-helper@" ]
+          [ "${config.jeebis.shell.package}/bin/fish" "${tmuxStatus}/bin/jeebis-tmux-status" ]
+          (builtins.readFile ../files/tmux/tmux.conf)
+        + "\n"
+        + import ../files/tmux/copy-keys.nix { inherit lib; };
     };
   };
 }

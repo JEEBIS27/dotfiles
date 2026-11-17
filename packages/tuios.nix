@@ -12,9 +12,11 @@ let
     // literal character-search input has been handled, never during search text.
     func copyModeLogicalKey(key string) string {
       switch key {
-    ${pkgs.lib.concatStringsSep "\n" (pkgs.lib.mapAttrsToList (logical: physical:
-      "case ${builtins.toJSON physical}: return ${builtins.toJSON logical}"
-    ) letters)}
+    ${pkgs.lib.concatStringsSep "\n" (
+      pkgs.lib.mapAttrsToList (
+        logical: physical: "case ${builtins.toJSON physical}: return ${builtins.toJSON logical}"
+      ) letters
+    )}
       default: return key
       }
     }

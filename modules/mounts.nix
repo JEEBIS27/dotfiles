@@ -1,11 +1,19 @@
-{ config, lib, appPkgs, ... }:
+{
+  config,
+  lib,
+  appPkgs,
+  ...
+}:
 let
   native = config.jeebis.desktop.backend == "nixos";
   # FUSE needs the host's setuid helper, not an unprivileged copy in /nix/store.
   helperDir = if native then "/run/wrappers/bin" else "/usr/bin";
   fusermount = "${helperDir}/fusermount3";
   remoteConfig = "${config.xdg.configHome}/rclone/rclone.conf";
-  mounts = { gdrive = "GoogleDrive"; onedrive = "OneDrive"; };
+  mounts = {
+    gdrive = "GoogleDrive";
+    onedrive = "OneDrive";
+  };
   service = remote: directory: {
     Unit = {
       Description = "Mount ${remote} with rclone";
@@ -25,10 +33,12 @@ let
     };
     Install.WantedBy = [ "default.target" ];
   };
-in {
+in
+{
   home.packages = [ appPkgs.rclone ];
   # Keep currently mounted filesystems alive when the unit definition changes.
   systemd.user.startServices = "suggest";
-  systemd.user.services = lib.mapAttrs' (remote: directory:
-    lib.nameValuePair "rclone-${remote}" (service remote directory)) mounts;
+  systemd.user.services = lib.mapAttrs' (
+    remote: directory: lib.nameValuePair "rclone-${remote}" (service remote directory)
+  ) mounts;
 }

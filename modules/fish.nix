@@ -1,11 +1,22 @@
-{ config, options, pkgs, lib, appPkgs, ... }:
+{
+  config,
+  options,
+  pkgs,
+  lib,
+  appPkgs,
+  ...
+}:
 let
   pathColors = import ../packages/fish-eza-path-colors.nix { pkgs = appPkgs; };
   plugins = (import ../packages/fish-plugins.nix { pkgs = appPkgs; }) ++ [
-    { name = "fish-eza-path-colors"; src = pathColors; }
+    {
+      name = "fish-eza-path-colors";
+      src = pathColors;
+    }
   ];
   extractPlugin = (lib.findFirst (p: p.name == "fish-extract") null plugins).src;
-in {
+in
+{
   programs.fish = {
     enable = true;
     inherit plugins;
@@ -26,17 +37,29 @@ in {
       ${appPkgs.carapace}/bin/carapace _carapace fish | source
       source ${config.xdg.configHome}/fish/jeebis-config.fish
     '';
-  } // lib.optionalAttrs (options.programs.fish ? generateCompletions) {
+  }
+  // lib.optionalAttrs (options.programs.fish ? generateCompletions) {
     generateCompletions = false;
   };
   # HM 24.05 has no switch for its removed Python manpage-completion generator.
   # Use native fish/package completions on both HM versions.
   xdg.dataFile = lib.optionalAttrs (!(options.programs.fish ? generateCompletions)) {
-    "fish/home-manager_generated_completions".source = lib.mkForce
-      (pkgs.runCommand "fish-native-completions" {} "mkdir -p $out");
+    "fish/home-manager_generated_completions".source = lib.mkForce (
+      pkgs.runCommand "fish-native-completions" { } "mkdir -p $out"
+    );
   };
-  home.packages = [ pathColors ] ++ (with appPkgs; [
-    nix-your-shell carapace fish-lsp grc curl jq openssh libnotify
+  home.packages = [
+    pathColors
+  ]
+  ++ (with appPkgs; [
+    nix-your-shell
+    carapace
+    fish-lsp
+    grc
+    curl
+    jq
+    openssh
+    libnotify
   ]);
   programs.atuin = {
     enable = true;
@@ -44,7 +67,10 @@ in {
     enableFishIntegration = true;
     enableBashIntegration = false;
     enableZshIntegration = false;
-    flags = [ "--disable-up-arrow" "--disable-ai" ];
+    flags = [
+      "--disable-up-arrow"
+      "--disable-ai"
+    ];
   };
   programs.fzf = {
     enable = true;
@@ -59,12 +85,17 @@ in {
     enableFishIntegration = true;
     enableZshIntegration = false;
     enableBashIntegration = false;
-    options = [ "--cmd" "cd" ];
+    options = [
+      "--cmd"
+      "cd"
+    ];
   };
   xdg.configFile = {
-    "fish/jeebis-config.fish".text = builtins.replaceStrings
-      [ "@themeDir@" "@extractPlugin@" ] [ config.jeebis.shell.themeDirectory (toString extractPlugin) ]
-      (builtins.readFile ../files/fish/config.fish);
+    "fish/jeebis-config.fish".text =
+      builtins.replaceStrings
+        [ "@themeDir@" "@extractPlugin@" ]
+        [ config.jeebis.shell.themeDirectory (toString extractPlugin) ]
+        (builtins.readFile ../files/fish/config.fish);
     "fish/jeebis-prompt.fish".source = ../files/fish/prompt.fish;
     "fish/jeebis-functions.fish".source = ../files/fish/functions.fish;
     "fish/jeebis-keys.fish".source = ../files/fish/keys.fish;

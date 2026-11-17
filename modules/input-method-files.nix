@@ -1,4 +1,9 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
   profile = pkgs.writeText "mejiroime-fcitx5-profile" ''
     [Groups/0]
@@ -17,7 +22,8 @@ let
     [GroupOrder]
     0=Default
   '';
-in {
+in
+{
   # Native Wayland GTK clients use text-input-v3. Toolkit configuration keeps
   # the Fcitx module available to GTK clients that still run through XWayland.
   home.sessionVariables = {
@@ -29,12 +35,13 @@ in {
   gtk.gtk4.extraConfig.gtk-im-module = "fcitx";
   # Fcitx owns its mutable profile. Seed a new NixOS profile, never a store symlink.
   # Learning, dictionaries and private preferences are left untouched.
-  home.activation.initializeMejiroProfile = lib.mkIf (config.jeebis.desktop.backend == "nixos")
-    (lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+  home.activation.initializeMejiroProfile = lib.mkIf (config.jeebis.desktop.backend == "nixos") (
+    lib.hm.dag.entryAfter [ "linkGeneration" ] ''
       target=${lib.escapeShellArg "${config.xdg.configHome}/fcitx5/profile"}
       if [ ! -e "$target" ] && [ ! -L "$target" ]; then
         run mkdir -p "$(dirname "$target")"
         run install -m 600 ${profile} "$target"
       fi
-    '');
+    ''
+  );
 }

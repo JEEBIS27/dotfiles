@@ -1,1 +1,4 @@
-{ ... }: { imports = [ ../home.nix ]; jeebis.desktop.backend = "omarchy"; }
+{ ... }: {
+  imports = [ ../home.nix ];
+  jeebis.desktop.backend = "omarchy";
+}

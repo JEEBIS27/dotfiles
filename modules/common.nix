@@ -1,6 +1,15 @@
-{ config, lib, appPkgs, ... }:
 {
-  imports = [ ./cli.nix ./fish.nix ./development.nix ];
+  config,
+  lib,
+  appPkgs,
+  ...
+}:
+{
+  imports = [
+    ./cli.nix
+    ./fish.nix
+    ./development.nix
+  ];
 
   options.jeebis.shell.enablePathStyleProvider = lib.mkOption {
     type = lib.types.bool;

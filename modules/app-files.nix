@@ -1,8 +1,14 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
   legacy = config.jeebis.desktop.compositor == "hyprland";
-  yaziPlugins = builtins.mapAttrs (_: pin: pkgs.fetchFromGitHub pin)
-    (builtins.fromJSON (builtins.readFile ../packages/yazi/sources.json));
+  yaziPlugins = builtins.mapAttrs (_: pin: pkgs.fetchFromGitHub pin) (
+    builtins.fromJSON (builtins.readFile ../packages/yazi/sources.json)
+  );
 in
 {
   # Change only this public setting; keep identity and credentials outside Nix.
@@ -12,113 +18,143 @@ in
 
   # Native TUIOS saves changes into the last writable include. Defaults stay
   # declarative; local.toml belongs to the user and survives rebuilds.
-  home.activation.tuiosLocalConfig = lib.mkIf legacy (lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    if [ ! -e "${config.xdg.configHome}/tuios/local.toml" ]; then
-      run mkdir -p "${config.xdg.configHome}/tuios"
-      run touch "${config.xdg.configHome}/tuios/local.toml"
-    fi
-  '');
+  home.activation.tuiosLocalConfig = lib.mkIf legacy (
+    lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      if [ ! -e "${config.xdg.configHome}/tuios/local.toml" ]; then
+        run mkdir -p "${config.xdg.configHome}/tuios"
+        run touch "${config.xdg.configHome}/tuios/local.toml"
+      fi
+    ''
+  );
   # Merge only TUIOS-owned hooks; keep Codex history, credentials and other
   # integrations outside Home Manager. SessionStart records each new chat ID.
-  home.activation.tuiosCodexHooks = lib.mkIf legacy (lib.hm.dag.entryAfter [ "linkGeneration" ] ''
-    # TUIOS requires this directory even before the first Codex login.
-    # Create only the local state root; do not manage auth or conversation data.
-    codex_home="''${CODEX_HOME:-${config.home.homeDirectory}/.codex}"
-    run mkdir -p -m 700 "$codex_home"
-    run ${config.home.profileDirectory}/bin/tuios integration install codex \
-      --no-skill --command "${config.home.profileDirectory}/bin/tuios"
-  '');
-  xdg.configFile = lib.optionalAttrs legacy {
-    "omarchy/extensions/omarchy-menu.jsonc".source = ../files/omarchy/extensions/omarchy-menu.jsonc;
-    "rio/config.toml".source = ../files/rio/config.toml;
-    # Compatibility path for existing launchers; share the main renderer.
-    "rio-yazi/config.toml".source = ../files/rio/config.toml;
-    "rio-yazi/themes/Desktop.toml".source = config.lib.file.mkOutOfStoreSymlink "${config.jeebis.desktop.themeDirectory}/rio.toml";
+  home.activation.tuiosCodexHooks = lib.mkIf legacy (
+    lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+      # TUIOS requires this directory even before the first Codex login.
+      # Create only the local state root; do not manage auth or conversation data.
+      codex_home="''${CODEX_HOME:-${config.home.homeDirectory}/.codex}"
+      run mkdir -p -m 700 "$codex_home"
+      run ${config.home.profileDirectory}/bin/tuios integration install codex \
+        --no-skill --command "${config.home.profileDirectory}/bin/tuios"
+    ''
+  );
+  xdg.configFile =
+    lib.optionalAttrs legacy {
+      "omarchy/extensions/omarchy-menu.jsonc".source = ../files/omarchy/extensions/omarchy-menu.jsonc;
+      "rio/config.toml".source = ../files/rio/config.toml;
+      # Compatibility path for existing launchers; share the main renderer.
+      "rio-yazi/config.toml".source = ../files/rio/config.toml;
+      "rio-yazi/themes/Desktop.toml".source =
+        config.lib.file.mkOutOfStoreSymlink "${config.jeebis.desktop.themeDirectory}/rio.toml";
 
-    "rio/themes/Desktop.toml".source = config.lib.file.mkOutOfStoreSymlink "${config.jeebis.desktop.themeDirectory}/rio.toml";
-    "tuios/config.toml".text = "include = [\"defaults.toml\", \"?local.toml\"]\n";
-    # Client-only Codex profile: GUI project names and chats, not the file tree.
-    "tuios-codex/tuios/config.toml".text = ''
-      include = ["../../tuios/config.toml"]
-      [appearance.sidebar]
-      enabled = true
-      width = 28
-      sections = "custom"
-      [appearance.sidebar.custom]
-      title = "Chats"
-      command = "jeebis-codex-sidebar --rows"
-      refresh = "5s"
-      [appearance.sidebar.left]
-      sections = "custom"
-      [appearance.sidebar.right]
-      sections = "custom"
-    '';
+      "rio/themes/Desktop.toml".source =
+        config.lib.file.mkOutOfStoreSymlink "${config.jeebis.desktop.themeDirectory}/rio.toml";
+      "tuios/config.toml".text = "include = [\"defaults.toml\", \"?local.toml\"]\n";
+      # Client-only Codex profile: GUI project names and chats, not the file tree.
+      "tuios-codex/tuios/config.toml".text = ''
+        include = ["../../tuios/config.toml"]
+        [appearance.sidebar]
+        enabled = true
+        width = 28
+        sections = "custom"
+        [appearance.sidebar.custom]
+        title = "Chats"
+        command = "jeebis-codex-sidebar --rows"
+        refresh = "5s"
+        [appearance.sidebar.left]
+        sections = "custom"
+        [appearance.sidebar.right]
+        sections = "custom"
+      '';
 
-
-    "tuios/defaults.toml".text = builtins.replaceStrings
-      [ "@fish@" ] [ "${config.jeebis.shell.package}/bin/fish" ]
-      (builtins.readFile ../files/tuios/config.toml);
-  } // {
-    "bat/themes/Desktop.tmTheme".source = config.lib.file.mkOutOfStoreSymlink "${config.jeebis.desktop.themeDirectory}/preview.tmTheme";
-    "nvim/after/lsp/lua_ls.lua".source = ../files/nvim/after/lsp/lua_ls.lua;
-    "nvim/init.lua".source = ../files/nvim/init.lua;
-    "nvim/lazy-lock.json".source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/dotfiles/files/nvim/lazy-lock.json";
-    "nvim/lua/config/keymaps.lua".source = ../files/nvim/lua/config/keymaps.lua;
-    "nvim/lua/config/lazy.lua".source = ../files/nvim/lua/config/lazy.lua;
-    "nvim/lua/config/options.lua".source = ../files/nvim/lua/config/options.lua;
-    "nvim/lua/config/theme.lua".source = pkgs.writeText "nvim-shared-theme.lua" (builtins.replaceStrings [ "@themeDir@" ] [ config.jeebis.desktop.themeDirectory ] (builtins.readFile ../files/nvim/lua/config/theme.lua));
-    "nvim/lua/config/unified_keys.lua".source = ../files/nvim/lua/config/unified_keys.lua;
-    "nvim/lua/plugins/edit/init.lua".source = ../files/nvim/lua/plugins/edit/init.lua;
-    "nvim/lua/plugins/editor/init.lua".source = ../files/nvim/lua/plugins/editor/init.lua;
-    "nvim/lua/plugins/editor/snacks.lua".source = ../files/nvim/lua/plugins/editor/snacks.lua;
-    "nvim/lua/plugins/editor/statuscol.lua".source = ../files/nvim/lua/plugins/editor/statuscol.lua;
-    "nvim/lua/plugins/editor/theme.lua".source = ../files/nvim/lua/plugins/editor/theme.lua;
-    "nvim/lua/plugins/editor/which-key.lua".source = ../files/nvim/lua/plugins/editor/which-key.lua;
-    "nvim/lua/plugins/editor/yazi.lua".source = ../files/nvim/lua/plugins/editor/yazi.lua;
-    "nvim/lua/plugins/lang/init.lua".source = ../files/nvim/lua/plugins/lang/init.lua;
-    "nvim/lua/plugins/lsp/config/lsp_actions_on_save.lua".source = ../files/nvim/lua/plugins/lsp/config/lsp_actions_on_save.lua;
-    "nvim/lua/plugins/lsp/config/lsp_keymaps.lua".source = ../files/nvim/lua/plugins/lsp/config/lsp_keymaps.lua;
-    "nvim/lua/plugins/lsp/config/utils.lua".source = ../files/nvim/lua/plugins/lsp/config/utils.lua;
-    "nvim/lua/plugins/lsp/init.lua".source = ../files/nvim/lua/plugins/lsp/init.lua;
-    "nvim/lua/plugins/treesitter.lua".source = ../files/nvim/lua/plugins/treesitter.lua;
-    "nvim/lua/plugins/ui/incline/get_display_filename_and_dirname.lua".source = ../files/nvim/lua/plugins/ui/incline/get_display_filename_and_dirname.lua;
-    "nvim/lua/plugins/ui/incline.lua".source = ../files/nvim/lua/plugins/ui/incline.lua;
-    "nvim/lua/plugins/ui/init.lua".source = ../files/nvim/lua/plugins/ui/init.lua;
-    "nvim/lua/plugins/ui/noice.lua".source = ../files/nvim/lua/plugins/ui/noice.lua;
-    "nvim/lua/utils/colors.lua".source = ../files/nvim/lua/utils/colors.lua;
-    "nvim/lua/utils/copilot.lua".source = ../files/nvim/lua/utils/copilot.lua;
-    "nvim/lua/utils/highlight.lua".source = ../files/nvim/lua/utils/highlight.lua;
-    "nvim/lua/utils/keymap.lua".source = ../files/nvim/lua/utils/keymap.lua;
-    "nvim/lua/utils/mode_colors.lua".source = ../files/nvim/lua/utils/mode_colors.lua;
-    "yazi/flavors/kanagawa.yazi/LICENSE".source = ../files/yazi/flavors/kanagawa.yazi/LICENSE;
-    "yazi/flavors/kanagawa.yazi/LICENSE-tmtheme".source = ../files/yazi/flavors/kanagawa.yazi/LICENSE-tmtheme;
-    "yazi/flavors/kanagawa.yazi/README.md".source = ../files/yazi/flavors/kanagawa.yazi/README.md;
-    "yazi/flavors/kanagawa.yazi/flavor.toml".source = ../files/yazi/flavors/kanagawa.yazi/flavor.toml;
-    "yazi/flavors/kanagawa.yazi/preview.png".source = ../files/yazi/flavors/kanagawa.yazi/preview.png;
-    "yazi/flavors/kanagawa.yazi/tmtheme.xml".source = ../files/yazi/flavors/kanagawa.yazi/tmtheme.xml;
-    "yazi/flavors/tokyonight-night.yazi/LICENSE".source = ../files/yazi/flavors/tokyonight-night.yazi/LICENSE;
-    "yazi/flavors/tokyonight-night.yazi/LICENSE-tmtheme".source = ../files/yazi/flavors/tokyonight-night.yazi/LICENSE-tmtheme;
-    "yazi/flavors/tokyonight-night.yazi/README.md".source = ../files/yazi/flavors/tokyonight-night.yazi/README.md;
-    "yazi/flavors/tokyonight-night.yazi/flavor.toml".source = ../files/yazi/flavors/tokyonight-night.yazi/flavor.toml;
-    "yazi/flavors/tokyonight-night.yazi/preview.png".source = ../files/yazi/flavors/tokyonight-night.yazi/preview.png;
-    "yazi/flavors/tokyonight-night.yazi/tmtheme.xml".source = ../files/yazi/flavors/tokyonight-night.yazi/tmtheme.xml;
-    "yazi/plugins/helix-open.yazi/main.lua".source = ../files/yazi/plugins/helix-open.yazi/main.lua;
-    "yazi/keymap.toml".source = (pkgs.formats.toml { }).generate "yazi-keymap.toml"
-      (import ../packages/yazi/keymap.nix {
-        inherit lib;
-        settings = builtins.fromTOML (builtins.readFile ../files/yazi/keymap.toml);
-        inherit (import ../files/helix/key-layout.nix) directionKeys;
-      });
-    "yazi/plugins/unified-actions.yazi/main.lua".source = ../files/yazi/plugins/unified-actions.yazi/main.lua;
-    "yazi/plugins/archive-actions.yazi/main.lua".source = ../files/yazi/plugins/archive-actions.yazi/main.lua;
-    "yazi/plugins/ucp.yazi".source = yaziPlugins.ucp;
-    "yazi/plugins/compress.yazi".source = yaziPlugins.compress;
-    "yazi/package.toml".source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/dotfiles/files/yazi/package.toml";
-    "yazi/plugins/unified-layout.yazi/main.lua".source = ../files/yazi/plugins/unified-layout.yazi/main.lua;
-    "yazi/plugins/unified-motions.yazi/main.lua".source = ../files/yazi/plugins/unified-motions.yazi/main.lua;
-    "yazi/plugins/unified-tabs.yazi/main.lua".source = ../files/yazi/plugins/unified-tabs.yazi/main.lua;
-    "yazi/theme.toml".source = config.lib.file.mkOutOfStoreSymlink "${config.jeebis.desktop.themeDirectory}/yazi.toml";
-    "yazi/yazi.toml".source = ../files/yazi/yazi.toml;
-    "yazi/plugins/fit-image.yazi/main.lua".source = ../files/yazi/plugins/fit-image.yazi/main.lua;
-  };
+      "tuios/defaults.toml".text =
+        builtins.replaceStrings [ "@fish@" ] [ "${config.jeebis.shell.package}/bin/fish" ]
+          (builtins.readFile ../files/tuios/config.toml);
+    }
+    // {
+      "bat/themes/Desktop.tmTheme".source =
+        config.lib.file.mkOutOfStoreSymlink "${config.jeebis.desktop.themeDirectory}/preview.tmTheme";
+      "nvim/after/lsp/lua_ls.lua".source = ../files/nvim/after/lsp/lua_ls.lua;
+      "nvim/init.lua".source = ../files/nvim/init.lua;
+      "nvim/lazy-lock.json".source =
+        config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/dotfiles/files/nvim/lazy-lock.json";
+      "nvim/lua/config/keymaps.lua".source = ../files/nvim/lua/config/keymaps.lua;
+      "nvim/lua/config/lazy.lua".source = ../files/nvim/lua/config/lazy.lua;
+      "nvim/lua/config/options.lua".source = ../files/nvim/lua/config/options.lua;
+      "nvim/lua/config/theme.lua".source = pkgs.writeText "nvim-shared-theme.lua" (
+        builtins.replaceStrings [ "@themeDir@" ] [ config.jeebis.desktop.themeDirectory ] (
+          builtins.readFile ../files/nvim/lua/config/theme.lua
+        )
+      );
+      "nvim/lua/config/unified_keys.lua".source = ../files/nvim/lua/config/unified_keys.lua;
+      "nvim/lua/plugins/edit/init.lua".source = ../files/nvim/lua/plugins/edit/init.lua;
+      "nvim/lua/plugins/editor/init.lua".source = ../files/nvim/lua/plugins/editor/init.lua;
+      "nvim/lua/plugins/editor/snacks.lua".source = ../files/nvim/lua/plugins/editor/snacks.lua;
+      "nvim/lua/plugins/editor/statuscol.lua".source = ../files/nvim/lua/plugins/editor/statuscol.lua;
+      "nvim/lua/plugins/editor/theme.lua".source = ../files/nvim/lua/plugins/editor/theme.lua;
+      "nvim/lua/plugins/editor/which-key.lua".source = ../files/nvim/lua/plugins/editor/which-key.lua;
+      "nvim/lua/plugins/editor/yazi.lua".source = ../files/nvim/lua/plugins/editor/yazi.lua;
+      "nvim/lua/plugins/lang/init.lua".source = ../files/nvim/lua/plugins/lang/init.lua;
+      "nvim/lua/plugins/lsp/config/lsp_actions_on_save.lua".source =
+        ../files/nvim/lua/plugins/lsp/config/lsp_actions_on_save.lua;
+      "nvim/lua/plugins/lsp/config/lsp_keymaps.lua".source =
+        ../files/nvim/lua/plugins/lsp/config/lsp_keymaps.lua;
+      "nvim/lua/plugins/lsp/config/utils.lua".source = ../files/nvim/lua/plugins/lsp/config/utils.lua;
+      "nvim/lua/plugins/lsp/init.lua".source = ../files/nvim/lua/plugins/lsp/init.lua;
+      "nvim/lua/plugins/treesitter.lua".source = ../files/nvim/lua/plugins/treesitter.lua;
+      "nvim/lua/plugins/ui/incline/get_display_filename_and_dirname.lua".source =
+        ../files/nvim/lua/plugins/ui/incline/get_display_filename_and_dirname.lua;
+      "nvim/lua/plugins/ui/incline.lua".source = ../files/nvim/lua/plugins/ui/incline.lua;
+      "nvim/lua/plugins/ui/init.lua".source = ../files/nvim/lua/plugins/ui/init.lua;
+      "nvim/lua/plugins/ui/noice.lua".source = ../files/nvim/lua/plugins/ui/noice.lua;
+      "nvim/lua/utils/colors.lua".source = ../files/nvim/lua/utils/colors.lua;
+      "nvim/lua/utils/copilot.lua".source = ../files/nvim/lua/utils/copilot.lua;
+      "nvim/lua/utils/highlight.lua".source = ../files/nvim/lua/utils/highlight.lua;
+      "nvim/lua/utils/keymap.lua".source = ../files/nvim/lua/utils/keymap.lua;
+      "nvim/lua/utils/mode_colors.lua".source = ../files/nvim/lua/utils/mode_colors.lua;
+      "yazi/flavors/kanagawa.yazi/LICENSE".source = ../files/yazi/flavors/kanagawa.yazi/LICENSE;
+      "yazi/flavors/kanagawa.yazi/LICENSE-tmtheme".source =
+        ../files/yazi/flavors/kanagawa.yazi/LICENSE-tmtheme;
+      "yazi/flavors/kanagawa.yazi/README.md".source = ../files/yazi/flavors/kanagawa.yazi/README.md;
+      "yazi/flavors/kanagawa.yazi/flavor.toml".source = ../files/yazi/flavors/kanagawa.yazi/flavor.toml;
+      "yazi/flavors/kanagawa.yazi/preview.png".source = ../files/yazi/flavors/kanagawa.yazi/preview.png;
+      "yazi/flavors/kanagawa.yazi/tmtheme.xml".source = ../files/yazi/flavors/kanagawa.yazi/tmtheme.xml;
+      "yazi/flavors/tokyonight-night.yazi/LICENSE".source =
+        ../files/yazi/flavors/tokyonight-night.yazi/LICENSE;
+      "yazi/flavors/tokyonight-night.yazi/LICENSE-tmtheme".source =
+        ../files/yazi/flavors/tokyonight-night.yazi/LICENSE-tmtheme;
+      "yazi/flavors/tokyonight-night.yazi/README.md".source =
+        ../files/yazi/flavors/tokyonight-night.yazi/README.md;
+      "yazi/flavors/tokyonight-night.yazi/flavor.toml".source =
+        ../files/yazi/flavors/tokyonight-night.yazi/flavor.toml;
+      "yazi/flavors/tokyonight-night.yazi/preview.png".source =
+        ../files/yazi/flavors/tokyonight-night.yazi/preview.png;
+      "yazi/flavors/tokyonight-night.yazi/tmtheme.xml".source =
+        ../files/yazi/flavors/tokyonight-night.yazi/tmtheme.xml;
+      "yazi/plugins/helix-open.yazi/main.lua".source = ../files/yazi/plugins/helix-open.yazi/main.lua;
+      "yazi/keymap.toml".source = (pkgs.formats.toml { }).generate "yazi-keymap.toml" (
+        import ../packages/yazi/keymap.nix {
+          inherit lib;
+          settings = builtins.fromTOML (builtins.readFile ../files/yazi/keymap.toml);
+          inherit (import ../files/helix/key-layout.nix) directionKeys;
+        }
+      );
+      "yazi/plugins/unified-actions.yazi/main.lua".source =
+        ../files/yazi/plugins/unified-actions.yazi/main.lua;
+      "yazi/plugins/archive-actions.yazi/main.lua".source =
+        ../files/yazi/plugins/archive-actions.yazi/main.lua;
+      "yazi/plugins/ucp.yazi".source = yaziPlugins.ucp;
+      "yazi/plugins/compress.yazi".source = yaziPlugins.compress;
+      "yazi/package.toml".source =
+        config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/dotfiles/files/yazi/package.toml";
+      "yazi/plugins/unified-layout.yazi/main.lua".source =
+        ../files/yazi/plugins/unified-layout.yazi/main.lua;
+      "yazi/plugins/unified-motions.yazi/main.lua".source =
+        ../files/yazi/plugins/unified-motions.yazi/main.lua;
+      "yazi/plugins/unified-tabs.yazi/main.lua".source = ../files/yazi/plugins/unified-tabs.yazi/main.lua;
+      "yazi/theme.toml".source =
+        config.lib.file.mkOutOfStoreSymlink "${config.jeebis.desktop.themeDirectory}/yazi.toml";
+      "yazi/yazi.toml".source = ../files/yazi/yazi.toml;
+      "yazi/plugins/fit-image.yazi/main.lua".source = ../files/yazi/plugins/fit-image.yazi/main.lua;
+    };
 }

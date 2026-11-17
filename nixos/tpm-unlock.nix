@@ -1,6 +1,13 @@
-{ config, lib, pkgs, ... }:
-let cfg = config.jeebis.boot.tpmUnlock;
-in {
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+let
+  cfg = config.jeebis.boot.tpmUnlock;
+in
+{
   options.jeebis.boot.tpmUnlock = {
     enable = lib.mkEnableOption "Secure Boot and measured TPM2 root-volume unlocking";
     rootName = lib.mkOption {
@@ -10,10 +17,12 @@ in {
     };
   };
   config = lib.mkIf cfg.enable {
-    assertions = [ {
-      assertion = (config.boot.initrd.luks.devices.${cfg.rootName}.device or "") != "";
-      message = "TPM unlocking requires an existing LUKS root device declaration.";
-    } ];
+    assertions = [
+      {
+        assertion = (config.boot.initrd.luks.devices.${cfg.rootName}.device or "") != "";
+        message = "TPM unlocking requires an existing LUKS root device declaration.";
+      }
+    ];
     boot.loader.systemd-boot.enable = lib.mkForce false;
     boot.initrd.systemd.enable = true;
     boot.initrd.systemd.tpm2.enable = true;
@@ -29,11 +38,17 @@ in {
         enable = true;
         # PCR4 covers Lanzaboote's verified kernel/initrd/cmdline; PCR7 covers
         # Secure Boot policy. pcrlock predicts accepted boot generations.
-        pcrs = [ 4 7 ];
+        pcrs = [
+          4
+          7
+        ];
         autoCryptenroll.enable = false;
       };
     };
     boot.initrd.luks.devices.${cfg.rootName}.crypttabExtraOpts = [ "tpm2-device=auto" ];
-    environment.systemPackages = [ pkgs.sbctl pkgs.cryptsetup ];
+    environment.systemPackages = [
+      pkgs.sbctl
+      pkgs.cryptsetup
+    ];
   };
 }

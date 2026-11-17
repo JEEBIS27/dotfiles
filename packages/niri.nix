@@ -5,5 +5,5 @@
 # Full-width splits lock the old tile's outer edge using its animated geometry,
 # including while a newly mapped client and the old client commit separately.
 pkgs.niri.overrideAttrs (old: {
-  patches = (old.patches or []) ++ [ ./desktop/niri-frame-pair.patch ];
+  patches = (old.patches or [ ]) ++ [ ./desktop/niri-frame-pair.patch ];
 })

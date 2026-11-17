@@ -5,11 +5,13 @@ let
   grammars = pkgs.callPackage (sources.helix + "/grammars.nix") {
     # GCC 16 defaults to C23; this scanner defines its own bsearch and needs
     # the pre-C23 libc declarations. No Helix source modification is needed.
-    grammarOverlays = [ (_: previous: {
-      perl = previous.perl.overrideAttrs (old: {
-        FLAGS = old.FLAGS ++ [ "-std=gnu17" ];
-      });
-    }) ];
+    grammarOverlays = [
+      (_: previous: {
+        perl = previous.perl.overrideAttrs (old: {
+          FLAGS = old.FLAGS ++ [ "-std=gnu17" ];
+        });
+      })
+    ];
   };
   runtime = pkgs.runCommand "helix-steel-runtime" { } ''
     mkdir -p $out
@@ -22,8 +24,14 @@ let
     pname = "helix-steel";
     version = "25.07.1-steel-${builtins.substring 0 8 pins.helix.rev}";
     src = sources.helix;
-    cargoLock = { lockFile = sources.helix + "/Cargo.lock"; allowBuiltinFetchGit = true; };
-    cargoBuildFlags = [ "--package" "helix-term" ];
+    cargoLock = {
+      lockFile = sources.helix + "/Cargo.lock";
+      allowBuiltinFetchGit = true;
+    };
+    cargoBuildFlags = [
+      "--package"
+      "helix-term"
+    ];
     buildFeatures = [ "steel" ];
     nativeBuildInputs = [ pkgs.makeWrapper ];
     HELIX_DISABLE_AUTO_GRAMMAR_BUILD = "1";
@@ -87,21 +95,48 @@ let
     pname = "helix-steel-pty";
     version = "0.1.0-${builtins.substring 0 8 pins.pty.rev}";
     src = sources.pty;
-    patches = [ ./pty-steel-version.patch ./pty-truecolor.patch ];
-    cargoDeps = (pkgs.rustPlatform.importCargoLock {
-      lockFile = ./pty-Cargo.lock;
-      allowBuiltinFetchGit = true;
-    }).overrideAttrs (old: {
-      # This dependency uses include_bytes! across workspace crate boundaries.
-      # Preserve the sibling name expected by its source; cargo metadata accepts
-      # the alias without changing any crate checksums.
-      buildCommand = old.buildCommand + ''
-        ln -s termwiz-0.24.0 $out/termwiz
-      '';
-    });
+    patches = [
+      ./pty-steel-version.patch
+      ./pty-truecolor.patch
+    ];
+    cargoDeps =
+      (pkgs.rustPlatform.importCargoLock {
+        lockFile = ./pty-Cargo.lock;
+        allowBuiltinFetchGit = true;
+      }).overrideAttrs
+        (old: {
+          # This dependency uses include_bytes! across workspace crate boundaries.
+          # Preserve the sibling name expected by its source; cargo metadata accepts
+          # the alias without changing any crate checksums.
+          buildCommand = old.buildCommand + ''
+            ln -s termwiz-0.24.0 $out/termwiz
+          '';
+        });
     postPatch = "cp ${./pty-Cargo.lock} Cargo.lock";
-    nativeBuildInputs = with pkgs; [ pkg-config cmake python3 perl ];
-    buildInputs = with pkgs; [ openssl fontconfig freetype harfbuzz zlib libxkbcommon ];
+    nativeBuildInputs = with pkgs; [
+      pkg-config
+      cmake
+      python3
+      perl
+    ];
+    buildInputs = with pkgs; [
+      openssl
+      fontconfig
+      freetype
+      harfbuzz
+      zlib
+      libxkbcommon
+    ];
     doCheck = false;
   };
-in { inherit editor baseEditor terminal plugins sources pins; }
+in
+{
+  inherit
+    editor
+    baseEditor
+    terminal
+    plugins
+    sources
+    pins
+    ;
+}

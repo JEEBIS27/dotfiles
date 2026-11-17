@@ -1,4 +1,7 @@
-{ pkgs, enablePathStyleProvider ? true }:
+{
+  pkgs,
+  enablePathStyleProvider ? true,
+}:
 let
   pathColorsSource = import ./fish-eza-path-colors-source.nix { inherit pkgs; };
   # Content-address the hook files separately: plugin-only updates reuse fish.
@@ -10,12 +13,16 @@ let
     path = "${pathColorsSource}/compat/fish-4.9.3/path-style-provider.rs";
     name = "path-style-provider.rs";
   };
-  fish = if enablePathStyleProvider then pkgs.fish.overrideAttrs (old: {
-    patches = (old.patches or []) ++ [ providerPatch ];
-    postPatch = (old.postPatch or "") + ''
-      cp ${providerAdapter} src/highlight/path_style_provider.rs
-    '';
-  }) else pkgs.fish;
+  fish =
+    if enablePathStyleProvider then
+      pkgs.fish.overrideAttrs (old: {
+        patches = (old.patches or [ ]) ++ [ providerPatch ];
+        postPatch = (old.postPatch or "") + ''
+          cp ${providerAdapter} src/highlight/path_style_provider.rs
+        '';
+      })
+    else
+      pkgs.fish;
   launcher = pkgs.writeText "fish-launcher.c" ''
     #include <stdio.h>
     #include <termios.h>
@@ -36,7 +43,8 @@ let
       return 127;
     }
   '';
-in pkgs.symlinkJoin {
+in
+pkgs.symlinkJoin {
   name = "fish-${fish.version}";
   pname = "fish";
   inherit (fish) version meta;

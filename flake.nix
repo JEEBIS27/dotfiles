@@ -41,31 +41,66 @@
     };
   };
 
-  outputs = { self, mejiroime, lanzaboote, nixpkgs, nixpkgs-apps, home-manager, nixpkgs-droid, home-manager-droid, nix-on-droid, treefmt-nix, nix-index-database, ... }:
+  outputs =
+    {
+      self,
+      mejiroime,
+      lanzaboote,
+      nixpkgs,
+      nixpkgs-apps,
+      home-manager,
+      nixpkgs-droid,
+      home-manager-droid,
+      nix-on-droid,
+      treefmt-nix,
+      nix-index-database,
+      ...
+    }:
     let
       system = "x86_64-linux";
       appPkgs = import nixpkgs-apps {
         inherit system;
-        config.allowUnfreePredicate = pkg: builtins.elem (nixpkgs.lib.getName pkg) [ "chatgpt" "slack" "spotify" "obsidian" "1password" "1password-cli" ];
+        config.allowUnfreePredicate =
+          pkg:
+          builtins.elem (nixpkgs.lib.getName pkg) [
+            "chatgpt"
+            "slack"
+            "spotify"
+            "obsidian"
+            "1password"
+            "1password-cli"
+          ];
       };
       pcPkgs = import nixpkgs {
         inherit system;
-        config.allowUnfreePredicate = pkg: builtins.elem (nixpkgs.lib.getName pkg) [ "chatgpt" "slack" "spotify" "obsidian" "1password" "1password-cli" ];
+        config.allowUnfreePredicate =
+          pkg:
+          builtins.elem (nixpkgs.lib.getName pkg) [
+            "chatgpt"
+            "slack"
+            "spotify"
+            "obsidian"
+            "1password"
+            "1password-cli"
+          ];
       };
       treefmtEval = treefmt-nix.lib.evalModule appPkgs ./treefmt.nix;
-      mkHome = host: home-manager.lib.homeManagerConfiguration {
-        pkgs = pcPkgs;
-        extraSpecialArgs = { inherit appPkgs; };
-        modules = [
-          nix-index-database.homeModules.nix-index
-          {
-            programs.nix-index.enable = true;
-            programs.nix-index-database.comma.enable = true;
-          }
-          host
-        ];
-      };
-    in {
+      mkHome =
+        host:
+        home-manager.lib.homeManagerConfiguration {
+          pkgs = pcPkgs;
+          extraSpecialArgs = { inherit appPkgs; };
+          modules = [
+            nix-index-database.homeModules.nix-index
+            {
+              programs.nix-index.enable = true;
+              programs.nix-index-database.comma.enable = true;
+            }
+            host
+          ];
+        };
+    in
+    {
       nixOnDroidConfigurations.galaxy-tab-s11 = nix-on-droid.lib.nixOnDroidConfiguration {
         pkgs = import nixpkgs-droid {
           system = "aarch64-linux";
@@ -80,54 +115,69 @@
       };
       formatter.${system} = treefmtEval.config.build.wrapper;
       checks.${system} = {
-        statix = appPkgs.runCommand "statix-check" {
-          nativeBuildInputs = [ appPkgs.statix ];
-        } ''
-          cd ${self}
-          statix check .
-          touch $out
-        '';
-        deadnix = appPkgs.runCommand "deadnix-check" {
-          nativeBuildInputs = [ appPkgs.deadnix ];
-        } ''
-          deadnix --fail ${self}
-          touch $out
-        '';
+        formatting = treefmtEval.config.build.check self;
+        statix =
+          appPkgs.runCommand "statix-check"
+            {
+              nativeBuildInputs = [ appPkgs.statix ];
+            }
+            ''
+              cd ${self}
+              statix check .
+              touch $out
+            '';
+        deadnix =
+          appPkgs.runCommand "deadnix-check"
+            {
+              nativeBuildInputs = [ appPkgs.deadnix ];
+            }
+            ''
+              deadnix --fail ${self}
+              touch $out
+            '';
       };
 
       # Bootstrap tools use the same app pin as the installed CLI tools.
       packages.aarch64-linux.just = nixpkgs-apps.legacyPackages.aarch64-linux.just;
-      packages.${system} = let
-        steel = import ./packages/helix-steel { pkgs = appPkgs; };
-      in {
-        chatgpt = import ./packages/chatgpt.nix { pkgs = pcPkgs; };
-        herdr-app = import ./packages/herdr-app.nix { pkgs = nixpkgs.legacyPackages.${system}; };
-        herdr-core = import ./packages/herdr-core.nix { pkgs = nixpkgs.legacyPackages.${system}; };
-        tide-island = import ./packages/tide-island.nix { pkgs = appPkgs; };
-        just = appPkgs.just;
-        python3 = appPkgs.python3;
-        sbctl = pcPkgs.sbctl;
-        spotify = import ./packages/spotify.nix { pkgs = pcPkgs; };
-        jeebis-login-theme = import ./packages/jeebis-login-theme.nix { pkgs = appPkgs; };
-        matlab-nix = import ./packages/matlab.nix { pkgs = nixpkgs.legacyPackages.${system}; };
-        home-manager = home-manager.packages.${system}.home-manager;
-        helium = import ./packages/helium.nix { pkgs = nixpkgs.legacyPackages.${system}; };
-        helix-steel = steel.editor;
-        helix-steel-plugins = steel.plugins;
-        helix-steel-terminal = steel.terminal;
-      };
+      packages.${system} =
+        let
+          steel = import ./packages/helix-steel { pkgs = appPkgs; };
+        in
+        {
+          chatgpt = import ./packages/chatgpt.nix { pkgs = pcPkgs; };
+          herdr-app = import ./packages/herdr-app.nix { pkgs = nixpkgs.legacyPackages.${system}; };
+          herdr-core = import ./packages/herdr-core.nix { pkgs = nixpkgs.legacyPackages.${system}; };
+          tide-island = import ./packages/tide-island.nix { pkgs = appPkgs; };
+          just = appPkgs.just;
+          python3 = appPkgs.python3;
+          sbctl = pcPkgs.sbctl;
+          spotify = import ./packages/spotify.nix { pkgs = pcPkgs; };
+          jeebis-login-theme = import ./packages/jeebis-login-theme.nix { pkgs = appPkgs; };
+          matlab-nix = import ./packages/matlab.nix { pkgs = nixpkgs.legacyPackages.${system}; };
+          home-manager = home-manager.packages.${system}.home-manager;
+          helium = import ./packages/helium.nix { pkgs = nixpkgs.legacyPackages.${system}; };
+          helix-steel = steel.editor;
+          helix-steel-plugins = steel.plugins;
+          helix-steel-terminal = steel.terminal;
+        };
       devShells.${system} = import ./development/shells.nix { pkgs = appPkgs; };
       homeConfigurations = {
         "jeebis@omarchy" = mkHome ./hosts/omarchy.nix;
         "jeebis@nixos" = mkHome ./hosts/nixos.nix;
       };
       nixosModules.input-method = {
-        imports = [ (mejiroime + "/nix/nixos.nix") ./nixos/input-method.nix ];
+        imports = [
+          (mejiroime + "/nix/nixos.nix")
+          ./nixos/input-method.nix
+        ];
         _module.args.mejiroSource = mejiroime;
         _module.args.appPkgs = appPkgs;
       };
       nixosModules.tpm-unlock = {
-        imports = [ lanzaboote.nixosModules.lanzaboote ./nixos/tpm-unlock.nix ];
+        imports = [
+          lanzaboote.nixosModules.lanzaboote
+          ./nixos/tpm-unlock.nix
+        ];
       };
       nixosModules.niri = import ./nixos/niri.nix;
       nixosModules.desktop = self.nixosModules.personal;
@@ -139,44 +189,88 @@
           ./nixos/desktop.nix
           ./nixos/niri.nix
           ./nixos/machine.nix
-          (mejiroime + "/nix/nixos.nix") ./nixos/input-method.nix
+          (mejiroime + "/nix/nixos.nix")
+          ./nixos/input-method.nix
         ];
         _module.args.appPkgs = appPkgs;
         _module.args.mejiroSource = mejiroime;
-        nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (nixpkgs.lib.getName pkg) [ "chatgpt" "slack" "spotify" "obsidian" "1password" "1password-cli" ];
-        nix.settings.experimental-features = [ "nix-command" "flakes" ];
+        nixpkgs.config.allowUnfreePredicate =
+          pkg:
+          builtins.elem (nixpkgs.lib.getName pkg) [
+            "chatgpt"
+            "slack"
+            "spotify"
+            "obsidian"
+            "1password"
+            "1password-cli"
+          ];
+        nix.settings.experimental-features = [
+          "nix-command"
+          "flakes"
+        ];
         home-manager.useGlobalPkgs = true;
         home-manager.useUserPackages = true;
         home-manager.extraSpecialArgs = { inherit appPkgs; };
         home-manager.users.jeebis = {
-          imports = [ nix-index-database.homeModules.nix-index ./hosts/nixos.nix ];
+          imports = [
+            nix-index-database.homeModules.nix-index
+            ./hosts/nixos.nix
+          ];
           programs.nix-index.enable = true;
           programs.nix-index-database.comma.enable = true;
         };
       };
       nixosConfigurations.desktop-vm = nixpkgs.lib.nixosSystem {
         inherit system;
-        specialArgs = { inherit appPkgs; mejiroSource = mejiroime; };
+        specialArgs = {
+          inherit appPkgs;
+          mejiroSource = mejiroime;
+        };
         modules = [
           home-manager.nixosModules.home-manager
           self.nixosModules.tpm-unlock
           ./nixos/desktop.nix
           ./nixos/niri.nix
           ./nixos/machine.nix
-          (mejiroime + "/nix/nixos.nix") ./nixos/input-method.nix
+          (mejiroime + "/nix/nixos.nix")
+          ./nixos/input-method.nix
           ({ ... }: {
-            nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (nixpkgs.lib.getName pkg) [ "chatgpt" "slack" "spotify" "obsidian" "1password" "1password-cli" ];
+            nixpkgs.config.allowUnfreePredicate =
+              pkg:
+              builtins.elem (nixpkgs.lib.getName pkg) [
+                "chatgpt"
+                "slack"
+                "spotify"
+                "obsidian"
+                "1password"
+                "1password-cli"
+              ];
             system.stateVersion = "26.05";
-            virtualisation.vmVariant = { virtualisation.memorySize = 4096; virtualisation.cores = 4; };
+            virtualisation.vmVariant = {
+              virtualisation.memorySize = 4096;
+              virtualisation.cores = 4;
+            };
             boot.loader.grub.enable = false;
-            fileSystems."/" = { device = "none"; fsType = "tmpfs"; };
-            users.users.jeebis = { isNormalUser = true; extraGroups = [ "wheel" "networkmanager" ]; };
+            fileSystems."/" = {
+              device = "none";
+              fsType = "tmpfs";
+            };
+            users.users.jeebis = {
+              isNormalUser = true;
+              extraGroups = [
+                "wheel"
+                "networkmanager"
+              ];
+            };
             # Make HM applications available in NixOS login and user-service PATHs.
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
             home-manager.extraSpecialArgs = { inherit appPkgs; };
             home-manager.users.jeebis = {
-              imports = [ nix-index-database.homeModules.nix-index ./hosts/nixos.nix ];
+              imports = [
+                nix-index-database.homeModules.nix-index
+                ./hosts/nixos.nix
+              ];
               programs.nix-index.enable = true;
               programs.nix-index-database.comma.enable = true;
             };

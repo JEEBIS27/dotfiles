@@ -10,7 +10,10 @@
   home-manager = {
     useGlobalPkgs = true;
     config = {
-      imports = [ nix-index-database.homeModules.nix-index ./android.nix ];
+      imports = [
+        nix-index-database.homeModules.nix-index
+        ./android.nix
+      ];
       programs.nix-index.enable = true;
       programs.nix-index-database.comma.enable = true;
     };
