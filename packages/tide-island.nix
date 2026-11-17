@@ -1,10 +1,11 @@
 { pkgs, withNiri ? false }:
 let
   quickshell = import ./quickshell.nix { inherit pkgs; };
+  wifi = import ./tide-wifi.nix { inherit pkgs; };
   deps = with pkgs; [ bash coreutils procps systemd dbus xdg-utils gtk3 brightnessctl
     wireplumber pulseaudio networkmanager bluez power-profiles-daemon upower
     python3 grim slurp ffmpeg curl findutils gnugrep gnused gawk file util-linux
-    cliphist wl-clipboard cava imagemagick jq ]
+    cliphist wl-clipboard cava imagemagick jq wifi ]
     ++ pkgs.lib.optionals (!withNiri) [ pkgs.hyprland pkgs.hyprsunset ];
 in pkgs.stdenv.mkDerivation rec {
   pname = "tide-island";
@@ -16,6 +17,7 @@ in pkgs.stdenv.mkDerivation rec {
   nativeBuildInputs = [ pkgs.cmake pkgs.pkg-config pkgs.qt6.wrapQtAppsHook pkgs.makeWrapper pkgs.python3 ];
   buildInputs = with pkgs; [ systemd qt6.qtbase qt6.qtdeclarative qt6.qtwebsockets
     qt6.qtwayland qt6.qt5compat qt6.qtconnectivity qt6.qtsvg qt6.qtmultimedia ];
+  patches = [ ./desktop/tide-wifi.patch ];
   cmakeFlags = [ "-DTIDE_ISLAND_WITH_NIRI=${if withNiri then "ON" else "OFF"}" ];
   # No upstream installer, writes to /usr, or bundled test targets.
   postPatch = ''
@@ -25,6 +27,7 @@ in pkgs.stdenv.mkDerivation rec {
   doCheck = false;
   dontWrapQtApps = true;
   postInstall = ''
+    echo 1 > "$out/share/tide-island/network-auth-version"
     rm -f "$out/bin/tide-island" "$out/lib/systemd/user/tide-island.service"
     makeQtWrapper ${quickshell}/bin/quickshell "$out/bin/tide-island" \
       --add-flags "-p $out/share/tide-island" \

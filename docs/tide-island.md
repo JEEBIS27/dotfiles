@@ -47,3 +47,57 @@ popup/history; mako handles protocol replies with its own popups hidden to avoid
 duplicates. Without this endpoint, tools such as fish's `done` plugin print
 `Failed to show notification ... ServiceUnknown`. The service follows the graphical
 session and restarts on failure.
+
+## Wi-Fi authentication
+
+Tide's NetworkManager backend delegates connections to `jeebis-tide-wifi`,
+using libnm and libnma's standard Wi-Fi authentication dialog. The actual AP and
+Wi-Fi device capabilities determine the available security methods. Compatible
+saved profiles are selected with libnm; an SSID match alone does not select a
+profile. In particular, an old Personal/PSK profile is not reused for an
+Enterprise/802.1X AP with the same SSID. Valid saved profiles connect directly.
+New profiles autoconnect and are restricted to the current user.
+
+The previous backend discarded WPA/RSN authentication flags and assigned
+`wpa-psk` to every encrypted network. `packages/desktop/tide-wifi.patch` removes
+that connection builder and bypasses the panel's password-only prompt on
+NetworkManager. The iwd backend retains its existing provisioning behavior.
+
+Enterprise detection does not reveal the institution's EAP method, identity,
+CA/server validation requirements or client certificate. Enter these using the
+institution's instructions in the standard dialog; no PEAP/TTLS/TLS choice or
+certificate-validation bypass is guessed. Credentials remain in NetworkManager
+or its configured secret storage, never in the repository or process arguments.
+
+`python3 scripts/check-tide-wifi.py` exercises real libnm/libnma against an
+isolated mock NetworkManager and never modifies the real connection. Its Python
+requires PyGObject, dbus-python and python-dbusmock, with Gtk/NM/NMA typelibs.
+The packaged helper exposes the same suite as `tests.authentication` in
+`packages/tide-wifi.nix`, using Xvfb in a Nix build sandbox. Tests cover the
+Enterprise, Personal, WPA3, Enhanced Open and open dialogs, plus rejection of an
+incompatible saved PSK profile. The patched Niri Tide package was built and its
+shell started successfully on the Laptop. Authentication against the university
+AP has not been tested here.
+
+A targeted user-service deployment can use
+`~/.config/systemd/user/tide-island.service.d/90-jeebis-wifi-deployment.conf`,
+with a GC root at `~/.local/state/jeebis-desktop/tide-wifi-deployment`.
+This survives logout/reboot. Home Manager removes both only when the managed
+unit points to its current Tide package and that package has the
+`network-auth-version` marker. An activation using an older Tide package must
+not remove a tested live fix.
+
+`jeebis-network-agent.service` runs the standard NetworkManager applet/secret
+agent on native NixOS sessions. It handles initial authentication, requests for
+new passwords after an EAP failure and agent-owned credentials. Tide's connection
+helper alone cannot answer NetworkManager's later GetSecrets requests. The agent
+may also appear in the system tray; Tide remains the Wi-Fi selection panel.
+The university connection logs on 2026-11-17 showed `No agents were available`
+after an association timeout; adding the agent fixes the missing prompt, not
+proof that the saved institution-specific EAP settings are correct.
+
+`python3 scripts/check-tide-deployment.py` tests stale-package, stale-unit and
+updated-unit activation cases. Targeted installation of the authentication
+agent also keeps a GC root at
+`~/.local/state/jeebis-desktop/network-agent-deployment`; the managed activation
+releases it together with the Tide deployment pin.

@@ -1,0 +1,167 @@
+--- a/backend/WifiController.cpp
++++ b/backend/WifiController.cpp
+@@ -12,6 +12,7 @@
+ #include <QMap>
+ #include <QMetaType>
+ #include <QVariant>
++#include <QProcess>
+ #include <QUuid>
+ #include <QElapsedTimer>
+ #include <QFutureWatcher>
+@@ -450,7 +451,13 @@
+             entry.signal = ap.value(QStringLiteral("Strength")).toInt();
+             entry.secure = (ap.value(QStringLiteral("Flags")).toUInt() & kAccessPointPrivacyFlag) != 0
+                 || ap.value(QStringLiteral("WpaFlags")).toUInt() != 0 || ap.value(QStringLiteral("RsnFlags")).toUInt() != 0;
+-            entry.type = entry.secure ? QStringLiteral("secure") : QStringLiteral("open");
++            const auto auth = ap.value(QStringLiteral("WpaFlags")).toUInt()
++                | ap.value(QStringLiteral("RsnFlags")).toUInt();
++            entry.type = (auth & (0x200u | 0x2000u)) ? QStringLiteral("8021x")
++                : (auth & 0x400u) ? QStringLiteral("sae")
++                : (auth & 0x100u) ? QStringLiteral("psk")
++                : (auth & (0x800u | 0x1000u)) ? QStringLiteral("owe")
++                : entry.secure ? QStringLiteral("wep") : QStringLiteral("open");
+             entry.savedConnection = m_result.savedConnections.contains(entry.ssid);
+             entry.connected = !m_result.currentSsid.isEmpty() && entry.ssid == m_result.currentSsid;
+             const auto key = entry.ssid.isEmpty() ? QStringLiteral("__hidden__") : entry.ssid;
+@@ -909,27 +916,31 @@
+         return;
+     }
+ 
+-    const QString accessPointPath = selectedNetwork->objectPath;
+-    invalidateRefresh();
++    if (m_actionInProgress)
++        return;
++    // libnma inspects the actual AP security capabilities and compatible saved
++    // profiles; an SSID or the mere presence of encryption cannot select PSK.
++    auto *process = new QProcess(this);
+     m_actionInProgress = true;
+     updateBusyState();
+-
+-    bool ok = false;
+-    if (selectedNetwork->savedConnection) {
+-        ok = activateSavedConnection(trimmedSsid, accessPointPath);
+-    } else {
+-        ok = addAndActivateConnection(trimmedSsid, accessPointPath, password, selectedNetwork->secure);
+-    }
+-
+-    m_actionInProgress = false;
+-    updateBusyState();
+-
+-    if (!ok)
+-        return;
+-
+-    m_savedConnectionsDirty = true;
+-    setInfoMessage(QStringLiteral("Connecting to %1...").arg(trimmedSsid));
+-    refreshStateInternal();
++    connect(process, &QProcess::errorOccurred, this, [this, process](QProcess::ProcessError error) {
++        if (error != QProcess::FailedToStart) return;
++        m_actionInProgress = false;
++        updateBusyState();
++        setErrorMessage(QStringLiteral("Unable to open the Wi-Fi authentication dialog."));
++        process->deleteLater();
++    });
++    connect(process, &QProcess::finished, this, [this, process](int code, QProcess::ExitStatus status) {
++        m_actionInProgress = false;
++        updateBusyState();
++        m_savedConnectionsDirty = true;
++        if (code != 0 || status != QProcess::NormalExit)
++            setErrorMessage(QStringLiteral("Wi-Fi connection was not completed. Check the authentication settings."));
++        refreshStateInternal();
++        process->deleteLater();
++    });
++    process->start(QStringLiteral("jeebis-tide-wifi"), {m_wifiDevicePath, selectedNetwork->objectPath});
++
+ }
+ 
+ void WifiController::clearMessages() {
+@@ -1627,64 +1638,5 @@
+     return true;
+ }
+ 
+-bool WifiController::addAndActivateConnection(const QString &ssid, const QString &accessPointPath, const QString &password, bool secure) {
+-    if (!isValidPath(accessPointPath)) {
+-        setErrorMessage(QStringLiteral("Selected network is no longer available."));
+-        return false;
+-    }
+-
+-    if (secure && password.trimmed().isEmpty()) {
+-        setErrorMessage(QStringLiteral("Enter a password first."));
+-        return false;
+-    }
+-
+-    ConnectionSettingsMap settings;
+-
+-    QVariantMap connectionSection;
+-    connectionSection.insert(QStringLiteral("id"), ssid);
+-    connectionSection.insert(QStringLiteral("type"), QStringLiteral("802-11-wireless"));
+-    connectionSection.insert(QStringLiteral("uuid"), QUuid::createUuid().toString(QUuid::WithoutBraces));
+-    connectionSection.insert(QStringLiteral("autoconnect"), false);
+-    settings.insert(QStringLiteral("connection"), connectionSection);
+-
+-    QVariantMap wirelessSection;
+-    wirelessSection.insert(QStringLiteral("ssid"), QByteArray(ssid.toUtf8()));
+-    wirelessSection.insert(QStringLiteral("mode"), QStringLiteral("infrastructure"));
+-    settings.insert(QStringLiteral("802-11-wireless"), wirelessSection);
+-
+-    QVariantMap ipv4Section;
+-    ipv4Section.insert(QStringLiteral("method"), QStringLiteral("auto"));
+-    settings.insert(QStringLiteral("ipv4"), ipv4Section);
+-
+-    QVariantMap ipv6Section;
+-    ipv6Section.insert(QStringLiteral("method"), QStringLiteral("auto"));
+-    settings.insert(QStringLiteral("ipv6"), ipv6Section);
+-
+-    if (secure) {
+-        QVariantMap securitySection;
+-        securitySection.insert(QStringLiteral("key-mgmt"), QStringLiteral("wpa-psk"));
+-        securitySection.insert(QStringLiteral("psk"), password);
+-        settings.insert(QStringLiteral("802-11-wireless-security"), securitySection);
+-    }
+-
+-    const QDBusMessage reply = callMethod(
+-        kNetworkManagerService,
+-        kNetworkManagerPath,
+-        kNetworkManagerInterface,
+-        QStringLiteral("AddAndActivateConnection"),
+-        {
+-            QVariant::fromValue(settings),
+-            QVariant::fromValue(QDBusObjectPath(m_wifiDevicePath)),
+-            QVariant::fromValue(QDBusObjectPath(accessPointPath))
+-        }
+-    );
+-
+-    if (reply.type() == QDBusMessage::ErrorMessage) {
+-        setErrorMessage(errorTextForReply(reply, QStringLiteral("Unable to connect to the selected Wi-Fi network.")));
+-        return false;
+-    }
+-
+-    return true;
+-}
+ 
+ #include "WifiController.moc"
+--- a/backend/WifiController.h
++++ b/backend/WifiController.h
+@@ -136,7 +136,6 @@
+ 
+     QString errorTextForReply(const QDBusMessage &reply, const QString &fallback) const;
+     bool activateSavedConnection(const QString &ssid, const QString &accessPointPath);
+-    bool addAndActivateConnection(const QString &ssid, const QString &accessPointPath, const QString &password, bool secure);
+ 
+     WifiNetworkModel m_networks;
+     QHash<QString, QString> m_savedConnectionsBySsid;
+--- a/qml/controlcenter/ControlCenterLayer.qml
++++ b/qml/controlcenter/ControlCenterLayer.qml
+@@ -631,6 +631,13 @@
+             return;
+         }
+ 
++        if (wifiController && wifiController.backendName === "networkmanager") {
++            clearWifiPrompt();
++            clearWifiMessages();
++            wifiController.connectToNetwork(ssid);
++            return;
++        }
++
+         if (!savedConnection && networkType === "wep") {
+             wifiLocalError = "WEP networks aren't supported by this panel.";
+             return;

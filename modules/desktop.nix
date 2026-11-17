@@ -187,6 +187,18 @@ in
     home.file.".local/bin/jeebis-codex-tuios" = lib.mkIf legacy { source = personalHelpers + /jeebis-codex-tuios; executable = true; };
     home.file.".local/bin/jeebis-theme-cycle" = { text = "#!${pkgs.runtimeShell}\nexec ${cfg.command} theme cycle\n"; executable = true; };
     home.activation = {
+      # A tested Tide package may be deployed to this user's service before a
+      # full NixOS switch. Drop that temporary pin after managed units update.
+      cleanupTideDeploymentOverride = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+        # An activation built from an older shell must not undo a live fix.
+        if [ -f "${tide}/share/tide-island/network-auth-version" ] && \
+           ${pkgs.gnugrep}/bin/grep -Fxq "ExecStart=${tide}/bin/tide-island" \
+             "${config.xdg.configHome}/systemd/user/tide-island.service"; then
+          run rm -f "${config.xdg.configHome}/systemd/user/tide-island.service.d/90-jeebis-wifi-deployment.conf"
+          run rm -f "${config.xdg.stateHome}/jeebis-desktop/tide-wifi-deployment"
+          run rm -f "${config.xdg.stateHome}/jeebis-desktop/network-agent-deployment"
+        fi
+      '';
       # Seed once; subsequent GUI changes belong to the user.
       initializeTideConfig = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
         if [ ! -e "${config.xdg.configHome}/tide-island/userconfig.json" ]; then
@@ -212,6 +224,19 @@ in
       '';
     };
     systemd.user.services = {
+      jeebis-network-agent = lib.mkIf native {
+        Unit = {
+          Description = "NetworkManager authentication and secrets agent";
+          After = [ "graphical-session-pre.target" "wayland-session-waitenv.service" ];
+          PartOf = [ "graphical-session.target" ];
+        };
+        Service = {
+          ExecStart = "${appPkgs.networkmanagerapplet}/bin/nm-applet --indicator";
+          Restart = "on-failure";
+          RestartSec = 3;
+        };
+        Install.WantedBy = [ "graphical-session.target" ];
+      };
       mako = lib.mkIf (native && !legacy) {
         Unit = {
           Description = "Notification endpoint for Tide Island";
