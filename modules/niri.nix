@@ -3,7 +3,7 @@ let
   cfg = config.jeebis.desktop;
   niri = import ../packages/niri.nix { inherit pkgs; };
   spotify = import ../packages/spotify.nix { inherit pkgs; };
-  gtkIme = package: import ../packages/gtk-ime.nix { inherit pkgs package; };
+  waylandIme = package: import ../packages/wayland-ime.nix { inherit pkgs package; };
   applications = import ../files/desktop/applications.nix { inherit config pkgs; };
   catalog = pkgs.writeText "jeebis-desktop-applications.json" (builtins.toJSON applications);
   actions = pkgs.writeShellApplication {
@@ -68,6 +68,6 @@ in {
     };
     xdg.configFile."jeebis/applications.json".source = catalog;
     home.packages = with appPkgs; [ actions keySearch resize xwayland-satellite btop brightnessctl wireplumber
-      nautilus localsend zathura ] ++ [ (gtkIme appPkgs.slack) (gtkIme appPkgs.obsidian) spotify niri ];
+      nautilus localsend zathura ] ++ [ (waylandIme appPkgs.slack) (waylandIme appPkgs.obsidian) spotify niri ];
   };
 }

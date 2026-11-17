@@ -1,9 +1,9 @@
 { config, pkgs }:
 let
   terminal = config.jeebis.terminal.command;
-  gtkIme = package: import ../../packages/gtk-ime.nix { inherit pkgs package; };
-  slack = gtkIme pkgs.slack;
-  obsidian = gtkIme pkgs.obsidian;
+  waylandIme = package: import ../../packages/wayland-ime.nix { inherit pkgs package; };
+  slack = waylandIme pkgs.slack;
+  obsidian = waylandIme pkgs.obsidian;
   spotify = import ../../packages/spotify.nix { inherit pkgs; };
   helium = import ../../packages/helium.nix { inherit pkgs; };
   herdr = import ../../packages/herdr-app.nix { inherit pkgs; };

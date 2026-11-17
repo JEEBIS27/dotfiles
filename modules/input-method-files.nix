@@ -18,9 +18,9 @@ let
     0=Default
   '';
 in {
-  # Keep the display backend on Wayland; use toolkit IM modules for input.
+  # Native Wayland GTK clients use text-input-v3. Toolkit configuration keeps
+  # the Fcitx module available to GTK clients that still run through XWayland.
   home.sessionVariables = {
-    GTK_IM_MODULE = "fcitx";
     QT_IM_MODULE = "fcitx";
     QT_IM_MODULES = "fcitx";
     XMODIFIERS = "@im=fcitx";

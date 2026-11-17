@@ -9,13 +9,12 @@ let
   contents = pkgs.appimageTools.extractType2 { inherit pname version src; };
 in pkgs.appimageTools.wrapType2 {
   inherit pname version src;
-  extraPkgs = p: [ p.gtk4 ];
   extraInstallCommands = ''
     source ${pkgs.makeWrapper}/nix-support/setup-hook
     wrapProgram "$out/bin/helium" \
       --unset NIXOS_OZONE_WL \
-      --set GTK_IM_MODULE fcitx \
-      --add-flags "--ozone-platform=wayland --gtk-version=4"
+      --unset GTK_IM_MODULE \
+      --add-flags "--ozone-platform=wayland --enable-wayland-ime --wayland-text-input-version=3"
     mkdir -p "$out/share/applications"
     cat > "$out/share/applications/helium.desktop" <<EOF
 [Desktop Entry]
