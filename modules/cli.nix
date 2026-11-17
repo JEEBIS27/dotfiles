@@ -2,7 +2,8 @@
 {
   # Shared terminal tools only: no compositor, systemd, IME or host paths.
   home.packages = with appPkgs; [
-    git gh gh-dash curl wget just
+    git gh gh-dash curl wget just nh
+    nix-init nix-update nurl statix deadnix
     # fish is supplied by programs.fish.
     neovim yazi fastfetch
     eza bat delta dust fzf zoxide ripgrep fd

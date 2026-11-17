@@ -23,7 +23,6 @@ let
     name = "omarchy/themes/${preset.name}/colors.toml";
     value.source = coreSource + "/themes/${preset.palette}.toml";
   }) presetDefinitions);
-  hostConfigDir = if native then "jeebis-desktop" else "omarchy";
   json = pkgs.writeText "jeebis-desktop-host.json" (builtins.toJSON {
     backend = cfg.backend;
     compositor = cfg.compositor;

@@ -1,4 +1,4 @@
-{ config, lib, pkgs, appPkgs, ... }:
+{ config, lib, appPkgs, ... }:
 let
   native = config.jeebis.desktop.backend == "nixos";
   # FUSE needs the host's setuid helper, not an unprivileged copy in /nix/store.

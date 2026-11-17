@@ -4,6 +4,14 @@
   inputs = {
     nixpkgs.follows = "nixpkgs-apps";
     nixpkgs-apps.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    treefmt-nix = {
+      url = "github:numtide/treefmt-nix";
+      inputs.nixpkgs.follows = "nixpkgs-apps";
+    };
+    nix-index-database = {
+      url = "github:nix-community/nix-index-database";
+      inputs.nixpkgs.follows = "nixpkgs-apps";
+    };
     home-manager = {
       url = "github:nix-community/home-manager/master";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -33,7 +41,7 @@
     };
   };
 
-  outputs = { self, mejiroime, lanzaboote, nixpkgs, nixpkgs-apps, home-manager, nixpkgs-droid, home-manager-droid, nix-on-droid, ... }:
+  outputs = { self, mejiroime, lanzaboote, nixpkgs, nixpkgs-apps, home-manager, nixpkgs-droid, home-manager-droid, nix-on-droid, treefmt-nix, nix-index-database, ... }:
     let
       system = "x86_64-linux";
       appPkgs = import nixpkgs-apps {
@@ -44,10 +52,18 @@
         inherit system;
         config.allowUnfreePredicate = pkg: builtins.elem (nixpkgs.lib.getName pkg) [ "chatgpt" "slack" "spotify" "obsidian" "1password" "1password-cli" ];
       };
+      treefmtEval = treefmt-nix.lib.evalModule appPkgs ./treefmt.nix;
       mkHome = host: home-manager.lib.homeManagerConfiguration {
         pkgs = pcPkgs;
         extraSpecialArgs = { inherit appPkgs; };
-        modules = [ host ];
+        modules = [
+          nix-index-database.homeModules.nix-index
+          {
+            programs.nix-index.enable = true;
+            programs.nix-index-database.comma.enable = true;
+          }
+          host
+        ];
       };
     in {
       nixOnDroidConfigurations.galaxy-tab-s11 = nix-on-droid.lib.nixOnDroidConfiguration {
@@ -56,8 +72,27 @@
           overlays = [ nix-on-droid.overlays.default ];
         };
         home-manager-path = home-manager-droid.outPath;
-        extraSpecialArgs.appPkgs = nixpkgs-apps.legacyPackages.aarch64-linux;
+        extraSpecialArgs = {
+          appPkgs = nixpkgs-apps.legacyPackages.aarch64-linux;
+          inherit nix-index-database;
+        };
         modules = [ ./hosts/nix-on-droid.nix ];
+      };
+      formatter.${system} = treefmtEval.config.build.wrapper;
+      checks.${system} = {
+        statix = appPkgs.runCommand "statix-check" {
+          nativeBuildInputs = [ appPkgs.statix ];
+        } ''
+          cd ${self}
+          statix check .
+          touch $out
+        '';
+        deadnix = appPkgs.runCommand "deadnix-check" {
+          nativeBuildInputs = [ appPkgs.deadnix ];
+        } ''
+          deadnix --fail ${self}
+          touch $out
+        '';
       };
 
       # Bootstrap tools use the same app pin as the installed CLI tools.
@@ -111,7 +146,11 @@
         home-manager.useGlobalPkgs = true;
         home-manager.useUserPackages = true;
         home-manager.extraSpecialArgs = { inherit appPkgs; };
-        home-manager.users.jeebis = import ./hosts/nixos.nix;
+        home-manager.users.jeebis = {
+          imports = [ nix-index-database.homeModules.nix-index ./hosts/nixos.nix ];
+          programs.nix-index.enable = true;
+          programs.nix-index-database.comma.enable = true;
+        };
       };
       nixosConfigurations.desktop-vm = nixpkgs.lib.nixosSystem {
         inherit system;
@@ -134,7 +173,11 @@
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
             home-manager.extraSpecialArgs = { inherit appPkgs; };
-            home-manager.users.jeebis = import ./hosts/nixos.nix;
+            home-manager.users.jeebis = {
+              imports = [ nix-index-database.homeModules.nix-index ./hosts/nixos.nix ];
+              programs.nix-index.enable = true;
+              programs.nix-index-database.comma.enable = true;
+            };
           })
         ];
       };
