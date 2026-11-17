@@ -100,16 +100,16 @@
     "mejiroime": {
       "flake": false,
       "locked": {
-        "lastModified": 1794623904,
-        "narHash": "sha256-AnXGcn4V7uvjtJpIYFuZPz9fPWojFvJ/FIb5NajzEqM=",
-        "ref": "refs/heads/main",
-        "rev": "2047fb9ad6b426cf91b325aee3a7c3a4e00107b3",
-        "revCount": 11,
+        "lastModified": 1794907064,
+        "narHash": "sha256-XxoocDCzcxyQtTNy86dECOGroJ3b8iyHTIqZx0xvwbk=",
+        "ref": "develop",
+        "rev": "1acb62102c0db9181c24cd14c73a67956217430e",
+        "revCount": 13,
         "type": "git",
         "url": "https://github.com/JEEBIS27/MejiroIME.git"
       },
       "original": {
-        "rev": "2047fb9ad6b426cf91b325aee3a7c3a4e00107b3",
+        "ref": "develop",
         "type": "git",
         "url": "https://github.com/JEEBIS27/MejiroIME.git"
       }
