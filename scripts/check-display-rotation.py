@@ -10,6 +10,10 @@ with tempfile.TemporaryDirectory() as d:
  assert session['config']['animation'] is False
  assert session['config']['delayMs']==1000
  greeter=json.loads(subprocess.check_output(command+['greeter'],env=dict(os.environ,XDG_RUNTIME_DIR=d),text=True))
- assert greeter['config']['animation'] is False and greeter['config']['automatic'] is True
+ assert greeter['config']['animation'] is False and greeter['config']['automatic'] is False
  assert greeter['state']==str(p/'jeebis-greeter')
- print('Rotation wrapper: personal JSON preserved; greeter state isolated; greeter capture disabled.')
+ enabled=p/'greeter.json'; enabled.write_text('{"automatic":true,"compositor":"hyprland"}')
+ greeter_enabled=json.loads(subprocess.check_output(command+['greeter',str(enabled)],env=dict(os.environ,XDG_RUNTIME_DIR=d),text=True))
+ assert greeter_enabled['config']['automatic'] is True
+ assert greeter_enabled['config']['compositor']=='hyprland'
+ print('Rotation wrapper: session config preserved; greeter state isolated; greeter auto-rotation configurable.')

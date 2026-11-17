@@ -52,6 +52,10 @@ rclone-start:
 auth-status:
     @bash scripts/auth.sh status
 
+# Enroll a fingerprint later (also: list, verify, delete).
+fingerprint action="enroll" finger="":
+    @bash scripts/fingerprint.sh {{quote(action)}} {{quote(finger)}}
+
 # Show the detected OS without building or activating anything.
 host:
     @bash scripts/manage.sh host

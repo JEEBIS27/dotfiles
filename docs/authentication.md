@@ -2,6 +2,24 @@
 
 Nix はアプリと CLI、just は各ユーザーのログイン操作を管理する。認証は `sudo just ...` ではなく通常ユーザーで実行する。秘密情報は Git や Nix 式に書かない。
 
+## Fingerprint
+
+NixOS enables `fprintd` and its global PAM integration so fingerprint
+authentication is available consistently to the SDDM login, Tide lock screen,
+`sudo`, Polkit and other PAM consumers. Password authentication remains as the
+fallback. After `just switch`, enroll while physically at the PC:
+
+```bash
+just fingerprint
+just fingerprint enroll left-thumb
+just fingerprint list
+just fingerprint verify
+just fingerprint delete
+```
+
+Run these as the regular user, without `sudo`. Enrollment and verification are
+interactive and are never performed during a build or activation.
+
 ## 最初の導入
 
 既に `just git-auth` で GitHub にログイン済みなら、その認証を使って `just switch` を実行できる。まだ 1Password がない初回導入では `just git-auth-web` → `just switch` の順に進める。MejiroIME は非公開なので、読み取り権限のある GitHub アカウントが必要。

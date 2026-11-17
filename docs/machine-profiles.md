@@ -27,19 +27,22 @@ composition. This remains separate from the common personal/Niri modules.
 
 Use only actual output names reported by the target session (`niri msg outputs`),
 not the placeholder above. Leaving `outputs = { };` lets Niri choose its defaults.
-`transform` is static display rotation, not automatic sensor-based rotation.
-Niri automatic rotation is not implemented in this migration and the old
-Hyprland rotation daemon remains disabled for Niri.
+`transform` is the static startup rotation. The independent display-rotation
+service uses the laptop accelerometer to apply a temporary runtime transform on
+both Niri and Hyprland. Niri automatically keeps mapped touch input aligned with
+the output transform; the legacy `touchDevices` list is Hyprland-only.
 
 NixOS-only GPU, firmware, boot and disk settings stay in that PC's existing
 `configuration.nix` / `hardware-configuration.nix`. Do not copy the build host's
-hardware profile or the tmpfs VM example to a real machine. The Niri SDDM greeter
-uses Weston; it does not run the old Hyprland rotation helper.
+hardware profile or the tmpfs VM example to a real machine. The Niri session uses
+an isolated Hyprland compositor for SDDM so the login UI can run sensor-based
+automatic rotation before a user session exists.
 
 `nixos/machine.nix` separately declares opt-in recovery-greeter rotation settings
 under NixOS `jeebis.machine.greeterRotation`. The old embedded ELAN device IDs
-were removed. Automatic recovery-greeter rotation defaults off, with an empty
-touch-device list until a real machine supplies it.
+were removed. Automatic greeter rotation defaults on using generic IIO sensor
+discovery, with an empty legacy touch-device list unless a real machine needs an
+explicit name.
 
 ## Validation boundary
 

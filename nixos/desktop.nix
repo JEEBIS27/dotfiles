@@ -24,6 +24,12 @@ in
   programs.dconf.enable = true;
   services.gnome.gnome-keyring.enable = true;
   security.pam.services.sddm.enableGnomeKeyring = true;
+  # Make fingerprint authentication available consistently to PAM consumers:
+  # login/lock screens, sudo, Polkit and terminal authentication.
+  services.fprintd = {
+    enable = true;
+    enablePam = true;
+  };
   services.gvfs.enable = true;
   programs.fish.enable = true;
   users.users.jeebis.shell = fish;

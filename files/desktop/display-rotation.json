@@ -1,6 +1,7 @@
 {
-  "automatic": false,
+  "automatic": true,
   "animation": false,
   "normalYSign": -1,
-  "delayMs": 1000
+  "delayMs": 1000,
+  "compositor": "auto"
 }

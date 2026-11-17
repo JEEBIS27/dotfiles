@@ -10,7 +10,8 @@ import sys
 helper, mode, *rest = sys.argv[1:]
 if mode not in ("session", "greeter"):
     raise SystemExit("Expected session or greeter")
-config = {"automatic": True, "animation": False, "normalYSign": -1, "delayMs": 1000}
+config = {"automatic": True, "animation": False, "normalYSign": -1, "delayMs": 1000,
+          "compositor": "auto"}
 if mode == "session":
     config.update(json.loads(Path(rest[0]).read_text()))
 else:

@@ -23,7 +23,8 @@
 
 `nixosModules.personal` now imports `nixosModules.niri`: `just switch` on an
 existing integrated NixOS installation selects Niri and MejiroIME without editing
-`/etc/nixos/flake.nix`. Hyprland/UWSM are disabled and SDDM uses Weston. Host
+`/etc/nixos/flake.nix`. Hyprland/UWSM are disabled for user sessions; SDDM uses
+an isolated Hyprland greeter for pre-login automatic rotation. Host
 boot, disks, users, stateVersion and graphics drivers remain host-owned.
 
 The Niri profile launches plain Ghostty directly through an absolute Nix store
@@ -61,8 +62,8 @@ Lock generation only records dependencies and does not prove package builds.
 1. Check plain Ghostty/fish, direct Yazi/Helix launches, palette changes and images.
 2. Validate the migrated application map and normal/below-split launch behavior
    on Niri. Shift resizes, Ctrl swaps/reorders, and Ctrl+Shift moves windows.
-   Add per-host display/touch declarations; the Hyprland-only automatic rotation
-   service is disabled in Niri. See `niri-keybindings.md` for mappings and limits.
+   Add per-host display/touch declarations and validate the compositor-independent
+   automatic rotation service. See `niri-keybindings.md` for mappings and limits.
 3. Check Niri login, Tide IPC, portals/screen sharing, image/video/GIF wallpaper,
    static lock wallpaper, actual locking/authentication, suspend and SDDM.
 4. On Niri, check MejiroIME in Ghostty, browser, GTK and Qt: live/neural

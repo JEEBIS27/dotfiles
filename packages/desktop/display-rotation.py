@@ -21,7 +21,28 @@ def run(*args):
     return result.stdout
 
 
-def monitors():
+def compositor(config):
+    configured = config.get("compositor", "auto")
+    if configured != "auto":
+        return configured
+    return "niri" if os.environ.get("NIRI_SOCKET") else "hyprland"
+
+
+def monitors(config):
+    if compositor(config) == "niri":
+        outputs = json.loads(run("niri", "msg", "--json", "outputs"))
+        transforms = {
+            "Normal": 0, "_90": 1, "_180": 2, "_270": 3,
+            "Flipped": 4, "Flipped90": 5, "Flipped180": 6, "Flipped270": 7,
+        }
+        return [
+            {
+                "name": name,
+                "transform": transforms[output.get("logical", {}).get("transform", "Normal")],
+            }
+            for name, output in outputs.items()
+            if output.get("logical") is not None
+        ]
     return json.loads(run("hyprctl", "monitors", "-j"))
 
 
@@ -76,7 +97,7 @@ class StableOrientation:
             return None
         if value != self.candidate:
             self.candidate, self.since = value, now
-        if now - self.since < self.delay or value == self.accepted:
+        if now - self.since < self.delay:
             return None
         self.accepted = value
         return value
@@ -153,6 +174,18 @@ def prepare_transition(monitor, transform, config):
 
 
 def apply(monitor, transform, config):
+    if compositor(config) == "niri":
+        names = ["normal", "90", "180", "270", "flipped", "flipped-90", "flipped-180", "flipped-270"]
+        run("niri", "msg", "output", monitor["name"], "transform", names[transform])
+        deadline = time.monotonic() + 2
+        while True:
+            actual = select_monitor(monitors(config), monitor["name"])
+            if actual is not None and actual.get("transform") == transform:
+                return
+            if time.monotonic() >= deadline:
+                raise RuntimeError("Display rotation was not applied")
+            time.sleep(.04)
+
     locked = "LOCK" in monitor.get("solitaryBlockedBy", [])
     token = None if locked else prepare_transition(monitor, transform, config)
     success = False
@@ -172,7 +205,7 @@ def apply(monitor, transform, config):
         # Output reconfiguration can commit on a later compositor frame.
         deadline = time.monotonic() + 2
         while True:
-            actual = select_monitor(monitors(), monitor["name"])
+            actual = select_monitor(monitors(config), monitor["name"])
             if actual is not None and actual.get("transform") == transform:
                 break
             if time.monotonic() >= deadline:
@@ -213,6 +246,8 @@ def save_state(path, value):
 
 def save_rotation_rule(path, monitor, transform, config):
     """Reload the chosen orientation with the monitor rules, without animation."""
+    if compositor(config) != "hyprland":
+        return
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix=".rotation-", dir=path.parent)
     try:
@@ -225,7 +260,7 @@ def save_rotation_rule(path, monitor, transform, config):
 
 
 def status(config, state):
-    monitor = select_monitor(monitors(), config.get("output", ""))
+    monitor = select_monitor(monitors(config), config.get("output", ""))
     sensor = sensor_path(config)
     return {"available": monitor is not None, "output": monitor["name"] if monitor else "",
             "transform": monitor.get("transform", 0) if monitor else 0,
@@ -259,7 +294,7 @@ def main():
                         raise RuntimeError("Readable accelerometer is unavailable")
                     state.update(automatic=not info["automatic"], output=info["output"], transform=info["transform"])
                 else:
-                    current = select_monitor(monitors(), info["output"])
+                    current = select_monitor(monitors(config), info["output"])
                     target = current["transform"] ^ 2
                     apply(current, target, config)
                     save_rotation_rule(path.with_suffix(".lua"), current, target, config)
@@ -276,7 +311,7 @@ def main():
                     # unrelated monitor-rule changes by replaying saved state.
                     stable = StableOrientation(stable.delay)
                 if target is not None and info["available"] and target != info["transform"]:
-                    current = select_monitor(monitors(), info["output"])
+                    current = select_monitor(monitors(config), info["output"])
                     apply(current, target, config)
                     save_rotation_rule(path.with_suffix(".lua"), current, target, config)
                     state.update(output=info["output"], transform=target)

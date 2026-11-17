@@ -158,7 +158,10 @@ in
       "gh-dash/config.yml".source = config.lib.file.mkOutOfStoreSymlink "${themeDir}/gh-dash.yml";
       "jeebis/motion.lua".source = coreSource + /motion.lua;
       "jeebis/curvature.lua".source = coreSource + /curvature.lua;
-      "jeebis/display-rotation.json".source = coreSource + /display-rotation.json;
+      "jeebis/display-rotation.json".text = builtins.toJSON (
+        builtins.fromJSON (builtins.readFile (coreSource + /display-rotation.json))
+        // { compositor = cfg.compositor; }
+      );
 
     }
     // lib.optionalAttrs (!native) (presetFiles // {
@@ -223,7 +226,7 @@ in
         };
         Install.WantedBy = [ "graphical-session.target" ];
       };
-      jeebis-display-rotation = lib.mkIf (cfg.compositor == "hyprland") {
+      jeebis-display-rotation = {
         Unit = { Description = "Automatic display rotation, including the locked session"; After = [ "wayland-session-waitenv.service" ]; PartOf = [ "graphical-session.target" ]; };
         Service = { ExecStart = "${rotation}/bin/jeebis-display-rotation session ${config.xdg.configHome}/jeebis/display-rotation.json"; Restart = "on-failure"; RestartSec = 3; };
         Install.WantedBy = [ "graphical-session.target" ];
