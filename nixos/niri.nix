@@ -10,6 +10,6 @@
   environment.systemPackages = [ pkgs.xwayland-satellite ];
   # Niri's NixOS module supplies the session units and GNOME/GTK portals.
   services.displayManager.defaultSession = lib.mkForce "niri";
-  # SDDM uses an independent Weston kiosk compositor for the login screen.
+  # SDDM runs a separate Niri instance with its own rotation watcher.
   home-manager.users.jeebis.jeebis.desktop.compositor = "niri";
 }

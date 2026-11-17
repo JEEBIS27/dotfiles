@@ -6,6 +6,24 @@
   ...
 }:
 let
+  greeterNiri = config.programs.niri.package;
+  rotation = import ../packages/display-rotation.nix {
+    pkgs = appPkgs;
+    compositor = "niri";
+  };
+  greeterRotation = pkgs.writeText "jeebis-greeter-rotation.json" (
+    builtins.toJSON (config.jeebis.machine.greeterRotation // { compositor = "niri"; })
+  );
+  greeterConfig = pkgs.writeText "jeebis-greeter.kdl" ''
+    hotkey-overlay { skip-at-startup; }
+    animations { off; }
+    prefer-no-csd
+    window-rule {
+      match app-id=r#"^sddm-greeter.*$"#
+      open-fullscreen true
+    }
+    spawn-at-startup "${rotation}/bin/jeebis-display-rotation" "greeter" "${greeterRotation}"
+  '';
   helium = import ../packages/helium.nix { inherit pkgs; };
   loginTheme = import ../packages/jeebis-login-theme.nix { pkgs = appPkgs; };
   fish = import ../packages/fish.nix { pkgs = appPkgs; };
@@ -55,7 +73,7 @@ in
   services.displayManager.sddm.enable = lib.mkDefault true;
   services.displayManager.sddm.wayland.enable = lib.mkDefault true;
   services.displayManager.sddm.wayland.compositorCommand =
-    "${pkgs.weston}/bin/weston --shell=kiosk-shell.so";
+    "${greeterNiri}/bin/niri --config ${greeterConfig}";
   systemd.tmpfiles.rules = [ "d /var/lib/jeebis-theme 0755 jeebis users -" ];
   services.displayManager.sddm.theme = "jeebis-login-theme";
   services.displayManager.sddm.extraPackages = with pkgs.kdePackages; [

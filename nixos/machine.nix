@@ -12,6 +12,6 @@
       };
     };
     default = { };
-    description = "Automatic rotation for the isolated Hyprland SDDM greeter.";
+    description = "Automatic rotation for the isolated Niri SDDM greeter.";
   };
 }
