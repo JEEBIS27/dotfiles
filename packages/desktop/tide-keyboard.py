@@ -424,7 +424,7 @@ replace_once(
     """            color: "#30000000"
             readonly property real knobTravel: Math.max(0, width - root.knobSize)
             readonly property real knobX: root.clamp01(root.value) * knobTravel
-            readonly property real knobCenterX: knobX + root.knobSize / 2
+            readonly property real knobRightX: knobX + root.knobSize
             border.width: 1
 """,
     "slider geometry",
@@ -435,7 +435,10 @@ replace_once(
                     ? 0
                     : Math.max(34, Math.min(sliderTrack.width, sliderTrack.width * root.value + 1))
 """,
-    """                width: root.value <= 0.001 ? 0 : sliderTrack.knobCenterX
+    """                // Continue underneath the entire knob. Ending at its
+                // center exposes the fill's rounded cap and creates a visible
+                // neck immediately before the circular handle.
+                width: root.value <= 0.001 ? 0 : sliderTrack.knobRightX
 """,
     "slider fill",
 )
