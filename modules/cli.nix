@@ -15,7 +15,6 @@
     statix
     deadnix
     # fish is supplied by programs.fish.
-    neovim
     yazi
     fastfetch
     eza

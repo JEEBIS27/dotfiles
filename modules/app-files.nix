@@ -74,44 +74,6 @@ in
     // {
       "bat/themes/Desktop.tmTheme".source =
         config.lib.file.mkOutOfStoreSymlink "${config.jeebis.desktop.themeDirectory}/preview.tmTheme";
-      "nvim/after/lsp/lua_ls.lua".source = ../files/nvim/after/lsp/lua_ls.lua;
-      "nvim/init.lua".source = ../files/nvim/init.lua;
-      "nvim/lazy-lock.json".source =
-        config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/dotfiles/files/nvim/lazy-lock.json";
-      "nvim/lua/config/keymaps.lua".source = ../files/nvim/lua/config/keymaps.lua;
-      "nvim/lua/config/lazy.lua".source = ../files/nvim/lua/config/lazy.lua;
-      "nvim/lua/config/options.lua".source = ../files/nvim/lua/config/options.lua;
-      "nvim/lua/config/theme.lua".source = pkgs.writeText "nvim-shared-theme.lua" (
-        builtins.replaceStrings [ "@themeDir@" ] [ config.jeebis.desktop.themeDirectory ] (
-          builtins.readFile ../files/nvim/lua/config/theme.lua
-        )
-      );
-      "nvim/lua/config/unified_keys.lua".source = ../files/nvim/lua/config/unified_keys.lua;
-      "nvim/lua/plugins/edit/init.lua".source = ../files/nvim/lua/plugins/edit/init.lua;
-      "nvim/lua/plugins/editor/init.lua".source = ../files/nvim/lua/plugins/editor/init.lua;
-      "nvim/lua/plugins/editor/snacks.lua".source = ../files/nvim/lua/plugins/editor/snacks.lua;
-      "nvim/lua/plugins/editor/statuscol.lua".source = ../files/nvim/lua/plugins/editor/statuscol.lua;
-      "nvim/lua/plugins/editor/theme.lua".source = ../files/nvim/lua/plugins/editor/theme.lua;
-      "nvim/lua/plugins/editor/which-key.lua".source = ../files/nvim/lua/plugins/editor/which-key.lua;
-      "nvim/lua/plugins/editor/yazi.lua".source = ../files/nvim/lua/plugins/editor/yazi.lua;
-      "nvim/lua/plugins/lang/init.lua".source = ../files/nvim/lua/plugins/lang/init.lua;
-      "nvim/lua/plugins/lsp/config/lsp_actions_on_save.lua".source =
-        ../files/nvim/lua/plugins/lsp/config/lsp_actions_on_save.lua;
-      "nvim/lua/plugins/lsp/config/lsp_keymaps.lua".source =
-        ../files/nvim/lua/plugins/lsp/config/lsp_keymaps.lua;
-      "nvim/lua/plugins/lsp/config/utils.lua".source = ../files/nvim/lua/plugins/lsp/config/utils.lua;
-      "nvim/lua/plugins/lsp/init.lua".source = ../files/nvim/lua/plugins/lsp/init.lua;
-      "nvim/lua/plugins/treesitter.lua".source = ../files/nvim/lua/plugins/treesitter.lua;
-      "nvim/lua/plugins/ui/incline/get_display_filename_and_dirname.lua".source =
-        ../files/nvim/lua/plugins/ui/incline/get_display_filename_and_dirname.lua;
-      "nvim/lua/plugins/ui/incline.lua".source = ../files/nvim/lua/plugins/ui/incline.lua;
-      "nvim/lua/plugins/ui/init.lua".source = ../files/nvim/lua/plugins/ui/init.lua;
-      "nvim/lua/plugins/ui/noice.lua".source = ../files/nvim/lua/plugins/ui/noice.lua;
-      "nvim/lua/utils/colors.lua".source = ../files/nvim/lua/utils/colors.lua;
-      "nvim/lua/utils/copilot.lua".source = ../files/nvim/lua/utils/copilot.lua;
-      "nvim/lua/utils/highlight.lua".source = ../files/nvim/lua/utils/highlight.lua;
-      "nvim/lua/utils/keymap.lua".source = ../files/nvim/lua/utils/keymap.lua;
-      "nvim/lua/utils/mode_colors.lua".source = ../files/nvim/lua/utils/mode_colors.lua;
       "yazi/flavors/kanagawa.yazi/LICENSE".source = ../files/yazi/flavors/kanagawa.yazi/LICENSE;
       "yazi/flavors/kanagawa.yazi/LICENSE-tmtheme".source =
         ../files/yazi/flavors/kanagawa.yazi/LICENSE-tmtheme;

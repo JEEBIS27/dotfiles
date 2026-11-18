@@ -320,7 +320,6 @@ in
       // lib.optionalAttrs (!native) (
         presetFiles
         // {
-          "omarchy/themed/palette.lua.tpl".source = templates + /palette.lua.tpl;
           "omarchy/themed/preview.tmTheme.tpl".source = templates + /preview.tmTheme.tpl;
           "omarchy/themed/yazi.toml.tpl".source = templates + /yazi.toml.tpl;
           "omarchy/themed/ghostty.conf.tpl".source = templates + /ghostty.conf.tpl;
