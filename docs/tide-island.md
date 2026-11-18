@@ -28,6 +28,12 @@ Credentials, clipboard history, calendar notes and caches remain local. Wallpape
 | Super+Esc | Lock screen |
 | Super+Alt+Esc | Control Center |
 | Super+Ctrl+Esc | Power menu |
+| Super+Shift+M | Music player |
+| Super+Ctrl+V | Clipboard history |
+| Super+Ctrl+Alt+D | Calendar |
+| Super+Ctrl+Alt+W | Weather |
+| Super+Ctrl+Space | Wallpaper picker |
+| Super+Shift+Alt+comma | Notification center |
 | Super+N | Toggle island |
 | Super+Shift+B | Show island |
 | Super+Shift+N | Hide island |

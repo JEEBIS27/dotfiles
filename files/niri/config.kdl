@@ -52,6 +52,12 @@ binds {
     Mod+U hotkey-overlay-title="1Password Quick Access" { spawn "1password" "--quick-access"; }
     Mod+Shift+Escape { spawn "@desktop@" "settings"; }
     Mod+Alt+Escape { spawn "@desktop@" "shell" "tide" "toggleControlCenter"; }
+    Mod+Shift+M { spawn "@desktop@" "shell" "tide" "togglePlayer"; }
+    Mod+Ctrl+V { spawn "@desktop@" "shell" "tide" "toggleClipboard"; }
+    Mod+Ctrl+Alt+D { spawn "@desktop@" "shell" "tide" "toggleCalendar"; }
+    Mod+Ctrl+Alt+W { spawn "@desktop@" "shell" "tide" "toggleWeather"; }
+    Mod+Ctrl+Space { spawn "@desktop@" "shell" "tide" "toggleWallpaperPicker"; }
+    Mod+Shift+Alt+comma { spawn "@desktop@" "shell" "tide" "toggleNotificationCenter"; }
     Mod+N { spawn "@desktop@" "shell" "island" "toggle"; }
     Mod+Shift+B { spawn "@desktop@" "shell" "island" "show"; }
     Mod+Shift+N { spawn "@desktop@" "shell" "island" "hide"; }

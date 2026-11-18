@@ -33,9 +33,14 @@ Spotify, Obsidian, Nautilus, LocalSend, Zathura and btop are declared packages.
 | Super+Shift+PageUp/PageDown | Previous/next monitor |
 | Super+Ctrl+PageUp/PageDown | Move window to previous/next workspace |
 | Super+1..0 / Super+Shift+1..0 | Select / move window to named workspace 1..10 |
-| Super+O | Toggle Overview (workspace/window overview) |
+| Super+O | Toggle Niri Overview (workspace/window overview) |
 | Super+F / Super+Shift+Escape | Tide launcher / settings |
 | Super+Alt+Escape | Tide Control Center |
+| Super+Shift+M | Tide music player |
+| Super+Ctrl+V | Tide clipboard history |
+| Super+Ctrl+Alt+D / Super+Ctrl+Alt+W | Tide calendar / weather |
+| Super+Ctrl+Space | Tide wallpaper picker |
+| Super+Shift+Alt+comma | Tide notification center |
 | Super+N / Super+Shift+B / Super+Shift+N | Toggle / show / hide Tide Island |
 | Super+Alt+T | Cycle shared theme |
 | Super+Alt+Shift+K | Search keybindings by typing (Fuzzel) |
