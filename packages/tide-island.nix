@@ -40,6 +40,7 @@ let
       jq
       wifi
     ]
+    ++ pkgs.lib.optionals withNiri [ (import ./niri.nix { inherit pkgs; }) ]
     ++ pkgs.lib.optionals (!withNiri) [
       pkgs.hyprland
       pkgs.hyprsunset
@@ -77,6 +78,7 @@ pkgs.stdenv.mkDerivation rec {
     rm -rf tests Tide-island-app/tests
     ${pkgs.python3}/bin/python3 ${./desktop/tide-integration.py} .
     ${pkgs.python3}/bin/python3 ${./desktop/tide-keyboard.py} .
+    ${pkgs.python3}/bin/python3 ${./desktop/tide-search.py} .
   '';
   doCheck = false;
   dontWrapQtApps = true;

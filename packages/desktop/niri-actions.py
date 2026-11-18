@@ -180,31 +180,22 @@ def close_workspace():
                 raise
 
 
-def search_windows():
+def search_windows(desktop):
     windows = query("Windows")
-    if not windows:
-        return
     workspaces = {w["id"]: w.get("name") or w["idx"] for w in query("Workspaces")}
-    labels = []
+    entries = []
     for window in windows:
-        title = " ".join((window.get("title") or "(untitled)").splitlines())
-        app = " ".join((window.get("app_id") or "").splitlines())
+        title = window.get("title") or "(untitled)"
+        app = window.get("app_id") or ""
         workspace = workspaces.get(window.get("workspace_id"), "?")
-        labels.append(f"{title}  [{app}]  ·  WS {workspace}")
-    selection = subprocess.run(
-        ["fuzzel", "--dmenu", "--index", "--only-match", "--match-mode=fzf",
-         "--prompt", "Window: "],
-        input="\n".join(labels) + "\n", text=True, stdout=subprocess.PIPE,
-    )
-    if selection.returncode == 1:
-        return
-    selection.check_returncode()
-    identifier = windows[int(selection.stdout.strip())]["id"]
-    try:
-        action("FocusWindow", id=identifier)
-    except RuntimeError:
-        if any(window["id"] == identifier for window in query("Windows")):
-            raise
+        entries.append({
+            "id": str(window["id"]), "name": title, "icon": app,
+            "comment": f"{app} · WS {workspace}",
+        })
+    # IPC treats a bare JSON array as multiple arguments. Quote it as a string.
+    payload = json.dumps(json.dumps(entries, ensure_ascii=False), ensure_ascii=False)
+    if subprocess.run([desktop, "shell", "tide", "toggleSearch", "windows", payload]).returncode:
+        raise RuntimeError("could not open Tide window search")
 
 
 def clipboard(operation):
@@ -227,6 +218,7 @@ def clipboard(operation):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--catalog", required=True, type=Path)
+    parser.add_argument("--desktop", default="jeebis-desktop")
     sub = parser.add_subparsers(dest="operation", required=True)
     launch_parser = sub.add_parser("launch")
     launch_parser.add_argument("application")
@@ -241,7 +233,7 @@ def main():
     elif args.operation == "close-workspace":
         close_workspace()
     elif args.operation == "search-windows":
-        search_windows()
+        search_windows(args.desktop)
     elif args.operation == "toggle-maximize":
         window = query("FocusedWindow")
         if window:

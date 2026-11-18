@@ -127,6 +127,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', required=True, type=Path)
     parser.add_argument('--applications', required=True, type=Path)
+    parser.add_argument('--desktop', default='jeebis-desktop')
     parser.add_argument('--list', action='store_true')
     args = parser.parse_args()
     rows = entries(args.config.read_text(), json.loads(args.applications.read_text()))
@@ -136,11 +137,15 @@ def main():
     if args.list:
         print(text, end='')
         return
-    result = subprocess.run(['fuzzel', '--dmenu', '--only-match', '--match-mode=fzf',
-                             '--prompt', 'キー検索: ', '--width=100', '--lines=18', '--counter'],
-                            input=text, text=True, stdout=subprocess.DEVNULL)
-    if result.returncode not in (0, 1, 2):
-        raise SystemExit(result.returncode)
+    candidates = []
+    for index, row in enumerate(rows):
+        key, description = row.split(maxsplit=1)
+        candidates.append({'id': str(index), 'name': key, 'comment': description})
+    # IPC treats a bare JSON array as multiple arguments. Quote it as a string.
+    payload = json.dumps(json.dumps(candidates, ensure_ascii=False), ensure_ascii=False)
+    raise SystemExit(subprocess.run(
+        [args.desktop, 'shell', 'tide', 'toggleSearch', 'keys', payload],
+    ).returncode)
 
 
 if __name__ == '__main__':

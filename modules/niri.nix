@@ -18,11 +18,10 @@ let
       pkgs.python3
       pkgs.libnotify
       pkgs.wtype
-      pkgs.fuzzel
       resize
     ];
     text = ''
-      exec python3 ${../packages/desktop/niri-actions.py} --catalog ${catalog} "$@"
+      exec python3 ${../packages/desktop/niri-actions.py} --catalog ${catalog} --desktop ${lib.escapeShellArg cfg.command} "$@"
     '';
   };
   resize = pkgs.writeShellApplication {
@@ -36,11 +35,11 @@ let
     name = "jeebis-niri-keybindings";
     runtimeInputs = [
       pkgs.python3
-      pkgs.fuzzel
     ];
     text = ''
       exec python3 ${../packages/desktop/niri-keybindings.py} \
         --config ${lib.escapeShellArg "${config.xdg.configHome}/niri/config.kdl"} \
+        --desktop ${lib.escapeShellArg cfg.command} \
         --applications ${lib.escapeShellArg "${config.xdg.configHome}/jeebis/applications.json"} "$@"
     '';
   };

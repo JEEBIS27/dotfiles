@@ -125,7 +125,7 @@ References:
 
 ## Searchable keybindings
 
-Super+Shift+F opens Fuzzel with the active managed Niri bindings. Type a key,
+Super+Shift+F opens Tide's launcher with the active managed Niri bindings. Type a key,
 action, or application name to narrow the list (Japanese descriptions and English
 keywords are both included). Escape closes it; selecting a row only closes the
 reference list and never executes the action. The list reads the current generated
