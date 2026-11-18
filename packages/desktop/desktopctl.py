@@ -200,8 +200,6 @@ def apply_theme(action,values):
   finally:
    if staging.exists():shutil.rmtree(staging)
  sync_appearance(preset,source)
- rio_dir=Path(os.environ.get('XDG_CONFIG_HOME',HOME/'.config'))/'rio'
- if rio_dir.is_dir():os.utime(rio_dir,None)
  if cfg.get('ghosttyReload'):call([cfg['ghosttyReload']])
  if cfg.get('helixReload'):call([cfg['helixReload']])
  if initializing:

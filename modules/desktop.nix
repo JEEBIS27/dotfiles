@@ -324,7 +324,6 @@ in
           "omarchy/themed/preview.tmTheme.tpl".source = templates + /preview.tmTheme.tpl;
           "omarchy/themed/yazi.toml.tpl".source = templates + /yazi.toml.tpl;
           "omarchy/themed/ghostty.conf.tpl".source = templates + /ghostty.conf.tpl;
-          "omarchy/themed/rio.toml.tpl".source = templates + /rio.toml.tpl;
           "omarchy/themed/gh-dash.yml.tpl".source = templates + /gh-dash.yml.tpl;
           "omarchy/themed/helix.toml.tpl".source = templates + /helix.toml.tpl;
           "omarchy/hooks/theme-set.d/refresh-helix.hook" = {
@@ -333,10 +332,6 @@ in
           };
           "omarchy/hooks/theme-set.d/refresh-ghostty.hook" = {
             text = "#!${pkgs.runtimeShell}\nexec ${config.home.profileDirectory}/bin/jeebis-ghostty-reload\n";
-            executable = true;
-          };
-          "omarchy/hooks/theme-set.d/refresh-rio.hook" = {
-            source = ../files/omarchy/hooks/theme-set.d/refresh-rio.hook;
             executable = true;
           };
           "omarchy/hooks/theme-set.d/refresh-bat.hook" = {
