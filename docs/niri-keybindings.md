@@ -27,7 +27,7 @@ Spotify, Obsidian, Nautilus, LocalSend, Zathura and btop are declared packages.
 | Add Ctrl+Shift | Move column left/right; window up/down |
 | Super+W / Super+Shift+W | Close window / snapshot and close workspace windows |
 | Super+T / Super+Shift+T | Focus floating/tiling layer / toggle window floating |
-| Super+Shift+F / Super+Ctrl+F | Maximize/restore / fullscreen |
+| Super+Shift+R / Super+Ctrl+R | Maximize/restore / fullscreen |
 | Super+Tab / Super+Shift+Tab / Super+Ctrl+Tab | Next / previous / formerly focused workspace |
 | Super+PageUp/PageDown or Super+wheel | Previous/next workspace |
 | Super+Shift+PageUp/PageDown | Previous/next monitor |
@@ -35,15 +35,15 @@ Spotify, Obsidian, Nautilus, LocalSend, Zathura and btop are declared packages.
 | Super+1..0 / Super+Shift+1..0 | Select / move window to named workspace 1..10 |
 | Super+O | Toggle Niri Overview (workspace/window overview) |
 | Super+F / Super+Shift+Escape | Tide launcher / settings |
-| Super+Alt+Escape | Tide Control Center |
-| Super+Shift+M | Tide music player |
+| Super+Space | Tide Control Center |
+| Super+M | Tide music player |
 | Super+Ctrl+V | Tide clipboard history |
-| Super+Ctrl+Alt+D / Super+Ctrl+Alt+W | Tide calendar / weather |
+| Super+Ctrl+D / Super+Ctrl+W | Tide calendar / weather |
 | Super+Ctrl+Space | Tide wallpaper picker |
-| Super+Shift+Alt+comma | Tide notification center |
-| Super+N / Super+Shift+B / Super+Shift+N | Toggle / show / hide Tide Island |
+| Super+N | Tide notification center |
+| Super+Shift+I | Toggle Tide Island |
 | Super+Alt+T | Cycle shared theme |
-| Super+Alt+Shift+K | Search keybindings by typing (Fuzzel) |
+| Super+Shift+F / Super+Ctrl+F | Search keybindings / search and focus open windows |
 | Super+R | Cycle preset column widths |
 | Super+X / Super+C / Super+V | Universal cut / copy / paste |
 | Super+comma / Super+period | Consume or expel a window left/right |
@@ -125,7 +125,7 @@ References:
 
 ## Searchable keybindings
 
-Super+Alt+Shift+K opens Fuzzel with the active managed Niri bindings. Type a key,
+Super+Shift+F opens Fuzzel with the active managed Niri bindings. Type a key,
 action, or application name to narrow the list (Japanese descriptions and English
 keywords are both included). Escape closes it; selecting a row only closes the
 reference list and never executes the action. The list reads the current generated
@@ -164,7 +164,7 @@ Examples (`*` is focused, `| ... |` is the visible pair):
 60 |30 / 70*|  -> focus middle, left  -> |70* / 30| 70
 ```
 
-`Super+Shift+F` saves the current partner and width before switching to 100%.
+`Super+Shift+R` saves the current partner and width before switching to 100%.
 Shrinking again restores that partner and frames the pair without changing focus,
 including when the focused column is in the middle or at the right edge. This
 avoids the blank right-hand half left by the upstream view anchoring behavior.

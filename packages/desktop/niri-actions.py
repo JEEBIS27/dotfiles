@@ -180,6 +180,33 @@ def close_workspace():
                 raise
 
 
+def search_windows():
+    windows = query("Windows")
+    if not windows:
+        return
+    workspaces = {w["id"]: w.get("name") or w["idx"] for w in query("Workspaces")}
+    labels = []
+    for window in windows:
+        title = " ".join((window.get("title") or "(untitled)").splitlines())
+        app = " ".join((window.get("app_id") or "").splitlines())
+        workspace = workspaces.get(window.get("workspace_id"), "?")
+        labels.append(f"{title}  [{app}]  ·  WS {workspace}")
+    selection = subprocess.run(
+        ["fuzzel", "--dmenu", "--index", "--only-match", "--match-mode=fzf",
+         "--prompt", "Window: "],
+        input="\n".join(labels) + "\n", text=True, stdout=subprocess.PIPE,
+    )
+    if selection.returncode == 1:
+        return
+    selection.check_returncode()
+    identifier = windows[int(selection.stdout.strip())]["id"]
+    try:
+        action("FocusWindow", id=identifier)
+    except RuntimeError:
+        if any(window["id"] == identifier for window in query("Windows")):
+            raise
+
+
 def clipboard(operation):
     window = query("FocusedWindow") or {}
     identity = (window.get("app_id") or "").casefold()
@@ -205,6 +232,7 @@ def main():
     launch_parser.add_argument("application")
     launch_parser.add_argument("--below", action="store_true")
     sub.add_parser("close-workspace")
+    sub.add_parser("search-windows")
     sub.add_parser("toggle-maximize")
     sub.add_parser("clipboard").add_argument("clipboard_operation", choices=["cut", "copy", "paste"])
     args = parser.parse_args()
@@ -212,6 +240,8 @@ def main():
         clipboard(args.clipboard_operation)
     elif args.operation == "close-workspace":
         close_workspace()
+    elif args.operation == "search-windows":
+        search_windows()
     elif args.operation == "toggle-maximize":
         window = query("FocusedWindow")
         if window:

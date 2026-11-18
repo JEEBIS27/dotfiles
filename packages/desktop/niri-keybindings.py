@@ -60,6 +60,7 @@ def describe(action, applications):
             app = applications.get(tail[1], {})
             return app.get('name', tail[1]) + (' — 下に起動 below' if '--below' in tail else ' — 起動 launch')
         return {'close-workspace': '現在のワークスペースのウィンドウを閉じる close workspace',
+                'search-windows': '開いているウィンドウを検索 window search focus',
                 'toggle-maximize': '最大化・復元 maximize restore'}.get(tail[0], ' '.join(tail))
     if program == 'jeebis-niri-resize':
         return '隣の列と幅を調整 paired resize ' + ('+10%' if tail == ['grow'] else '-10%')

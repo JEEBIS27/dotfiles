@@ -49,18 +49,18 @@ binds {
     Mod+Shift+Return { spawn "@actions@" "launch" "terminal-tmux" "--below"; }
     Mod+O hotkey-overlay-title="Overview" { toggle-overview; }
     Mod+F { spawn "@desktop@" "shell" "tide" "toggleApplicationLauncher"; }
+    Mod+Shift+F { spawn "@key-search@"; }
+    Mod+Ctrl+F { spawn "@actions@" "search-windows"; }
     Mod+U hotkey-overlay-title="1Password Quick Access" { spawn "1password" "--quick-access"; }
     Mod+Shift+Escape { spawn "@desktop@" "settings"; }
-    Mod+Alt+Escape { spawn "@desktop@" "shell" "tide" "toggleControlCenter"; }
-    Mod+Shift+M { spawn "@desktop@" "shell" "tide" "togglePlayer"; }
+    Mod+Space { spawn "@desktop@" "shell" "tide" "toggleControlCenter"; }
+    Mod+M { spawn "@desktop@" "shell" "tide" "togglePlayer"; }
     Mod+Ctrl+V { spawn "@desktop@" "shell" "tide" "toggleClipboard"; }
-    Mod+Ctrl+Alt+D { spawn "@desktop@" "shell" "tide" "toggleCalendar"; }
-    Mod+Ctrl+Alt+W { spawn "@desktop@" "shell" "tide" "toggleWeather"; }
+    Mod+Ctrl+D { spawn "@desktop@" "shell" "tide" "toggleCalendar"; }
+    Mod+Ctrl+W { spawn "@desktop@" "shell" "tide" "toggleWeather"; }
     Mod+Ctrl+Space { spawn "@desktop@" "shell" "tide" "toggleWallpaperPicker"; }
-    Mod+Shift+Alt+comma { spawn "@desktop@" "shell" "tide" "toggleNotificationCenter"; }
-    Mod+N { spawn "@desktop@" "shell" "island" "toggle"; }
-    Mod+Shift+B { spawn "@desktop@" "shell" "island" "show"; }
-    Mod+Shift+N { spawn "@desktop@" "shell" "island" "hide"; }
+    Mod+N { spawn "@desktop@" "shell" "tide" "toggleNotificationCenter"; }
+    Mod+Shift+I { spawn "@desktop@" "shell" "island" "toggle"; }
     Mod+Alt+T { spawn "@desktop@" "theme" "cycle"; }
     Mod+W { close-window; }
     Mod+Shift+W { spawn "@actions@" "close-workspace"; }
@@ -108,13 +108,12 @@ binds {
     Mod+Ctrl+Page_Down { move-window-to-workspace-down; }
     Mod+Ctrl+Page_Up { move-window-to-workspace-up; }
     Mod+R { switch-preset-column-width; }
-    Mod+Shift+F { spawn "@actions@" "toggle-maximize"; }
-    Mod+Ctrl+F { fullscreen-window; }
+    Mod+Shift+R { spawn "@actions@" "toggle-maximize"; }
+    Mod+Ctrl+R { fullscreen-window; }
     Mod+T { switch-focus-between-floating-and-tiling; }
     Mod+Shift+T { toggle-window-floating; }
     Mod+Ctrl+T { toggle-column-tabbed-display; }
     Mod+Alt+Shift+J { toggle-column-tabbed-display; }
-    Mod+Alt+Shift+K { spawn "@key-search@"; }
     Mod+X { spawn "@actions@" "clipboard" "cut"; }
     Mod+C { spawn "@actions@" "clipboard" "copy"; }
     Mod+V { spawn "@actions@" "clipboard" "paste"; }
@@ -122,7 +121,6 @@ binds {
     Mod+period { consume-or-expel-window-right; }
     Mod+Ctrl+Escape { spawn "@desktop@" "shell" "tide" "togglePowerMenu"; }
     Mod+Escape { spawn "@desktop@" "lock"; }
-    Mod+Shift+E { quit; }
     Mod+Shift+S { screenshot; }
     Print { screenshot; }
     XF86AudioRaiseVolume allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "0.05+"; }

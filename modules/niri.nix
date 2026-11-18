@@ -18,6 +18,7 @@ let
       pkgs.python3
       pkgs.libnotify
       pkgs.wtype
+      pkgs.fuzzel
       resize
     ];
     text = ''

@@ -26,17 +26,15 @@ Credentials, clipboard history, calendar notes and caches remain local. Wallpape
 | Super+F | Application launcher |
 | Super+Shift+Esc | Settings |
 | Super+Esc | Lock screen |
-| Super+Alt+Esc | Control Center |
+| Super+Space | Control Center (Niri) |
 | Super+Ctrl+Esc | Power menu |
-| Super+Shift+M | Music player |
+| Super+M | Music player |
 | Super+Ctrl+V | Clipboard history |
-| Super+Ctrl+Alt+D | Calendar |
-| Super+Ctrl+Alt+W | Weather |
+| Super+Ctrl+D | Calendar |
+| Super+Ctrl+W | Weather |
 | Super+Ctrl+Space | Wallpaper picker |
-| Super+Shift+Alt+comma | Notification center |
-| Super+N | Toggle island |
-| Super+Shift+B | Show island |
-| Super+Shift+N | Hide island |
+| Super+N | Notification center |
+| Super+Shift+I | Toggle island |
 
 Control Center and the power menu support `Tab`/`Shift+Tab`, arrows and
 `H/J/K/L`; activate the focused item with `Enter` or `Space`. Press `F` to show
