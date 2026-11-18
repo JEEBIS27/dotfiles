@@ -234,17 +234,20 @@ replace_once(
         id: keyboardFocusRing
         z: 80
         color: StyleTokens.transparent
-        radius: 14
+        readonly property real focusMargin: 3
+        radius: target && target.radius !== undefined && target.radius > 0
+            ? target.radius + focusMargin
+            : StyleTokens.radiusModule + focusMargin
         border.width: 2
         border.color: StyleTokens.accent
         visible: controlCenter.showCondition && !controlCenter.powerViewActive
             && controlCenter.keyboardTargets().length > 0
         property var target: visible
             ? controlCenter.keyboardTargets()[controlCenter.normalizedKeyboardSelection()].item : null
-        x: target ? target.mapToItem(controlCenter, 0, 0).x - 3 : 0
-        y: target ? target.mapToItem(controlCenter, 0, 0).y - 3 : 0
-        width: target ? target.width + 6 : 0
-        height: target ? target.height + 6 : 0
+        x: target ? target.mapToItem(controlCenter, 0, 0).x - focusMargin : 0
+        y: target ? target.mapToItem(controlCenter, 0, 0).y - focusMargin : 0
+        width: target ? target.width + focusMargin * 2 : 0
+        height: target ? target.height + focusMargin * 2 : 0
 
         Behavior on x { NumberAnimation { duration: 90 } }
         Behavior on y { NumberAnimation { duration: 90 } }
@@ -404,6 +407,59 @@ replace_once(
 }
 """,
     "power confirmation",
+)
+
+path.write_text(source)
+
+# Keep the slider fill edge and knob center on the same value coordinate. The
+# upstream implementation scales one against the full track width and clamps
+# the other against the knob bounds, which visibly diverges near either end.
+path = root / "qml/controlcenter/ControlSliderCard.qml"
+source = path.read_text()
+
+replace_once(
+    """            color: "#30000000"
+            border.width: 1
+""",
+    """            color: "#30000000"
+            readonly property real knobTravel: Math.max(0, width - root.knobSize)
+            readonly property real knobX: root.clamp01(root.value) * knobTravel
+            readonly property real knobCenterX: knobX + root.knobSize / 2
+            border.width: 1
+""",
+    "slider geometry",
+)
+
+replace_once(
+    """                width: root.value <= 0.001
+                    ? 0
+                    : Math.max(34, Math.min(sliderTrack.width, sliderTrack.width * root.value + 1))
+""",
+    """                width: root.value <= 0.001 ? 0 : sliderTrack.knobCenterX
+""",
+    "slider fill",
+)
+
+replace_once(
+    """                x: Math.max(0, Math.min(parent.width - width, parent.width * root.value - width / 2))
+""",
+    """                x: sliderTrack.knobX
+""",
+    "slider knob",
+)
+
+replace_once(
+    """                function update(mouseX) {
+                    root.valueMoved(root.clamp01(mouseX / width));
+                }
+""",
+    """                function update(mouseX) {
+                    if (sliderTrack.knobTravel <= 0) return;
+                    root.valueMoved(root.clamp01(
+                        (mouseX - root.knobSize / 2) / sliderTrack.knobTravel));
+                }
+""",
+    "slider pointer mapping",
 )
 
 path.write_text(source)
