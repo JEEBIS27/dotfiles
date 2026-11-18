@@ -58,31 +58,24 @@
     }:
     let
       system = "x86_64-linux";
+      allowUnfreePredicate =
+        pkg:
+        builtins.elem (nixpkgs.lib.getName pkg) [
+          "chatgpt"
+          "slack"
+          "discord"
+          "spotify"
+          "obsidian"
+          "1password"
+          "1password-cli"
+        ];
       appPkgs = import nixpkgs-apps {
         inherit system;
-        config.allowUnfreePredicate =
-          pkg:
-          builtins.elem (nixpkgs.lib.getName pkg) [
-            "chatgpt"
-            "slack"
-            "spotify"
-            "obsidian"
-            "1password"
-            "1password-cli"
-          ];
+        config.allowUnfreePredicate = allowUnfreePredicate;
       };
       pcPkgs = import nixpkgs {
         inherit system;
-        config.allowUnfreePredicate =
-          pkg:
-          builtins.elem (nixpkgs.lib.getName pkg) [
-            "chatgpt"
-            "slack"
-            "spotify"
-            "obsidian"
-            "1password"
-            "1password-cli"
-          ];
+        config.allowUnfreePredicate = allowUnfreePredicate;
       };
       treefmtEval = treefmt-nix.lib.evalModule appPkgs ./treefmt.nix;
       mkHome =
@@ -194,16 +187,7 @@
         ];
         _module.args.appPkgs = appPkgs;
         _module.args.mejiroSource = mejiroime;
-        nixpkgs.config.allowUnfreePredicate =
-          pkg:
-          builtins.elem (nixpkgs.lib.getName pkg) [
-            "chatgpt"
-            "slack"
-            "spotify"
-            "obsidian"
-            "1password"
-            "1password-cli"
-          ];
+        nixpkgs.config.allowUnfreePredicate = allowUnfreePredicate;
         nix.settings.experimental-features = [
           "nix-command"
           "flakes"
@@ -235,16 +219,7 @@
           (mejiroime + "/nix/nixos.nix")
           ./nixos/input-method.nix
           ({ ... }: {
-            nixpkgs.config.allowUnfreePredicate =
-              pkg:
-              builtins.elem (nixpkgs.lib.getName pkg) [
-                "chatgpt"
-                "slack"
-                "spotify"
-                "obsidian"
-                "1password"
-                "1password-cli"
-              ];
+            nixpkgs.config.allowUnfreePredicate = allowUnfreePredicate;
             system.stateVersion = "26.05";
             virtualisation.vmVariant = {
               virtualisation.memorySize = 4096;
