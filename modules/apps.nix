@@ -29,6 +29,7 @@
   };
   home.packages = [
     appPkgs.codex
+    appPkgs.discord
     (pkgs.writeShellApplication {
       name = "git-credential-op";
       runtimeInputs = [ appPkgs.git ];

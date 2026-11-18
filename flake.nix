@@ -64,6 +64,7 @@
           "chatgpt"
           "slack"
           "discord"
+          "discord-unwrapped"
           "spotify"
           "obsidian"
           "1password"
