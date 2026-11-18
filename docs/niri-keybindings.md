@@ -41,7 +41,7 @@ Spotify, Obsidian, Nautilus, LocalSend, Zathura and btop are declared packages.
 | Super+Ctrl+D / Super+Ctrl+W | Tide calendar / weather |
 | Super+Ctrl+Space | Tide wallpaper picker |
 | Super+N | Tide notification center |
-| Super+Shift+I | Toggle Tide Island |
+| Super+I / Super+Shift+I | Temporarily reveal / toggle Tide Island |
 | Super+Alt+T | Cycle shared theme |
 | Super+Shift+F / Super+Ctrl+F | Search keybindings / search and focus open windows |
 | Super+R | Cycle preset column widths |

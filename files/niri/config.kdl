@@ -60,6 +60,7 @@ binds {
     Mod+Ctrl+W { spawn "@desktop@" "shell" "tide" "toggleWeather"; }
     Mod+Ctrl+Space { spawn "@desktop@" "shell" "tide" "toggleWallpaperPicker"; }
     Mod+N { spawn "@desktop@" "shell" "tide" "toggleNotificationCenter"; }
+    Mod+I repeat=false { spawn "@desktop@" "shell" "island" "peek"; }
     Mod+Shift+I { spawn "@desktop@" "shell" "island" "toggle"; }
     Mod+Alt+T { spawn "@desktop@" "theme" "cycle"; }
     Mod+W { close-window; }

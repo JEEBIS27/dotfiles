@@ -69,6 +69,7 @@ if old not in s:
     raise RuntimeError('upstream SysBackend::handleVolumeEvent changed')
 p.write_text(s.replace(old,new))
 
+
 # Carry the observed mute state into the control center as well as the transient
 # island OSD. Muting intentionally keeps the stored volume/slider position; the
 # icon is the mute indicator.
@@ -98,3 +99,61 @@ new='''                        volumeLevel: islandContainer.currentVolume
 if old not in s:
     raise RuntimeError('upstream ControlCenterLayer property wiring changed')
 p.write_text(s.replace(old,new))
+
+
+def replace_once(path, before, after):
+    source = path.read_text()
+    if source.count(before) != 1:
+        raise RuntimeError(f"upstream {path.name} changed: {before!r}")
+    path.write_text(source.replace(before, after))
+
+
+# Keep keyboard peeking independent of the pointer and persistent visibility.
+replace_once(
+    p,
+    '''    readonly property bool autoHideTargetVisible: autoHideMustShow
+        || (!autoHideForcedHidden && (!autoHideEnabled || autoHideVisible))''',
+    '''    readonly property bool islandNormallyVisible: autoHideMustShow
+        || (!autoHideForcedHidden && (!autoHideEnabled || autoHideVisible))
+    readonly property bool autoHideTargetVisible: islandNormallyVisible || islandPeekTimer.running''',
+)
+replace_once(
+    p,
+    '(!autoHideEnabled && autoHideTargetVisible)',
+    '(!autoHideEnabled && islandNormallyVisible)',
+)
+replace_once(
+    p,
+    '''    function showIslandWindow() {
+        showAutoHiddenIsland("manual");
+    }
+
+    function hideIslandWindow() {''',
+    '''    Timer {
+        id: islandPeekTimer
+        interval: Math.max(100, Math.min(10000, userConfig.islandAutoHideDelayMs))
+    }
+
+    function peekIslandWindow() {
+        islandPeekTimer.restart();
+    }
+
+    function showIslandWindow() {
+        islandPeekTimer.stop();
+        showAutoHiddenIsland("manual");
+    }
+
+    function hideIslandWindow() {
+        islandPeekTimer.stop();''',
+)
+replace_once(
+    r / 'shell.qml',
+    '''        target: "island"
+''',
+    '''        target: "island"
+
+        function peek() {
+            shellRoot.forEachWindow((window) => window.peekIslandWindow());
+        }
+''',
+)

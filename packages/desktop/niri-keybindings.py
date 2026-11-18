@@ -79,6 +79,7 @@ def describe(action, applications):
             'shell tide toggleWallpaperPicker': 'Tide 壁紙選択 wallpaper picker',
             'shell tide toggleNotificationCenter': 'Tide 通知センター notification history',
             'shell island toggle': 'Tide Island表示切替 toggle',
+            'shell island peek': 'Tide Islandを一時表示 peek',
             'shell island show': 'Tide Island表示 show',
             'shell island hide': 'Tide Island非表示 hide',
             'theme cycle': 'テーマ切替 theme',

@@ -34,7 +34,10 @@ Credentials, clipboard history, calendar notes and caches remain local. Wallpape
 | Super+Ctrl+W | Weather |
 | Super+Ctrl+Space | Wallpaper picker |
 | Super+N | Notification center |
-| Super+Shift+I | Toggle island |
+| Super+I / Super+Shift+I | Temporarily reveal / toggle island |
+
+The temporary reveal uses the configured Island auto-hide delay. Pressing the
+shortcut again restarts the timer. Expiry leaves the normal visibility state intact.
 
 Control Center and the power menu support `Tab`/`Shift+Tab`, arrows and
 `H/J/K/L`; activate the focused item with `Enter` or `Space`. Press `F` to show
