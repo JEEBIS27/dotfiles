@@ -79,6 +79,8 @@ pkgs.stdenv.mkDerivation rec {
     ${pkgs.python3}/bin/python3 ${./desktop/tide-integration.py} .
     ${pkgs.python3}/bin/python3 ${./desktop/tide-keyboard.py} .
     ${pkgs.python3}/bin/python3 ${./desktop/tide-search.py} .
+    cp ${./desktop/LevelStatusIcon.qml} qml/common/LevelStatusIcon.qml
+    ${pkgs.python3}/bin/python3 ${./desktop/tide-level-osd.py} .
   '';
   doCheck = false;
   dontWrapQtApps = true;
