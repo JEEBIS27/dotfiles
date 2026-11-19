@@ -79,6 +79,7 @@ in
         window-decoration = false;
         window-padding-x = 14;
         window-padding-y = 14;
+        confirm-close-surface = false;
         cursor-style = "block";
         cursor-style-blink = false;
         shell-integration-features = "no-cursor";
