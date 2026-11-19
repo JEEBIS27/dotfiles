@@ -108,6 +108,49 @@ def replace_once(path, before, after):
     path.write_text(source.replace(before, after))
 
 
+# Let Niri deliver the original click to the surface under the pointer.
+# Dismiss when the compositor moves keyboard focus away from this panel.
+replace_once(
+    p,
+    '''    WlrLayershell.keyboardFocus: {
+        if (islandContainer.controlCenterLayerVisible''',
+    '''    readonly property bool dismissibleMenu: islandContainer.controlCenterLayerVisible
+        || islandContainer.notificationCenterLayerVisible
+        || islandContainer.wallpaperPickerLayerVisible
+        || islandContainer.applicationLauncherLayerVisible
+        || islandContainer.fileShelfLayerVisible
+        || islandContainer.clipboardLayerVisible
+        || islandContainer.weatherLayerVisible
+        || islandContainer.calendarLayerVisible
+        || (islandContainer.expandedLayerVisible && !islandContainer.expandedByPlayerAutoOpen)
+        || islandContainer.bluetoothExpandedLayerVisible
+    readonly property bool menuWindowActive: mainCapsule.Window.active
+    property bool remappingMenu: false
+    visible: !remappingMenu
+    onDismissibleMenuChanged: {
+        // Niri grants on-demand focus when the layer surface is mapped.
+        if (compositorIsNiri && dismissibleMenu && !menuWindowActive) {
+            remappingMenu = true;
+            menuRemapTimer.restart();
+        }
+    }
+    Timer {
+        id: menuRemapTimer
+        interval: 0
+        onTriggered: root.remappingMenu = false
+    }
+    onMenuWindowActiveChanged: {
+        if (!menuWindowActive && !remappingMenu && compositorIsNiri
+                && dismissibleMenu && !connectivityPromptActive)
+            islandContainer.smartRestoreState();
+    }
+    WlrLayershell.keyboardFocus: {
+        if (compositorIsNiri && dismissibleMenu && !connectivityPromptActive)
+            return WlrKeyboardFocus.OnDemand;
+        if (islandContainer.controlCenterLayerVisible''',
+)
+
+
 # Keep keyboard peeking independent of the pointer and persistent visibility.
 replace_once(
     p,
