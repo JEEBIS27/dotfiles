@@ -43,15 +43,16 @@ let
 in
 pkgs.stdenvNoCC.mkDerivation rec {
   pname = "chatgpt";
-  version = "26.1103.32239";
+  version = "26.1111.71704";
   src = pkgs.fetchurl {
     url = "https://persistent.oaistatic.com/codex-app-prod/linux/deb/pool/main/c/chatgpt/chatgpt_${version}_amd64.deb";
-    sha256 = "18c108808ea2c52fb8dbf92d3362d27741e3382c5891bd4ae903a9b5781364ef";
+    sha256 = "01eef7c77c835f7e1afb92ba1c29178a4c19d6c66573bdd3b86520e2abf806a4";
   };
   nativeBuildInputs = with pkgs; [
     dpkg
     autoPatchelfHook
     makeWrapper
+    python3
     wrapGAppsHook3
   ];
   buildInputs = libraries;
@@ -61,6 +62,7 @@ pkgs.stdenvNoCC.mkDerivation rec {
   unpackPhase = ''
     runHook preUnpack
     dpkg-deb -x "$src" .
+    python3 ${./chatgpt-new-window.py} usr/lib/chatgpt/resources/app.asar
     runHook postUnpack
   '';
   installPhase = ''

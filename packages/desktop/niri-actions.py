@@ -1,5 +1,7 @@
 """Niri 26.04 launch/close actions use captured, explicit window IDs."""
 import argparse
+from contextlib import nullcontext
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -124,8 +126,21 @@ def launch(catalog, name, below=False):
     app = catalog[name]
     current_generation = generation()
     workspace = focused_workspace()
+    original = query("FocusedWindow")
+    place_on_workspace = app.get("placeOnLaunchWorkspace", False)
+    lock = nullcontext()
+    if place_on_workspace:
+        lock = (Path(os.environ["XDG_RUNTIME_DIR"]) / f"jeebis-niri-launch-{name}.lock").open("a")
+    with lock as stream:
+        if stream is not None:
+            # Attribute newly mapped windows to one pending launch at a time.
+            fcntl.flock(stream, fcntl.LOCK_EX)
+        launch_window(app, workspace, original, current_generation, below, place_on_workspace)
+
+
+def launch_window(app, workspace, original, current_generation, below, place_on_workspace):
+    split = below and original is not None
     before = query("Windows")
-    original = next((w for w in before if w.get("is_focused")), None)
     known = {w["id"] for w in before}
     argv = list(app["argv"])
     if app.get("terminal") and original and original.get("pid"):
@@ -138,29 +153,40 @@ def launch(catalog, name, below=False):
         except OSError:
             pass
     action("Spawn", command=argv)
-    if not below or workspace is None or original is None:
+    if workspace is None or not (split or place_on_workspace):
         return
     deadline = time.monotonic() + 15
     while time.monotonic() < deadline:
-        if not current_generation() or focused_workspace() != workspace:
+        if not place_on_workspace and (not current_generation() or focused_workspace() != workspace):
             return
         windows = query("Windows")
         active = next((w for w in windows if w.get("is_focused")), None)
-        if active and active["id"] not in known and not matches(app, active):
+        if not place_on_workspace and active and active["id"] not in known and not matches(app, active):
             return
-        candidates = [w for w in windows if w.get("workspace_id") == workspace
-                      and w["id"] not in known and matches(app, w)]
+        candidates = [w for w in windows if w["id"] not in known and matches(app, w)
+                      and (place_on_workspace or w.get("workspace_id") == workspace)]
         target = next((w for w in candidates if w.get("is_focused")), None)
         if target is None and len(candidates) == 1:
             target = candidates[0]
         if target:
-            if not active or active["id"] not in {target["id"], original["id"]}:
+            if place_on_workspace and target.get("workspace_id") != workspace:
+                if not any(w["id"] == workspace for w in query("Workspaces")):
+                    notify(f"{app['name']}: the launch workspace disappeared.")
+                    return
+                # Keep the user's focus when a launch completes in the background.
+                action("MoveWindowToWorkspace", reference={"Id": workspace},
+                       window_id=target["id"], focus=False)
+            if not current_generation() or focused_workspace() != workspace:
                 return
-            place_below(original, target, workspace, current_generation)
+            if split and active and active["id"] in {target["id"], original["id"]}:
+                place_below(original, target, workspace, current_generation)
+            elif place_on_workspace and (not active or active["id"] in
+                                         {target["id"], (original or {}).get("id")}):
+                action("FocusWindow", id=target["id"])
             return
         # No existing window is moved, including singleton apps that only
         # activate a window instead of opening another one.
-        if active and active["id"] != original["id"] and not matches(app, active):
+        if not place_on_workspace and active and active["id"] != original["id"] and not matches(app, active):
             return
         time.sleep(0.1)
     notify(f"{app['name']}: no new matching window appeared; existing windows were not moved.")

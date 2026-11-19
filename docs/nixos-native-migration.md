@@ -115,7 +115,7 @@ the destination machine's graphics configuration.
 ## ChatGPT desktop application
 
 The official Linux desktop app is packaged from Debian release
-`26.1103.32239`, using the versioned official pool URL and the SHA-256 published
+`26.1111.71704`, using the versioned official pool URL and the SHA-256 published
 in OpenAI's package index. The downloaded amd64 package matched that hash.
 `dpkg-deb` only extracts its contents: no apt/pacman setup or maintainer scripts
 are executed. `autoPatchelfHook` and explicit dependencies supply the Nix runtime.
@@ -133,10 +133,12 @@ launcher currently explicitly selects Qt's X11 backend and needs separate
 application compatibility work before it can use native Wayland.
 No sandbox-disabling flags are added.
 
-Niri binds Super+Alt+C to `chatgpt`. Its new-window/focus behavior is controlled
-by the app, not by Hyprland IPC. The former fresh-window shortcut is preserved
-for the Hyprland recovery profile through its existing helper. The Niri path
-contains no promise that launching an already-running app creates another window.
+Niri binds Super+Alt+C to the ChatGPT launcher with `--jeebis-new-window`.
+The local package patch routes that argument to the app's fresh-window
+function when an instance is already running. The Niri helper places the
+resulting window on the workspace that requested it. Fully quit and reopen
+ChatGPT once after switching to a generation containing the patch.
+The Hyprland recovery profile uses its existing helper.
 The `codex:` callback scheme is registered without changing HTTP/HTTPS defaults.
 
 Reference: https://learn.chatgpt.com/docs/linux/linux-app

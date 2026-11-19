@@ -71,7 +71,11 @@ in
   chatgpt = {
     key = "C";
     name = "ChatGPT";
-    argv = [ "${chatgpt}/bin/chatgpt" ];
+    argv = [
+      "${chatgpt}/bin/chatgpt"
+      "--jeebis-new-window"
+    ];
+    placeOnLaunchWorkspace = true;
     appIds = [
       "chatgpt"
       "ChatGPT"

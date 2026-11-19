@@ -26,8 +26,9 @@ let
         ''
       else
         ''
-          # Compatibility command name. Niri uses the app's own activation behavior;
-          # no unverified CLI flag or synthetic Hyprland shortcut is sent.
+          if [ "$#" -eq 0 ]; then
+            exec jeebis-niri launch chatgpt
+          fi
           exec ${app}/bin/chatgpt "$@"
         '';
   };

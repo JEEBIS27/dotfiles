@@ -62,8 +62,9 @@ Restart and power-off actions require `Enter` confirmation.
 `packages/desktop/niri-actions.py` uses Niri's JSON socket API, reviewed against
 pinned Niri 26.04. Shift launches capture the original workspace and focused
 window ID, then wait up to 15 seconds for a newly created matching window.
-Existing windows are never selected as a fallback, including singleton apps
-that only activate an already-open window.
+ChatGPT uses the packaged fresh-window command for both launch bindings. Niri
+records the requesting workspace ID and places the newly detected window there
+when the app maps it elsewhere.
 
 When the new window occupies a single column immediately to the original
 column's right, it is consumed into that column. Niri appends consumed tiles at
@@ -111,11 +112,9 @@ Per-host outputs/touch mappings and replacement automatic rotation remain
 separate work. Tide's old fixed-bar/fixed-notch distinction is represented only
 by show/hide/toggle; the Niri layout switch toggles tabbed columns, not Dwindle.
 
-Only source/syntax and diff checks are performed here; no Nix build, Niri session
-activation, hotkey, app-window, fullscreen, or session-lock test has been run.
-In particular simultaneous launches of the same application, Chromium app IDs,
-new vs reused ChatGPT/Herdr windows, and focus transitions require real-session
-verification before treating these as accepted behavior.
+The ChatGPT launcher has been exercised in a live Niri session with a test
+profile. It opened separate windows from the same ChatGPT process on two
+workspaces and placed a Shift launch immediately below the original tile.
 
 References:
 - https://niri-wm.github.io/niri/IPC.html
