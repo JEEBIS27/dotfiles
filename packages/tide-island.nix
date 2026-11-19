@@ -81,6 +81,7 @@ pkgs.stdenv.mkDerivation rec {
     ${pkgs.python3}/bin/python3 ${./desktop/tide-search.py} .
     cp ${./desktop/LevelStatusIcon.qml} qml/common/LevelStatusIcon.qml
     ${pkgs.python3}/bin/python3 ${./desktop/tide-level-osd.py} .
+    ${pkgs.python3}/bin/python3 ${./desktop/tide-motion.py} .
   '';
   doCheck = false;
   dontWrapQtApps = true;
