@@ -51,8 +51,10 @@ Canvas {
             ctx.fill();
             if (root.kind === "mute") {
                 ctx.beginPath();
-                ctx.moveTo(15, 16);
-                ctx.lineTo(21, 8);
+                ctx.moveTo(15, 9);
+                ctx.lineTo(21, 15);
+                ctx.moveTo(21, 9);
+                ctx.lineTo(15, 15);
                 ctx.stroke();
             } else {
                 const waves = root.value <= 0 ? 0 : root.value <= 0.33 ? 1 : root.value <= 0.66 ? 2 : 3;

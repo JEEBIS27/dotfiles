@@ -102,7 +102,7 @@ edit(
             anchors.verticalCenter: parent.verticalCenter
             width: 44
             horizontalAlignment: Text.AlignRight
-            text: root.levelKind === "mute" ? "ミュート" : Math.round(root.progress * 100) + "%"
+            text: Math.round(root.progress * 100) + "%"
             color: "#d0d0d6"
             font.family: root.textFontFamily
             font.pixelSize: 12
@@ -120,7 +120,7 @@ edit(
             color: "#45ffffff"
 
             Rectangle {
-                width: parent.width * (root.levelKind === "mute" ? 0 : Math.max(0, Math.min(1, root.progress)))
+                width: parent.width * Math.max(0, Math.min(1, root.progress))
                 height: parent.height
                 radius: Math.min(height, width) / 2
                 color: "#f1f1f4"
