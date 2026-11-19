@@ -25,6 +25,11 @@ window-rule {
     match is-active=false
     opacity 0.9
 }
+// Blur the actual content behind Tide while letting it define the blur region.
+layer-rule {
+    match namespace="^tide-island$"
+    background-effect { xray false; }
+}
 // Approximate the old two-pass blur without saturation or added noise.
 blur { passes 2; offset 4; noise 0; saturation 1.0; }
 prefer-no-csd
