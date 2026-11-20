@@ -8,6 +8,8 @@
 let
   cfg = config.jeebis.desktop;
   niri = import ../packages/niri.nix { inherit pkgs; };
+  batteryFocusRingFile = "${config.xdg.configHome}/niri/battery-focus-ring.kdl";
+  batteryFocusRingPython = pkgs.python3.withPackages (ps: [ ps.pygobject3 ]);
   spotify = import ../packages/spotify.nix { inherit pkgs; };
   waylandIme = package: import ../packages/wayland-ime.nix { inherit pkgs package; };
   applications = import ../files/desktop/applications.nix { inherit config pkgs; };
@@ -82,6 +84,7 @@ let
         "@workspaces@"
         "@key-search@"
         "@resize@"
+        "@battery-focus-ring@"
       ]
       [
         config.jeebis.machine.niriConfiguration
@@ -93,11 +96,24 @@ let
         workspaces
         "${keySearch}/bin/jeebis-niri-keybindings"
         "${resize}/bin/jeebis-niri-resize"
+        (builtins.toJSON batteryFocusRingFile)
       ]
       (builtins.readFile ../files/niri/config.kdl);
 in
 {
   config = lib.mkIf (cfg.compositor == "niri") {
+    systemd.user.services.jeebis-niri-battery-focus-ring = {
+      Unit = {
+        Description = "Set the Niri focus ring color from the battery level";
+        PartOf = [ "graphical-session.target" ];
+      };
+      Service = {
+        ExecStart = "${batteryFocusRingPython}/bin/python3 ${../packages/desktop/niri-battery-focus-ring.py} ${lib.escapeShellArg batteryFocusRingFile}";
+        Restart = "on-failure";
+        RestartSec = 2;
+      };
+      Install.WantedBy = [ "graphical-session.target" ];
+    };
     systemd.user.services.jeebis-niri-auto-width = {
       Unit = {
         Description = "Niri single-window width and settled resize compensation";

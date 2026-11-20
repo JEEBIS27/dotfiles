@@ -15,6 +15,7 @@ layout {
     focus-ring { on; }
     border { off; }
 }
+include optional=true @battery-focus-ring@
 // Final Hyprland curvature override also applies to floating windows.
 window-rule {
     geometry-corner-radius 15
