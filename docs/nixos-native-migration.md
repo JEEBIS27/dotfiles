@@ -38,8 +38,10 @@ owns the server, Fcitx5 addon and the Mejiro31 HID access rule. Both
 MejiroIME and Mejiro_Engine are public, independently pinned in `flake.lock`,
 and require neither GitHub credentials nor local checkouts. Update the two
 inputs together when the IME change requires a newer Engine. The neural
-worker starts on CPU; Vulkan may be selected explicitly after real GPU
-validation. The Zenz v3.1 small Q5_K_M model and its hash are unchanged.
+worker defaults to automatic Vulkan selection and falls back to CPU when
+GPU execution is unavailable or fails. Set `services.mejiroime.neural.gpu = "off"`
+on an individual host to force CPU. The Zenz v3.1 small Q5_K_M model and its
+hash are unchanged.
 
 The stock Fcitx5 daemon, its standard frontend, and the MejiroIME addon use
 the same `nixpkgs-apps` pin for compatibility. The old Fcitx/GTK inline color

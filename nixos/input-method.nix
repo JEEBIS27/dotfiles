@@ -23,12 +23,9 @@ in
     enable = true;
     inherit package;
     manageFcitx5 = true;
-    neural = {
-      modelPath = "${model}";
-      # Keep neural conversion enabled without requiring working Vulkan.
-      workerPackage = lib.mkDefault package.zenzWorker;
-      gpu = lib.mkDefault "off";
-    };
+    fcitx5StartInactive = true;
+    # Let MejiroIME select Vulkan when available and fall back to CPU.
+    neural.modelPath = "${model}";
   };
   i18n.inputMethod.package = lib.mkForce (
     appPkgs.qt6Packages.fcitx5-with-addons.override {
