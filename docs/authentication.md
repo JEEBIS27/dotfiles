@@ -22,7 +22,7 @@ interactive and are never performed during a build or activation.
 
 ## 最初の導入
 
-既に `just git-auth` で GitHub にログイン済みなら、その認証を使って `just switch` を実行できる。まだ 1Password がない初回導入では `just git-auth-web` → `just switch` の順に進める。MejiroIME は非公開なので、読み取り権限のある GitHub アカウントが必要。
+公開されている MejiroIME と Mejiro_Engine の取得に GitHub 認証は不要なので、初回から `just switch` を実行できる。push や別の非公開リポジトリへのアクセスが必要な場合は、下記の GitHub 認証を設定する。
 
 NixOS は NixOS モジュールで 1Password アプリと CLI、Polkit の許可、CLI の setgid ラッパーを導入する。Omarchy は Home Manager でアプリ・CLI を導入するが、Linux のアプリ連携に必要なホスト側の権限設定は別途必要。Android はこの PC 用の 1Password 構成の対象外。
 

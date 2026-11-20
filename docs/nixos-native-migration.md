@@ -34,21 +34,17 @@ Legacy runtime/aliases, TUIOS hooks and Rio configuration are not deployed by
 this profile. Lua sources remain in the repository for the Omarchy profile.
 
 MejiroIME is the only declared Japanese engine. Its upstream NixOS module
-owns the server and adds the Fcitx addon; no local checkout is needed. The
-published source is pinned at `88d832c4a84ab7233ee865585a31877b2f6adce1`.
-Git access to the MejiroIME repository is required on the target PC; credentials
-are local and are never placed in the flake URL or repository. Anonymous archive
-access returned 404 here, so the source uses the Git transport.
-Uncommitted development changes are not included. Update this input after
-publishing the desired MejiroIME revision. The neural worker starts on CPU;
-Vulkan may be selected explicitly after real GPU validation. The model is
-Zenz v3.1 small Q5_K_M with a pinned revision and SHA-256.
+owns the server, Fcitx5 addon and the Mejiro31 HID access rule. Both
+MejiroIME and Mejiro_Engine are public, independently pinned in `flake.lock`,
+and require neither GitHub credentials nor local checkouts. Update the two
+inputs together when the IME change requires a newer Engine. The neural
+worker starts on CPU; Vulkan may be selected explicitly after real GPU
+validation. The Zenz v3.1 small Q5_K_M model and its hash are unchanged.
 
-MejiroIME's candidate UI patch targets Fcitx 5.1.23. The daemon, classic UI,
-addon and build dependencies therefore use the existing `nixpkgs-apps` pin as
-one explicit compatibility group. The base NixOS Fcitx 5.1.19 has a different
-`InputWindow::paint` signature and cannot accept that patch. `neuralPkgs` is
-passed explicitly as well, avoiding upstream's impure platform autodetection.
+The stock Fcitx5 daemon, its standard frontend, and the MejiroIME addon use
+the same `nixpkgs-apps` pin for compatibility. The old Fcitx/GTK inline color
+patch is not used. The module also supports Language 1/2 as dedicated on/off
+keys; this follows MejiroIME's default without replacing the Fcitx profile.
 
 Do not use `desktop-vm` as a real machine configuration: its root is tmpfs.
 Do not change boot/disk/hardware configuration to the VM example.

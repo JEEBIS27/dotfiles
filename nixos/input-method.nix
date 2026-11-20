@@ -4,12 +4,14 @@
   pkgs,
   appPkgs,
   mejiroSource,
+  mejiroEngineSource,
   ...
 }:
 let
   # Keep the standard Fcitx daemon and MejiroIME addons on the same app pin.
   package = appPkgs.callPackage (mejiroSource + "/nix/package.nix") {
     neuralPkgs = appPkgs;
+    engineSource = mejiroEngineSource;
   };
   model = pkgs.fetchurl {
     url = "https://huggingface.co/Miwa-Keita/zenz-v3.1-small-gguf/resolve/ddf6e44b2e05ab7ea9a3e31559c5e7948761365c/ggml-model-Q5_K_M.gguf";
@@ -17,13 +19,6 @@ let
   };
 in
 {
-  # The published MejiroIME pin predates HID access rules. Keep access tied
-  # to the active local session; 70 sorts before systemd's seat-late rules.
-  services.udev.packages = [
-    (pkgs.writeTextDir "lib/udev/rules.d/70-mejiroime-hid.rules" ''
-      SUBSYSTEM=="hidraw", ATTRS{idVendor}=="2784", ATTRS{idProduct}=="0001", TAG+="uaccess"
-    '')
-  ];
   services.mejiroime = {
     enable = true;
     inherit package;

@@ -122,7 +122,7 @@ class NixOSInvocationTests(unittest.TestCase):
     def run_commands(self, action, update_ok=True):
         # Exercise the real invocation tail, shadowing sudo to avoid host writes.
         script = SCRIPT.with_name('nixos.sh').read_text()
-        tail = script[script.index('# Resolve private'):]
+        tail = script[script.index('work=$(mktemp -d)'):]
         mocks = r'''
 set -e
 mktemp() { echo /tmp/mock-nixos; }

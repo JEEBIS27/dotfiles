@@ -47,7 +47,7 @@ NIX
     ;;
   *) echo '使い方: bash scripts/nixos.sh {setup|build|switch|sync}' >&2; exit 2 ;;
 esac
-# Resolve private inputs as the logged-in user, whose Git helper can access op.
+# Resolve inputs as the logged-in user, without elevating Git or Nix evaluation.
 # Preserve /etc/nixos ownership: build from a private writable snapshot instead.
 work=$(mktemp -d)
 trap 'rm -rf -- "$work"' EXIT

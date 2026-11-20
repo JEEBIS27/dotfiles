@@ -13,17 +13,10 @@ Nixpkgs内部ラッパーとの重複を避けるため、これらのアプリ�
 NIXOS_OZONE_WLを解除する。通常のランチャーとNiriのアプリカタログは同じパッケージを使う。
 追加の起動引数やアプリ内設定で入力経路を上書きした場合は別途確認が必要。
 
-NixOSではMejiroIMEのGTK配色拡張を有効化し、固定版を2047fb9へ更新した（表示だけを待機するライブ変換Delayと設定GUIのコマ送りプレビューを含む）。
-Fcitxを独自パッケージで強制指定しているため、そちらにも拡張GTKを明示的に組み込む。
-GTKモジュールはFcitxパッケージに含め、GTK_PATHによるGTKのバージョン別探索を使う。
-システムとアプリは同じnixpkgsの固定リビジョンを参照し、GTK入力モジュールとGTK3キャッシュ生成時のGLibを揃える。
-GTK4専用モジュールをGIO_EXTRA_MODULESに全体設定すると、GTK3のMejiroIME設定にも
-GTK4が読み込まれて起動できなくなるため、ここには追加しない。
-配色はMejiroIMEの設定で「プレビュー連動」または「個別設定」を選択する。
-既定の「アプリ標準」では独自色を反映しない。
-
-Wayland text-input経由と、アプリがMejiroIMEの任意の配色属性を描画することは別である。
-Chromium/Electron/CEFの各アプリで任意色が描画されることは未確認。
+NixOSでは標準のFcitx5と公開版MejiroIMEのアドオンを使う。
+旧版のGTKインライン配色拡張は使わない。候補ウィンドウのテーマと、
+アプリ側のプリエディット表示は別で、後者は入力経路とアプリの対応に依存する。
+GTK入力モジュールとFcitx5は同じnixpkgsの固定リビジョンを参照する。
 TUIは実行している端末の入力経路を使う。
 
 設定の反映にはNixOSの再ビルドが必要。Home Managerだけの切替ではシステム側の
@@ -31,7 +24,7 @@ Fcitx・MejiroIMEを更新しない。適用後はログインし直し、各ア
 
 参考: https://fcitx-im.org/wiki/Using_Fcitx_5_on_Wayland/en
 
-## 検証
+## 過去の入力経路の検証（公開版への更新前）
 
 ChatGPT・Helium・Spotifyの個別ビルド、Slack・Obsidianを含むHome Managerの
 activationPackage全体、NixOS desktop-vm構成のビルドが成功。生成ラッパーから

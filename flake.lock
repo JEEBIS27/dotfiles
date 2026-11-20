@@ -97,14 +97,31 @@
         "type": "github"
       }
     },
+    "mejiro-engine": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1795147400,
+        "narHash": "sha256-WL/Oraj26NUITZg82R4iIGTXUNVLmAsdK40C+ZP8Ndk=",
+        "ref": "main",
+        "rev": "53f8699e6cbeeb8fabe62ac7b7c3bed79041e999",
+        "revCount": 42,
+        "type": "git",
+        "url": "https://github.com/JEEBIS27/Mejiro_Engine.git"
+      },
+      "original": {
+        "ref": "main",
+        "type": "git",
+        "url": "https://github.com/JEEBIS27/Mejiro_Engine.git"
+      }
+    },
     "mejiroime": {
       "flake": false,
       "locked": {
-        "lastModified": 1794623904,
-        "narHash": "sha256-AnXGcn4V7uvjtJpIYFuZPz9fPWojFvJ/FIb5NajzEqM=",
+        "lastModified": 1795156946,
+        "narHash": "sha256-Wg2DGWQjOF0BplepgbIQLEdVioLM+W53P9rtUH/sq5Q=",
         "ref": "refs/heads/main",
-        "rev": "2047fb9ad6b426cf91b325aee3a7c3a4e00107b3",
-        "revCount": 11,
+        "rev": "a79024daab242549969638b79e64ec8a922a865b",
+        "revCount": 1,
         "type": "git",
         "url": "https://github.com/JEEBIS27/MejiroIME.git"
       },
@@ -329,6 +346,7 @@
         "home-manager": "home-manager",
         "home-manager-droid": "home-manager-droid",
         "lanzaboote": "lanzaboote",
+        "mejiro-engine": "mejiro-engine",
         "mejiroime": "mejiroime",
         "nix-index-database": "nix-index-database",
         "nix-on-droid": "nix-on-droid",

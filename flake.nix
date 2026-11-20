@@ -28,6 +28,12 @@
       flake = false;
     };
 
+    # Pin the Engine too: the upstream fallback follows a moving Git branch.
+    mejiro-engine = {
+      url = "git+https://github.com/JEEBIS27/Mejiro_Engine.git?ref=main";
+      flake = false;
+    };
+
     # Keep the official Nix-on-Droid release stack separate from the PC stack.
     nixpkgs-droid.url = "github:NixOS/nixpkgs/nixos-24.05";
     home-manager-droid = {
@@ -45,6 +51,7 @@
     {
       self,
       mejiroime,
+      mejiro-engine,
       lanzaboote,
       nixpkgs,
       nixpkgs-apps,
@@ -165,6 +172,7 @@
           ./nixos/input-method.nix
         ];
         _module.args.mejiroSource = mejiroime;
+        _module.args.mejiroEngineSource = mejiro-engine;
         _module.args.appPkgs = appPkgs;
       };
       nixosModules.tpm-unlock = {
@@ -183,11 +191,8 @@
           ./nixos/desktop.nix
           ./nixos/niri.nix
           ./nixos/machine.nix
-          (mejiroime + "/nix/nixos.nix")
-          ./nixos/input-method.nix
+          self.nixosModules.input-method
         ];
-        _module.args.appPkgs = appPkgs;
-        _module.args.mejiroSource = mejiroime;
         nixpkgs.config.allowUnfreePredicate = allowUnfreePredicate;
         nix.settings.experimental-features = [
           "nix-command"
@@ -207,18 +212,13 @@
       };
       nixosConfigurations.desktop-vm = nixpkgs.lib.nixosSystem {
         inherit system;
-        specialArgs = {
-          inherit appPkgs;
-          mejiroSource = mejiroime;
-        };
         modules = [
           home-manager.nixosModules.home-manager
           self.nixosModules.tpm-unlock
           ./nixos/desktop.nix
           ./nixos/niri.nix
           ./nixos/machine.nix
-          (mejiroime + "/nix/nixos.nix")
-          ./nixos/input-method.nix
+          self.nixosModules.input-method
           ({ ... }: {
             nixpkgs.config.allowUnfreePredicate = allowUnfreePredicate;
             system.stateVersion = "26.05";
