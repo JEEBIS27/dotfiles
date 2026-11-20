@@ -162,6 +162,7 @@ edit(
     ('''            Rectangle {
                 x: sliderTrack.knobX''',
      '''            Rectangle {
+                z: 2
                 x: sliderTrack.knobX - 1
                 y: (parent.height - height) / 2 + 1
                 width: root.knobSize + 2
@@ -171,6 +172,7 @@ edit(
             }
 
             Rectangle {
+                z: 3
                 x: sliderTrack.knobX'''),
     ('                border.color: "#b8ffffff"', '                border.color: "#929298"'),
 )
