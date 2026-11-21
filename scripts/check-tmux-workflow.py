@@ -112,6 +112,24 @@ with tempfile.TemporaryDirectory(prefix='tmux-workflow-') as directory:
                 env=dict(os.environ, TMUX=f'{directory}/socket,1,0'))
         until(lambda: context('tool').strip() == 'sleep')
         assert 'nested' in context('directory'), context('directory')
+        tmux('kill-session', '-t', '=__popup_$0')
+        for key in ['M-Enter', 'M-S-Enter', 'M-n', 'M-t']:
+            tmux('select-pane', '-t', pane)
+            if key == 'M-t':
+                keys(b'\x1bt')
+                until(lambda: tmux('display-message', '-p', '-t', '=__popup_$0:', '#{pane_current_path}') == str(repo/'nested'))
+                keys(b'\x1bt')
+            else:
+                tmux('send-keys', '-K', key)
+                until(lambda: tmux('display-message', '-p', '#{pane_current_path}') == str(repo/'nested'))
+                tmux('kill-pane')
+        tmux('new-window', '-c', str(repo))
+        until(lambda: '❯' in tmux('capture-pane', '-p'))
+        tmux('send-keys', '-l', 'builtin cd nested')
+        tmux('send-keys', 'Enter')
+        until(lambda: tmux('display-message', '-p', '#{pane_path}').endswith('/nested'))
+        tmux('send-keys', '-K', 'M-Enter')
+        assert tmux('display-message', '-p', '#{pane_current_path}') == str(repo/'nested')
         print('PASS: selected-window/session rename, quoted names, Delete confirm/cancel, popup toggle, literal input, one-row status, foreground tool/cwd')
     finally:
         subprocess.run([*cmd, 'kill-server'], check=False, capture_output=True)

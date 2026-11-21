@@ -1,4 +1,7 @@
 """Local tmux status and rename helpers; never query 1Password on a timer."""
+import os
+import socket
+from urllib.parse import unquote_to_bytes, urlsplit
 import json
 import hashlib
 import shlex
@@ -62,7 +65,7 @@ def clip(text, width):
 
 def context(pane):
     path, pid, command = tmux('display-message', '-p', '-t', pane,
-                              '#{pane_current_path}\t#{pane_pid}\t#{pane_current_command}').split('\t', 2)
+                              '#{pane_current_path}\t#{pane_pid}\t#{pane_current_command}').rsplit('\t', 2)
     command, actual_path = foreground(pid, command)
     return command, actual_path or path
 
@@ -127,6 +130,16 @@ if __name__ == '__main__':
     try:
         if sys.argv[1] == 'directory':
             directory(sys.argv[2], int(sys.argv[3]))
+        elif sys.argv[1] == 'capture-cwd':
+            pane = sys.argv[2]
+            # Fish publishes OSC 7 after cd, even through script's nested PTY.
+            # Prefer that report over sampling a transient prompt subprocess.
+            report = urlsplit(tmux('display-message', '-p', '-t', pane, '#{pane_path}'))
+            path = os.fsdecode(unquote_to_bytes(report.path))
+            if not (report.scheme == 'file' and report.netloc in {'', 'localhost', socket.gethostname()}
+                    and os.path.isabs(path) and os.path.isdir(path)):
+                _, path = context(pane)
+            tmux('set-option', '-p', '-t', pane, '@jeebis-cwd', path)
         elif sys.argv[1] == 'tool':
             tool(sys.argv[2])
         elif sys.argv[1] == 'confirm-delete':

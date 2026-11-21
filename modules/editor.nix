@@ -5,6 +5,12 @@
   ...
 }:
 let
+  # portable-pty starts its child in HOME. Read the editor cwd at spawn time
+  # so :cd and both split orientations use the same directory.
+  terminalShell = appPkgs.writeShellScript "helix-terminal-fish" ''
+    cd -P -- "/proc/$HELIX_YAZI_EDITOR_PID/cwd" || exit 1
+    exec ${config.jeebis.shell.package}/bin/fish "$@"
+  '';
   steel = import ../packages/helix-steel { pkgs = appPkgs; };
 in
 {
@@ -63,7 +69,7 @@ in
   xdg.configFile."latexmk/latexmkrc".source = ../files/tex/latexmkrc;
 
   xdg.configFile."helix/init.scm".text =
-    builtins.replaceStrings [ "@fish@" ] [ "${config.jeebis.shell.package}/bin/fish" ]
+    builtins.replaceStrings [ "@fish@" ] [ (toString terminalShell) ]
       (builtins.readFile ../files/helix/steel/init.scm);
   xdg.configFile."helix/helix.scm".source = ../files/helix/steel/helix.scm;
   # Keep cogs/ writable: Steel generates its own helix/ API modules there.

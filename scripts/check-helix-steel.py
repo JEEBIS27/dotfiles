@@ -29,6 +29,7 @@ p.add_argument('--plugins', required=True)
 p.add_argument('--native', required=True)
 p.add_argument('--fish', default=shutil.which('fish'))
 p.add_argument('--yazi', default=shutil.which('yazi'))
+p.add_argument('--terminal-shell', help='Configured steel-pty shell launcher')
 a = p.parse_args()
 repo = Path(__file__).resolve().parent.parent
 with tempfile.TemporaryDirectory(prefix='helix-steel-test-') as temporary:
@@ -54,7 +55,7 @@ with tempfile.TemporaryDirectory(prefix='helix-steel-test-') as temporary:
     shutil.copy(repo/'files/fish/prompt.fish', root/'config/fish/config.fish')
     with (root/'config/fish/config.fish').open('a') as fish_config:
         fish_config.write("\nbind ctrl-escape 'command clear; commandline -f repaint'\n")
-    init = (repo/'files/helix/steel/init.scm').read_text().replace('@fish@', a.fish)
+    init = (repo/'files/helix/steel/init.scm').read_text().replace('@fish@', a.terminal_shell or a.fish)
     # Prove the last statement ran: an earlier require failure must fail the test.
     init += '\n(require (prefix-in test.hx. "helix/static.scm"))\n(define (test-only) (test.hx.wonly))\n'
     init += f"""\n(call-with-output-file "{root}/loaded" (lambda (p) (write-string "ok" p)) #:exists 'truncate)\n"""
@@ -161,6 +162,10 @@ with tempfile.TemporaryDirectory(prefix='helix-steel-test-') as temporary:
         command('notify Steel-test')
         command('moka-disable!')
         command('moka-enable!')
+        nested = root/'working directory'
+        nested.mkdir()
+        command("cd 'working directory'")
+        command('hsplit')
         command('vsplit')
         command('zoom')
         command('zoom')
@@ -188,6 +193,9 @@ with tempfile.TemporaryDirectory(prefix='helix-steel-test-') as temporary:
             for byte in packet:
                 send(bytes([byte]), .04)
             pump(1)
+        if a.terminal_shell:
+            terminal_command(b'pwd > "$HOME/terminal-cwd"\r')
+            assert (root/'terminal-cwd').read_text().rstrip('\n') == str(nested)
         terminal_command(b"set -g HELIX_TERM_TEST retained; printf 'STEEL_PTY_OK\\n'\r")
         assert 'STEEL_PTY_OK' in '\n'.join(screen.display), '\n'.join(screen.display)
         # Truecolor foreground/background and a reset after explicit colors.
@@ -222,8 +230,9 @@ with tempfile.TemporaryDirectory(prefix='helix-steel-test-') as temporary:
         floating_bounds()
         send(b'\x14', .5)
         command('kill-active-terminal')
+        command('cd ..')
         print('terminal OK: floating, Ctrl+T toggle, retained shell, truecolor/reset, resize', flush=True)
-        send(b'A unsaved\x1b')
+        send(b'i unsaved\x1b')
         os.kill(find_editor(child.pid), signal.SIGUSR1)
         pump(2)
         prompt_start = len(output)
@@ -246,7 +255,7 @@ with tempfile.TemporaryDirectory(prefix='helix-steel-test-') as temporary:
         send(b'\r', 1)
         assert 'chosen-content' in '\n'.join(screen.display), '\n'.join(screen.display)
         assert sample.read_text() == 'alpha beta gamma\nsecond line\n'
-        send(b'A saved\x1b')
+        send(b'i saved\x1b')
         send(b'\x13', .5)
         assert 'saved' in chosen.read_text(), chosen.read_text()
         # Distinct buffers on both sides prove the split direction and focus.
@@ -262,7 +271,7 @@ with tempfile.TemporaryDirectory(prefix='helix-steel-test-') as temporary:
             assert 'chosen-content' in '\n'.join(screen.display), label
             # Ctrl+H/K are the shared move-to-left/up bindings.
             send(back)
-            send(b'A split-'+label.encode()+b'\x1b')
+            send(b'i split-'+label.encode()+b'\x1b')
             send(b'\x13', .5)
             assert 'split-'+label in sample.read_text(), (label, sample.read_text())
             assert 'split-'+label not in chosen.read_text(), chosen.read_text()
