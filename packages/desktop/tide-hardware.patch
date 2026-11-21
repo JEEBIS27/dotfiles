@@ -1,0 +1,131 @@
+--- a/backend/SysBackend.cpp
++++ b/backend/SysBackend.cpp
+@@ -37,7 +37,7 @@
+       m_lyricsCurrentLyric(),
+       m_lyricsBackendStatus("idle"),
+       m_lyricsIsSynced(false),
+-      m_batteryCap(0),
++      m_batteryCap(-1),
+       m_batteryStatus("Unknown"),
+       m_upowerBatteryPath(),
+       m_hasBatteryState(false),
+@@ -137,7 +137,9 @@
+         const QString supplyPath = supplyInfo.absoluteFilePath();
+         const QString supplyType = readSysfsTextFile(supplyPath + "/type");
+
+-        if (m_batteryPath.isEmpty() && (supplyType == "Battery" || supplyName.startsWith("BAT"))) {
++        if (m_batteryPath.isEmpty() && supplyType == "Battery"
++            && readSysfsTextFile(supplyPath + "/scope") != "Device"
++            && readSysfsTextFile(supplyPath + "/present") != "0") {
+             m_batteryPath = supplyPath;
+             continue;
+         }
+@@ -243,13 +245,15 @@
+ }
+
+ void SysBackend::updateBatterySysfs() {
+-    int currentCap = m_batteryCap;
+-    QString currentStatus = m_batteryStatus;
++    int currentCap = -1;
++    QString currentStatus = QStringLiteral("Unknown");
+
+     if (!m_batteryPath.isEmpty()) {
+         QFile capFile(m_batteryPath + "/capacity");
+         if (capFile.open(QIODevice::ReadOnly)) {
+-            currentCap = capFile.readAll().trimmed().toInt();
++            bool valid = false;
++            const int measured = capFile.readAll().trimmed().toInt(&valid);
++            if (valid && measured >= 0 && measured <= 100) currentCap = measured;
+             capFile.close();
+         }
+
+@@ -260,7 +264,7 @@
+         }
+     }
+
+-    if ((currentStatus.isEmpty() || currentStatus == "Unknown") && !m_acPath.isEmpty()) {
++    if (currentCap >= 0 && (currentStatus.isEmpty() || currentStatus == "Unknown") && !m_acPath.isEmpty()) {
+         QFile acFile(m_acPath + "/online");
+         if (acFile.open(QIODevice::ReadOnly)) {
+             int isPlugged = acFile.readAll().trimmed().toInt();
+@@ -286,17 +290,32 @@
+     if (!batteryProps.isValid()) {
+         qWarning() << "[Battery] Failed to create UPower battery properties interface";
+         return;
+-    }
+-
++        updateBatterySysfs();
++    }
++
++    const QString device = QStringLiteral("org.freedesktop.UPower.Device");
++    const QDBusReply<QVariant> type = batteryProps.call("Get", device, "Type");
++    const QDBusReply<QVariant> present = batteryProps.call("Get", device, "IsPresent");
++    if (!type.isValid() || type.value().toUInt() != 2 || !present.isValid() || !present.value().toBool()) {
++        updateBatterySysfs();
++        return;
++    }
+     QDBusReply<QVariant> percentageReply = batteryProps.call("Get", "org.freedesktop.UPower.Device", "Percentage");
+     QDBusReply<QVariant> stateReply = batteryProps.call("Get", "org.freedesktop.UPower.Device", "State");
+
+     if (!percentageReply.isValid() || !stateReply.isValid()) {
+         qWarning() << "[Battery] Failed to read UPower battery properties";
+-        return;
+-    }
+-
+-    const int currentCap = qRound(percentageReply.value().toDouble());
++        updateBatterySysfs();
++        return;
++    }
++
++    bool valid = false;
++    const double measured = percentageReply.value().toDouble(&valid);
++    if (!valid || !(measured >= 0 && measured <= 100)) {
++        updateBatterySysfs();
++        return;
++    }
++    const int currentCap = qRound(measured);
+     const QString currentStatus = upowerStateToBatteryStatus(stateReply.value().toUInt());
+     updateBatteryState(currentCap, currentStatus);
+ }
+@@ -311,15 +330,17 @@
+         udev_device_unref(device);
+     }
+
+-    if (shouldRefresh) updateBatterySysfs();
++    if (shouldRefresh) {
++        detectPowerSupplyPaths();
++        if (m_upowerBatteryPath.isEmpty()) updateBatterySysfs();
++        else updateBatteryUpower();
++    }
+ }
+
+ void SysBackend::handleBatteryPropertiesChanged(const QString &interfaceName, const QVariantMap &changedProperties, const QStringList &invalidatedProperties) {
++    Q_UNUSED(changedProperties)
+     Q_UNUSED(invalidatedProperties)
+-
+     if (interfaceName != "org.freedesktop.UPower.Device") return;
+-    if (!changedProperties.contains("Percentage") && !changedProperties.contains("State")) return;
+-
+     updateBatteryUpower();
+ }
+
+--- a/backend/SystemServices.cpp
++++ b/backend/SystemServices.cpp
+@@ -819,7 +819,7 @@
+ }
+
+ void SystemServices::requestBrightness() {
+-    startCommand(QStringLiteral("brightnessctl"), {QStringLiteral("-m")}, 1000,
++    startCommand(QStringLiteral("brightnessctl"), {QStringLiteral("--class=backlight"), QStringLiteral("-m")}, 1000,
+         [this](const CommandResult &result) {
+             const QString errorText = commandErrorText(QStringLiteral("brightnessctl"), result);
+             if (!errorText.isEmpty()) {
+@@ -836,7 +836,7 @@
+ void SystemServices::setBrightness(double value) {
+     const double nextValue = std::clamp(value, 0.0, 1.0);
+     startCommand(QStringLiteral("brightnessctl"),
+-                 {QStringLiteral("set"), QStringLiteral("%1%").arg(qRound(nextValue * 100.0))},
++                 {QStringLiteral("--class=backlight"), QStringLiteral("set"), QStringLiteral("%1%").arg(qRound(nextValue * 100.0))},
+                  1000,
+                  [this, nextValue](const CommandResult &result) {
+         const QString errorText = commandErrorText(QStringLiteral("brightnessctl"), result);

@@ -26,6 +26,8 @@ let
       bluez
       power-profiles-daemon
       upower
+      glib
+      mako
       python3
       grim
       slurp
@@ -44,7 +46,7 @@ let
       jq
       wifi
     ]
-    ++ pkgs.lib.optionals withNiri [ (import ./niri.nix { inherit pkgs; }) ]
+    ++ pkgs.lib.optionals withNiri [ (import ./niri.nix { inherit pkgs; }) pkgs.gammastep ]
     ++ pkgs.lib.optionals (!withNiri) [
       pkgs.hyprland
       pkgs.hyprsunset
@@ -75,7 +77,7 @@ pkgs.stdenv.mkDerivation rec {
     qt6.qtsvg
     qt6.qtmultimedia
   ];
-  patches = [ ./desktop/tide-wifi.patch ];
+  patches = [ ./desktop/tide-wifi.patch ./desktop/tide-hardware.patch ];
   cmakeFlags = [ "-DTIDE_ISLAND_WITH_NIRI=${if withNiri then "ON" else "OFF"}" ];
   # No upstream installer, writes to /usr, or bundled test targets.
   postPatch = ''
@@ -86,16 +88,24 @@ pkgs.stdenv.mkDerivation rec {
     cp ${./desktop/LevelStatusIcon.qml} qml/common/LevelStatusIcon.qml
     ${pkgs.python3}/bin/python3 ${./desktop/tide-level-osd.py} .
     ${pkgs.python3}/bin/python3 ${./desktop/tide-motion.py} .
+    cp ${./desktop/tide-ui}/*.qml qml/island/
+    ${pkgs.python3}/bin/python3 ${./desktop/tide-activities-ui.py} .
   '';
   doCheck = false;
   dontWrapQtApps = true;
   postInstall = ''
     echo 1 > "$out/share/tide-island/network-auth-version"
+    echo 1 > "$out/share/tide-island/activity-version"
+    install -Dm644 ${./desktop/tide-origin.py} "$out/lib/tide-activity/tide_origin.py"
+    install -Dm644 ${./desktop/tide-activity.py} "$out/lib/tide-activity/main.py"
+    makeWrapper ${pkgs.python3}/bin/python3 "$out/bin/tide-activity" \
+      --add-flags "$out/lib/tide-activity/main.py" --prefix PATH : ${pkgs.lib.makeBinPath deps}
     rm -f "$out/bin/tide-island" "$out/lib/systemd/user/tide-island.service"
     makeQtWrapper ${quickshell}/bin/quickshell "$out/bin/tide-island" \
       --add-flags "-p $out/share/tide-island" \
       --prefix QML_IMPORT_PATH : "$out/lib/qt6/qml" \
       --prefix PATH : ${pkgs.lib.makeBinPath deps} \
+      --prefix PATH : "$out/bin" \
       --set QUICKSHELL_LYRICS_BACKEND "$out/share/tide-island/bin/lyricsmpris"
     wrapQtApp "$out/bin/tide-island-config-app" --prefix PATH : ${pkgs.lib.makeBinPath deps}
   '';

@@ -144,3 +144,25 @@ The isolated suite includes five additional negotiation tests: FAST-to-PEAP,
 PEAP/TTLS negotiation and idempotence, and preservation of certificate auth,
 PAP-only inner auth and PAC-bound FAST. It also compares all non-EAP properties,
 including credentials and trust settings, before and after negotiation.
+## Desktop activities
+
+The clock opens the calendar. Click or drag the left screen handle inward to see notifications. The right handle opens the existing Control Center. Its drawer contains Silent, Night, Awake, Timer, Capture, Record, Audio out and Display out. Awake uses the Wayland idle inhibitor. Display out moves the active window to the chosen connected monitor and focuses that output. Audio out also moves existing playback streams to the selected sink. Battery percentage and brightness appear when their system devices report a measurement.
+
+An unanswered question takes the main capsule. App notifications, completions and track changes appear briefly, followed by ongoing transfers, AI work, timers and recordings. Continuous music has the lowest priority. Click the body to focus the sender, the chevron to expand, or the small capsule to inspect the background activity. Notification buttons call the action supplied by the sender. The left panel keeps recent notifications and completions for the current shell session.
+
+Recording opens the Wayland screen chooser and saves through Qt Multimedia. On Niri the GNOME screen-cast portal uses the session's Fcitx module from GIO. Its service override removes the additional GTK search path that would load a second copy and abort the chooser.
+
+Tide listens for freedesktop notifications and their progress hints, Unity LauncherEntry progress and Herdr's reported agent status. Producers can also publish a job directly. Reuse its ID through completion and supply a desktop entry or compositor window ID to identify the source.
+
+```sh
+tide-activity working --id build-17 --app Editor --desktop org.gnome.TextEditor --title "Building"
+tide-activity progress --id build-17 --app Editor --desktop org.gnome.TextEditor --title "Installing" --value 48
+tide-activity done --id build-17 --app Editor --desktop org.gnome.TextEditor --title "Installation complete"
+tide-activity ask --app Editor --desktop org.gnome.TextEditor --title "Review the change" --body "What should change?" --choice "Keep it"
+```
+
+The question card follows the ChatGPT option picker. Select a suggestion, type a free response, or add a note to a selection. Submit or Ctrl+Enter sends the answer. Enter inserts a newline. Collapsing the card keeps its draft while the question is pending. The caller receives plain text for a single answer. A selection with a note returns JSON with `option` and `answer`. Skip returns `{"type":"skipped"}`. Closing the requesting process withdraws its question. The socket lives in the user's runtime directory.
+
+Home Manager adds the `tide_island` MCP server and lifecycle hooks to the local Codex configuration. In a new Codex session the `ask_user` tool accepts a question and optional choices, and returns the user's answer. Review new command hooks in Codex's hook review UI. Hooks report work and elapsed time, permission prompts, and completion. Native permission dialogs still require a decision in their source app. [Codex hooks](https://developers.openai.com/codex/hooks)
+
+Run `python3 scripts/check-tide-activities.py /path/to/tide-activity` to test the producer, reply transport and Codex configuration merge using a private runtime directory.

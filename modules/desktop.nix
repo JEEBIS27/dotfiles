@@ -336,6 +336,22 @@ in
       executable = true;
     };
     home.activation = {
+      configureTideActivities = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+        state="${config.xdg.stateHome}/jeebis-desktop"
+        run mkdir -p "$HOME/.local/bin" "$state"
+        run ln -sfnT "${tide}/bin/tide-activity" "$HOME/.local/bin/tide-activity"
+        run ${appPkgs.python3}/bin/python3 ${../scripts/tide-codex.py} "$HOME/.codex" "$HOME/.local/bin/tide-activity"
+        ${lib.optionalString (native && cfg.compositor == "niri") ''
+          run install -Dm644 ${../packages/desktop/tide-capture-portal.conf} \
+            "${config.xdg.configHome}/systemd/user/xdg-desktop-portal-gnome.service.d/65-tide-capture.conf"
+        ''}
+        if [ -f "${tide}/share/tide-island/activity-version" ] && \
+           ${pkgs.gnugrep}/bin/grep -Fxq "ExecStart=${tide}/bin/tide-island" \
+             "${config.xdg.configHome}/systemd/user/tide-island.service"; then
+          run rm -f "${config.xdg.configHome}/systemd/user/tide-island.service.d/95-jeebis-activities.conf"
+          run rm -f "$state/tide-activity-deployment"
+        fi
+      '';
       # A tested Tide package may be deployed to this user's service before a
       # full NixOS switch. Drop that temporary pin after managed units update.
       cleanupTideDeploymentOverride = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
