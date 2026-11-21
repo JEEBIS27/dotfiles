@@ -40,6 +40,7 @@ let
       exec ${pkgs.python3}/bin/python3 ${../files/tmux/status.py} "$@"
     '';
   };
+  paneFocus = import ../packages/pane-focus.nix { pkgs = appPkgs; };
   launcher = pkgs.writeShellApplication {
     name = "jeebis-terminal";
     runtimeInputs = [ appPkgs.ghostty ];
@@ -84,7 +85,11 @@ in
         cursor-style = "block";
         cursor-style-blink = false;
         shell-integration-features = "no-cursor";
-        custom-shader = "${config.xdg.configHome}/ghostty/cursor-trail.glsl";
+        window-padding-balance = true;
+        custom-shader = [
+          "${config.xdg.configHome}/ghostty/cursor-trail.glsl"
+          "${config.xdg.configHome}/ghostty/pane-focus.glsl"
+        ];
         custom-shader-animation = true;
         mouse-hide-while-typing = true;
         config-file = "?${config.jeebis.desktop.themeDirectory}/ghostty.conf";
@@ -93,6 +98,7 @@ in
         keybind = map directionBindings.render (import ../files/ghostty/keybindings.nix);
       };
     };
+    xdg.configFile."ghostty/pane-focus.glsl".source = ../files/ghostty/pane-focus.glsl;
     xdg.configFile."ghostty/cursor-trail.glsl".source = ../files/ghostty/cursor-trail.glsl;
     xdg.configFile."xdg-terminals.list".text = "com.mitchellh.ghostty.desktop\n";
     # Persistence is opt-in: plain terminal/app launches never attach a mux.
@@ -107,8 +113,8 @@ in
       plugins = [ tmuxOnePassword ];
       extraConfig =
         builtins.replaceStrings
-          [ "@fish@" "@tmux-helper@" ]
-          [ "${config.jeebis.shell.package}/bin/fish" "${tmuxStatus}/bin/jeebis-tmux-status" ]
+          [ "@fish@" "@tmux-helper@" "@pane-focus@" ]
+          [ "${config.jeebis.shell.package}/bin/fish" "${tmuxStatus}/bin/jeebis-tmux-status" "${paneFocus}/bin/jeebis-pane-focus" ]
           (directionBindings.render (builtins.readFile ../files/tmux/tmux.conf))
         + "\n"
         + import ../files/tmux/copy-keys.nix { inherit lib; };

@@ -947,3 +947,31 @@
    (t ":open-term") (T ":new-term") (s ":switch-term")
    (h ":hide-terminal") (q ":kill-active-terminal")
    (b ":moka-bufferline-enable!") (B ":moka-bufferline-disable!")))))
+
+;; Report only geometry changes. A render callback also sees mouse focus and
+;; resizes that bypass command hooks. moka owns the rows outside the editor.
+(define *jeebis-focus-geometry* #f)
+(define *jeebis-focus-port* #f)
+(when (and (path-exists? "@focus-helper@")
+           (or (equal? (env-var "TERM_PROGRAM") "ghostty")
+               (equal? (env-var "TERM") "xterm-ghostty")
+               (env-var "TMUX")))
+  (target-misc.push-component!
+    (target-ui.new-component! "jeebis-pane-focus" #f
+      (lambda (_ area _buffer)
+        (define v (motion-editor.editor-focused-buffer-area))
+        (when v
+          (define geometry
+            (list (area-width area) (area-height area)
+                  (moka-reserved-top) 1
+                  (area-x v) (area-y v) (area-width v) (area-height v)))
+          (unless (equal? geometry *jeebis-focus-geometry*)
+            (set! *jeebis-focus-geometry* geometry)
+            (with-handler (lambda (err) (log::error! (to-string err)))
+              (unless *jeebis-focus-port*
+                (set! *jeebis-focus-port* (child-stdin (Ok->value (spawn-process
+                  (with-stdin-piped (command "@focus-helper@" (list "watch"))))))))
+              (write-string (string-append (string-join (map to-string geometry) " ") "\n")
+                            *jeebis-focus-port*)
+              (flush-output-port *jeebis-focus-port*)))))
+      (hash))))

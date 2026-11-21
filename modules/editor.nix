@@ -11,6 +11,7 @@ let
     cd -P -- "/proc/$HELIX_YAZI_EDITOR_PID/cwd" || exit 1
     exec ${config.jeebis.shell.package}/bin/fish "$@"
   '';
+  paneFocus = import ../packages/pane-focus.nix { pkgs = appPkgs; };
   steel = import ../packages/helix-steel { pkgs = appPkgs; };
 in
 {
@@ -69,7 +70,7 @@ in
   xdg.configFile."latexmk/latexmkrc".source = ../files/tex/latexmkrc;
 
   xdg.configFile."helix/init.scm".text =
-    builtins.replaceStrings [ "@fish@" ] [ (toString terminalShell) ]
+    builtins.replaceStrings [ "@fish@" "@focus-helper@" ] [ (toString terminalShell) "${paneFocus}/bin/jeebis-pane-focus" ]
       (builtins.readFile ../files/helix/steel/init.scm);
   xdg.configFile."helix/helix.scm".source = ../files/helix/steel/helix.scm;
   # Keep cogs/ writable: Steel generates its own helix/ API modules there.
