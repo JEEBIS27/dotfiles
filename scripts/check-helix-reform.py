@@ -202,6 +202,30 @@ def case(name, text, actions, expected):
         e.close()
 
 
+# Left pane spans both rows. The right column has a genuine vertical neighbor.
+if not args.match or re.search(args.match, "split-focus"):
+    e = Editor("left.txt", "left\n")
+    try:
+        upper, lower = e.root / "upper.txt", e.root / "lower.txt"
+        for command, path in [(b":vsplit ", upper), (b":hsplit ", lower)]:
+            path.write_text(path.stem + "\n")
+            e.send(command + os.fsencode(path) + b"\r")
+
+        for index, (key, expected) in enumerate([
+            (b"\x1b[1;5A", upper), (b"\x1b[1;5A", e.path), (b"\x1b[1;5A", e.path),
+            (b"\x1b[1;5B", upper), (b"\x1b[1;5B", lower), (b"\x1b[1;5B", lower),
+        ]):
+            marker = str(index)
+            e.send(key)
+            e.key("i")
+            e.send(marker.encode() + b"\x1b")
+            e.save()
+            assert marker in expected.read_text(), (expected, e.view())
+        print("PASS split-focus", flush=True)
+    finally:
+        e.close()
+
+
 case("next.txt", "alpha beta gamma\n", [("k", "w"), ("k", "d")], "alpha  gamma\n")
 case(
     "prev.txt",

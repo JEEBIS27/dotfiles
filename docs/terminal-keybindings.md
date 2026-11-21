@@ -30,6 +30,8 @@ Niri + Ghostty + fish、必要に応じてtmuxまたはHerdr Appを使う。
 | Alt+/ | キー一覧 | ヘルプ |
 | Alt+B・Alt+Shift+B | 未割当て | サイドバー表示切替 |
 
+tmux・Herdr のペイン移動では上に隣がなければ左、下に隣がなければ右を選ぶ。Alt+I/K と Alt+↑/↓ は同じ動作。交換・リサイズは押した方向を使う。
+
 Herdr TUIとHerdr Appは別製品。Appの公開コマンドにはpane.resize、copy_mode、
 rename_pane、last_pane、new_worktree、edit_scrollbackがないため、架空の操作を割り当てない。
 旧Alt+Shift+方向がApp標準の「ペイン交換」にならないよう、その割当ても解除する。

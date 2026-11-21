@@ -59,6 +59,20 @@ let
       ];
     }
   );
+  focusMod = vertical: horizontal: {
+    "herdr-app/mods/focus-${vertical}/main.js".source =
+      pkgs.replaceVars ../files/herdr-app/focus-pane.js
+        {
+          inherit vertical horizontal;
+        };
+    "herdr-app/mods/focus-${vertical}/mod.json".text = builtins.toJSON {
+      place = "none";
+      overlay = {
+        width = 1;
+        height = 1;
+      };
+    };
+  };
   launcher = pkgs.writeShellApplication {
     name = "jeebis-agents";
     text = ''
@@ -67,6 +81,7 @@ let
   };
 in
 {
+  xdg.configFile = focusMod "up" "left" // focusMod "down" "right";
   home.packages = [
     app
     app.core

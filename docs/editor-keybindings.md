@@ -9,7 +9,7 @@ Altはtmux・Herdr、Ctrlは内側アプリの共通操作に使う。文字キ�
 | Ctrl+S | 保存 | 元の固有機能はCtrl+Shift+Sへ |
 | Ctrl+Shift+S（normal/select） | 選択位置をjumplistへ保存 | 元のCtrl+S。ファイル保存ではない |
 | Ctrl+Shift+S（insert） | Undoの区切りを作成 | 元のCtrl+S。ファイル保存ではない |
-| Ctrl+J/K/I/L、Ctrl+矢印 | 分割移動 | insertのCtrl+HはBackspace、Ctrl+JはEnter、Ctrl+KはCtrl+Shift+Deleteへ |
+| Ctrl+J/K/I/L、Ctrl+矢印 | 分割移動。上にビューがなければ左、下になければ右 | insertのCtrl+HはBackspace、Ctrl+JはEnter、Ctrl+KはCtrl+Shift+Deleteへ |
 | Ctrl+Enter / Ctrl+Shift+Enter | 縦 / 横分割 | 編集モードの既定割当てなし |
 | Ctrl+W | 現在のviewを閉じる | windowメニューはSpace→w。insertの単語削除はCtrl+Backspace |
 | Ctrl+N | 新規buffer | picker・補完中は標準の次候補のまま |

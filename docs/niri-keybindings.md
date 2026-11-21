@@ -21,7 +21,7 @@ Spotify, Obsidian, Nautilus, LocalSend, Zathura and btop are declared packages.
 | Add Shift to an app shortcut | Open a new window directly below the initially focused tiled window |
 | Super+Return / Super+Shift+Return | Ghostty + independent tmux session, right / below |
 | Super+Alt+Return / Super+Alt+Shift+Return | Plain Ghostty, right / below |
-| Super+J/K/I/L or arrows | Focus left/down/up/right |
+| Super+J/K/I/L or arrows | Focus left/down/up/right. Up falls back to the column on the left, down to the column on the right |
 | Add Shift | Resize by 10 percentage points; horizontal resizing compensates the adjacent column |
 | Add Ctrl | Swap left/right; reorder up/down |
 | Add Ctrl+Shift | Move column left/right; window up/down |

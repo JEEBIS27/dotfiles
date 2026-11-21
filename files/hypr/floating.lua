@@ -198,22 +198,32 @@ function M.focus_direction(direction)
         end
     end
     local candidates = #floats > 0 and floats or tiles
-    local horizontal = direction == "l" or direction == "r"
-    local sign = (direction == "r" or direction == "d") and 1 or -1
     local ax, ay = active.at.x + active.size.x / 2, active.at.y + active.size.y / 2
-    local target, score
-    for _, window in ipairs(candidates) do
-        local dx = window.at.x + window.size.x / 2 - ax
-        local dy = window.at.y + window.size.y / 2 - ay
-        local forward = sign * (horizontal and dx or dy)
-        local cross = math.abs(horizontal and dy or dx)
-        if forward > 1 then
-            local cost = forward + cross * 2
-            if not score or cost < score then target, score = window, cost end
+    local function nearest(dir)
+        local horizontal = dir == "l" or dir == "r"
+        local sign = (dir == "r" or dir == "d") and 1 or -1
+        local target, score
+        for _, window in ipairs(candidates) do
+            local dx = window.at.x + window.size.x / 2 - ax
+            local dy = window.at.y + window.size.y / 2 - ay
+            local forward = sign * (horizontal and dx or dy)
+            local cross = math.abs(horizontal and dy or dx)
+            local aligned = horizontal or cross < (active.size.x + window.size.x) / 2
+            if aligned and forward > 1 then
+                local cost = forward + cross * 2
+                if not score or cost < score then target, score = window, cost end
+            end
+        end
+        return target
+    end
+    local target = nearest(direction)
+    if not target then
+        if direction == "u" or direction == "d" then
+            target = nearest(direction == "u" and "l" or "r")
+        elseif #floats == 0 then
+            target = recent(tiles)
         end
     end
-    -- A sole float may cover the only tile; still let direction keys leave it.
-    if not target and #floats == 0 then target = recent(tiles) end
     if target then M.focus(target) end
     return true
 end

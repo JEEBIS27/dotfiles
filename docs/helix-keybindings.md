@@ -179,7 +179,7 @@ f/F 単独は次/前の指定文字まで選択するジャンプ。検索文字
 | Ctrl+F/B/D | ファイル/バッファー/変更ファイル一覧 |
 | Ctrl+P | コマンド・割当キー検索。キーで探すなら %bindings x |
 | Ctrl+/ | 行コメント切替 |
-| Ctrl+J/K/I/L、Ctrl+矢印 | ビューを左/下/上/右へ |
+| Ctrl+J/K/I/L、Ctrl+矢印 | ビューを左/下/上/右へ。上にビューがなければ左、下になければ右 |
 | Ctrl+E → h/j/k/l | ビュー交換。離した後の実キーは h/a/o/e |
 | Ctrl+Enter / Ctrl+Shift+Enter | 左右/上下分割 |
 | Ctrl+PgUp/PgDown | 前/次のバッファー |

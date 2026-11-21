@@ -47,6 +47,24 @@ def main():
                                 'M-S-Enter':'split-window -v', 'M-n':'new-window',
                                 'M-N':'new-session', 'M-Y':'copy-mode', 'M-t':'if-shell'}.items():
                 assert any(key in line.split() and action in line for line in root.splitlines()), (key, action)
+            # Execute the command from each loaded binding in a mixed layout:
+            # one pane on the left and two stacked on the right.
+            left = tmux('display-message', '-p', '#{pane_id}').strip()
+            upper = tmux('split-window', '-h', '-P', '-F', '#{pane_id}', '/bin/sh').strip()
+            lower = tmux('split-window', '-v', '-P', '-F', '#{pane_id}', '/bin/sh').strip()
+            for key, first, expected in [
+                ('M-i', lower, upper), ('M-Up', upper, left),
+                ('M-k', left, upper), ('M-Down', upper, lower),
+                ('M-i', left, left), ('M-k', lower, lower),
+            ]:
+                tmux('select-pane', '-t', first)
+                action = next(line.split(None, 4)[4] for line in root.splitlines()
+                              if line.split(None, 4)[3] == key)
+                binding = Path(directory) / "focus.conf"
+                binding.write_text(action + "\n")
+                tmux("source-file", str(binding))
+                actual = tmux('display-message', '-p', '#{pane_id}').strip()
+                assert actual == expected, (key, first, expected, actual)
             assert not any('M-P' in line.split() for line in root.splitlines())
             assert '__popup_' in root and 'detach-client' in root and 'display-popup' in root
             assert tmux('show-options', '-sv', 'escape-time').strip() == '50'
@@ -77,7 +95,8 @@ def main():
         assert keys['terminal'][key] == 'terminal'
     for key, plain, direction in zip('jkil', 'haoe', ['left','down','up','right']):
         assert f"ctrl+alt+{key}=goto_split:{direction}" in bindings
-        assert keys['global'][f'alt-{key}'] == 'pane.go:' + direction
+        focus = 'mod.open:focus-' + direction if direction in ('up', 'down') else 'pane.go:' + direction
+        assert keys['global'][f'alt-{key}'] == keys['global'][f'alt-{direction}'] == focus
         assert keys['global'][f'alt-e {plain}'] == 'pane.swap:' + direction
         assert keys['global'][f'ctrl-alt-{key}'] == 'pane.swap:' + direction
         assert keys['global'][f'ctrl-alt-{direction}'] == 'pane.swap:' + direction

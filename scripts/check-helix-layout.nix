@@ -86,7 +86,7 @@ assert
       "move_char_right"
     ];
 assert
-  rendered.keys.normal."C-k" == "jump_view_down" && rendered.keys.normal."C-i" == "jump_view_up";
+  rendered.keys.normal."C-k" == ":jeebis-view-down" && rendered.keys.normal."C-i" == ":jeebis-view-up";
 assert (render fixture "jkil" "jkil").keys.normal.h == "insert";
 assert (render fixture "jkil" "hjkl").keys.normal.i == "up";
 true

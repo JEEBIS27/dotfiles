@@ -469,3 +469,40 @@ replace_once(
 )
 
 path.write_text(source)
+
+
+# These three views navigate one-dimensional selections. Normalize only their
+# selection handlers so text editors and the clipboard history keep native keys.
+island = root / "qml/island"
+(island / "HorizontalSelection.js").write_text("""function key(event) {
+    const modified = event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier);
+    const k = event.key;
+    if (k === Qt.Key_Up || k === (modified ? Qt.Key_@mod:K@ : Qt.Key_@plain:K@)
+            || k === (modified ? Qt.Key_@mod:H@ : Qt.Key_@plain:H@))
+        return Qt.Key_Left;
+    if (k === Qt.Key_Down || k === (modified ? Qt.Key_@mod:J@ : Qt.Key_@plain:J@)
+            || k === (modified ? Qt.Key_@mod:L@ : Qt.Key_@plain:L@))
+        return Qt.Key_Right;
+    return k;
+}
+""")
+
+for name in ("WallpaperPickerLayer", "FileShelfLayer", "ClipboardLayer"):
+    path = island / (name + ".qml")
+    source = 'import "HorizontalSelection.js" as Navigation\n' + path.read_text()
+    if name == "ClipboardLayer":
+        replace_once(
+            "if (event.key === Qt.Key_Down || event.key === Qt.Key_Right) {",
+            "const key = Navigation.key(event);\n                    if (key === Qt.Key_Right) {",
+            "image preview next",
+        )
+        replace_once("event.key === Qt.Key_Up || event.key === Qt.Key_Left",
+                     "key === Qt.Key_Left", "image preview previous")
+    else:
+        guard = ("if (searchInput.activeFocus && (key === Qt.Key_Left || key === Qt.Key_Right)) return;\n        "
+                 if name == "WallpaperPickerLayer" else "")
+        replace_once("Keys.onPressed: event => {\n        switch (event.key)",
+                     "Keys.onPressed: event => {\n        const key = Navigation.key(event);\n        " + guard + "switch (key)", name)
+        replace_once("        case Qt.Key_H:\n", "", name + " left")
+        replace_once("        case Qt.Key_L:\n", "", name + " right")
+    path.write_text(source)

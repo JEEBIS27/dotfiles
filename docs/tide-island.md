@@ -42,6 +42,10 @@ shortcut again restarts the timer. Expiry leaves the normal visibility state int
 Control Center and the power menu support `Tab`/`Shift+Tab`, arrows and
 `H/A/O/E` (Graphite); activate the focused item with `Enter` or `Space`. Press `F` to show
 Vimium-style action hints. The hints are never shown merely by opening a panel.
+In the power menu, wallpaper picker, File Shelf and clipboard image preview,
+Up selects the item on the left and Down selects the item on the right.
+The same rule applies to Graphite O/A and to I/K with Ctrl, Alt or Super when
+the key reaches Tide. Typing in the wallpaper search box edits the query.
 Restart and power-off actions use a confirmation step.
 
 ## Theme and wallpaper

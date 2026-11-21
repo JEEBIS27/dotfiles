@@ -108,7 +108,7 @@ local function prepare_directional_action()
     end
 end
 
-local function has_vertical_split_neighbor(active, workspace)
+local function has_vertical_split_neighbor(active, workspace, direction)
     if not active or not workspace then
         return false
     end
@@ -130,74 +130,16 @@ local function has_vertical_split_neighbor(active, workspace)
 
             -- Treat windows as part of the same vertical split when they occupy
             -- substantially the same column and their vertical bounds do not overlap.
-            if horizontal_overlap >= min_width * 0.5 and vertical_overlap <= 1 then
+            local on_side = direction == nil
+                or (direction == "u" and other_top < active_top)
+                or (direction == "d" and other_bottom > active_bottom)
+            if on_side and horizontal_overlap >= min_width * 0.5 and vertical_overlap <= 1 then
                 return true
             end
         end
     end
 
     return false
-end
-
-local function adjacent_vertical_stack_target(active, workspace, vim_key)
-    if not active or not workspace then
-        return nil
-    end
-
-    local windows = {}
-    for _, window in ipairs(hl.get_workspace_windows(workspace.id)) do
-        if not window.floating and window.address ~= active.address then
-            table.insert(windows, window)
-        end
-    end
-
-    local active_left = active.at.x
-    local active_right = active_left + active.size.x
-    local nearest_gap = math.huge
-    local target = nil
-
-    for _, seed in ipairs(windows) do
-        local stack = { seed }
-        for _, other in ipairs(windows) do
-            if other.address ~= seed.address then
-                local overlap_x = math.min(seed.at.x + seed.size.x, other.at.x + other.size.x)
-                    - math.max(seed.at.x, other.at.x)
-                local min_width = math.min(seed.size.x, other.size.x)
-                local overlap_y = math.min(seed.at.y + seed.size.y, other.at.y + other.size.y)
-                    - math.max(seed.at.y, other.at.y)
-                if overlap_x >= min_width * 0.5 and overlap_y <= 1 then
-                    table.insert(stack, other)
-                end
-            end
-        end
-
-        if #stack >= 2 then
-            local stack_left = math.huge
-            local stack_right = -math.huge
-            local upper = seed
-            local lower = seed
-            for _, window in ipairs(stack) do
-                stack_left = math.min(stack_left, window.at.x)
-                stack_right = math.max(stack_right, window.at.x + window.size.x)
-                if window.at.y < upper.at.y then upper = window end
-                if window.at.y > lower.at.y then lower = window end
-            end
-
-            local gap
-            if stack_right <= active_left + 1 then
-                gap = active_left - stack_right
-            elseif stack_left >= active_right - 1 then
-                gap = stack_left - active_right
-            end
-
-            if gap and gap < nearest_gap then
-                nearest_gap = gap
-                target = vim_key == "K" and upper or lower
-            end
-        end
-    end
-
-    return target
 end
 
 local function direction_for(item)
@@ -216,20 +158,13 @@ local function focus_direction(item)
     if floating_controls.focus_direction(item.direction) then return end
     prepare_directional_action()
 
-    if item.vim == "J" or item.vim == "K" then
-        local active = hl.get_active_window()
-        local workspace = hl.get_active_workspace()
-        if not has_vertical_split_neighbor(active, workspace) then
-            local target = adjacent_vertical_stack_target(active, workspace, item.vim)
-            if target then
-                hl.dispatch(hl.dsp.focus({ window = target }))
-                return
-            end
+    local scrolling = is_scrolling()
+    local direction = item.direction
+    if direction == "u" or direction == "d" then
+        if not has_vertical_split_neighbor(hl.get_active_window(), hl.get_active_workspace(), direction) then
+            direction = direction == "u" and "l" or "r"
         end
     end
-
-    local scrolling = is_scrolling()
-    local direction = direction_for(item)
     if scrolling and direction ~= "u" and direction ~= "d" then
         hl.dispatch(hl.dsp.layout("focus " .. direction))
     else

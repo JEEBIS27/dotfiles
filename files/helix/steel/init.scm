@@ -17,6 +17,17 @@
 (require (prefix-in target-misc. "helix/misc.scm"))
 (require-builtin helix/core/text as target-text.)
 
+(define (jeebis-view-top)
+  (target-ui.area-y (motion-editor.editor-focused-buffer-area)))
+
+(define (jeebis-focus-view primary fallback)
+  (define before (jeebis-view-top))
+  (primary)
+  (when (= before (jeebis-view-top)) (fallback)))
+
+(define (jeebis-view-up) (jeebis-focus-view motion.jump_view_up motion.jump_view_left))
+(define (jeebis-view-down) (jeebis-focus-view motion.jump_view_down motion.jump_view_right))
+
 (define (jeebis-selection-signature)
   (list (to-string (motion-editor.editor->doc-id (motion-editor.editor-focus)))
         (map (lambda (r) (list (motion.range-anchor r) (motion.range-head r)))
