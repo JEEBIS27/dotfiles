@@ -1,7 +1,7 @@
 # fishへの移行
 
 Home Managerの共通シェルをfish 4へ移行。`modules/fish.nix`が`files/fish/`を配置する。
-OmarchyではTUIOSの新しいペイン、Helixの新しい内蔵端末からfishを使用。
+Omarchyでは端末の新しいペイン、Helixの新しい内蔵端末からfishを使用。
 NixOS / Nix-on-Droidの既定シェル定義もfishへ変更。別端末の実機適用は別途必要。
 古いZshソースは参照用に残すが、共通モジュールからは読み込まない。
 
@@ -29,7 +29,6 @@ Ghostty + fish（tmuxの各ペインを含む）で`copy-last-output`を実行�
 記録は端末ごとの権限700の一時ディレクトリに置き、シェル終了時に削除する（強制終了時は残る場合がある）。入力の専用ログは作らないが、画面に表示した内容は記録される。
 コピー時はANSI制御を解釈して表示テキストを取り出し、stdout/stderrは区別しない。TUIや複雑な画面書き換え、大量出力の完全な原文保存には使わない。
 設定反映後に開いた新しい端末から利用できる。既存の端末の過去の出力は取得できない。
-TUIOS内では従来の`capture-pane --last-command --unwrap`を使う。
 コピー/保存コマンド自体も「完了コマンド」になるため、連続呼び出しで同じ出力の保持は保証しない。
 
 ## 移行しない機能
@@ -40,12 +39,12 @@ NVMとenvmanは現在実体がないため旧読み込みを削除。uvの既存
 
 ## 確認の範囲
 
-Omarchy/NixOSのHome Managerビルド、Android構成評価、fish構文・PTYでの起動とキー処理、独立TUIOSセッションでの出力コピー/保存と上書き防止、既存check-terminal.pyが通過。
-実際のRio/TUIOS上でのフォント幅、描画崩れの長期再発、物理キー入力は別途確認が必要。
+Omarchy/NixOSのHome Managerビルド、Android構成評価、fish構文・PTYでの起動とキー処理が通過。
+実際の端末上でのフォント幅、描画崩れの長期再発、物理キー入力は別途確認が必要。
 
 Omarchyのログインシェルを切り替えるには、Home Manager適用後に`bash scripts/set-login-shell.sh`を実行する。sudo認証が必要。
 
-fishランチャーは起動前にTTYの割り込みキーをCtrl+Wへ設定し、ログインシェルを表すargv[0]も維持する。ログイン時は/etc/profileの環境をBash経由で取り込む。TUIOSとHelixはNixの絶対パスでfishを指定し、古いデーモンのPATHに依存しない。
+fishランチャーは起動前にTTYの割り込みキーをCtrl+Wへ設定し、ログインシェルを表すargv[0]も維持する。ログイン時は/etc/profileの環境をBash経由で取り込む。HelixはNixの絶対パスでfishを指定し、古いデーモンのPATHに依存しない。
 
 ## 入力中のパスの種別色
 

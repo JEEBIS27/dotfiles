@@ -701,7 +701,6 @@ end
 
 -- 上のリサイズ割り当てと重なる既定機能を別キーへ移動
 desktop.bind("SUPER + ALT + CTRL + H", "Hardware menu", desktop.command("menu", "hardware"))
-desktop.bind("SUPER + ALT + CTRL + K", "TUIOS keybindings", desktop.command("terminal", "--", "tuios", "keybinds", "browse"))
 
 -- H/J/K/L にあった既定機能を Shift 付きへ移し
 desktop.bind("SUPER + SHIFT + ALT + J", "Toggle window split", hl.dsp.layout("togglesplit"))

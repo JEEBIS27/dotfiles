@@ -2,7 +2,6 @@
 
 Niri + Ghostty + fish、必要に応じてtmuxまたはHerdr Appを使う。
 旧Hyprland環境の階層を維持する：Superはデスクトップ、Ctrl+Altは端末、Altは多重化、Ctrlは内側アプリ。
-TUIOS時代の対応表は[tuios-terminal-keybindings.md](tuios-terminal-keybindings.md)に保存した。
 
 ## tmux / Herdr App
 

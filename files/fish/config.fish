@@ -1,6 +1,6 @@
 # Record plain interactive shells. Preserve fish -i -c/-C tool launches:
 # replacing those processes here would discard their requested command.
-if status is-interactive; and not set -q JEEBIS_OUTPUT_LOG; and not set -q TUIOS_WINDOW_ID
+if status is-interactive; and not set -q JEEBIS_OUTPUT_LOG
     if command -q jeebis-recorded-fish; and test -r /proc/$fish_pid/cmdline
         set -l shell_args (string split0 < /proc/$fish_pid/cmdline)
         if not string match --quiet --regex -- '^(-[^-]*[cC]|--(init-)?command)(=|$)' $shell_args

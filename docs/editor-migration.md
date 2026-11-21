@@ -1,6 +1,6 @@
 # Helixを既定エディターにする
 
-`modules/editor.nix`の`programs.helix.defaultEditor = true`を唯一の既定定義にする。Home Managerが`EDITOR=hx` / `VISUAL=hx`を設定し、Zshの生成設定・Hyprlandの起動環境・Omarchyの標準`defaults/editor`・desktopコマンドも同じ値を参照する。YaziとTUIOSの設定エディターは標準環境変数を利用する。既存プロセスの環境変数は変わらないため、新しいRioから確認する。
+`modules/editor.nix`の`programs.helix.defaultEditor = true`を唯一の既定定義にする。Home Managerが`EDITOR=hx` / `VISUAL=hx`を設定し、Zshの生成設定・Hyprlandの起動環境・Omarchyの標準`defaults/editor`・desktopコマンドも同じ値を参照する。Yaziのエディターは標準環境変数を利用する。既存プロセスの環境変数は変わらないため、新しいRioから確認する。
 
 Steel拡張導入後の構成・操作は[Helix Steel extensions](helix-steel.md)を参照。移行当初は公式Helix 25.07.1を使用した。Neovimの設定・パッケージ・`nv`別名は代替として残す。現在は検証したSteel対応forkと拡張をNixで固定する。独自のHelix本体パッチは追加しない。
 
@@ -8,7 +8,7 @@ Steel拡張導入後の構成・操作は[Helix Steel extensions](helix-steel.md
 
 文字キーの編集モデルと見た目はHelix標準を優先する。相対行番号、scrolloff、カーソル形状、補完タイミング、ヒント表示、全言語への2スペース強制、末尾空白の一律削除、clipboardレジスターの上書きを外し、Helixの既定値とプロジェクト設定を使う。DesktopテーマとTrue Colorは共通デスクトップとの連携として残す。
 
-AltはTUIOS、Ctrlはアプリという統一ルールを維持する。標準コマンドへ共通キーを割り当て、代替キーのない固有機能は退避する。Ctrl+S保存の元機能はCtrl+Shift+S、Altの編集・選択機能はnormal/selectのSpace→mメニューへ。Backspace/Enter/PageUp/PageDownなどで代替できる操作はそちらを使う。
+Altは端末マルチプレクサ、Ctrlはアプリという統一ルールを維持する。標準コマンドへ共通キーを割り当て、代替キーのない固有機能は退避する。Ctrl+S保存の元機能はCtrl+Shift+S、Altの編集・選択機能はnormal/selectのSpace→mメニューへ。Backspace/Enter/PageUp/PageDownなどで代替できる操作はそちらを使う。
 
 [共通キー、退避先一覧、固定UIの制限、再検証手順](editor-keybindings.md)を参照。署名・hoverの候補切替とpickerの背後オープンは、本体パッチを避けるユーザー判断により未対応として記録する。
 
@@ -39,19 +39,18 @@ hx --health vue
 
 ## 引き継がないもの・制限
 
-Copilotのインライン提案は追加せず、AI操作にはTUIOSのCodexを使う。移行当初はNeovimのプラグインUIを移植しなかった。後から追加したFlash・端末・Yaziなどの対応範囲は[Steel拡張の説明](helix-steel.md)を参照。TUIOSのYaziはAlt+Y、スクラッチ端末はAlt+Tを利用する。tabpageやNeovim固有の任意リサイズは追加しない。Steelのズーム復元には制限がある。分割交換は標準コマンドで対応する。
+Copilotのインライン提案は追加せず、AI操作にはCodexを使う。移行当初はNeovimのプラグインUIを移植しなかった。後から追加したFlash・端末・Yaziなどの対応範囲は[Steel拡張の説明](helix-steel.md)を参照。tmuxのYaziはAlt+Y、スクラッチ端末はAlt+Tを利用する。tabpageやNeovim固有の任意リサイズは追加しない。Steelのズーム復元には制限がある。分割交換は標準コマンドで対応する。
 
 Neovimの保存時独自RPC（ESLint全修正など）、複数formatterの失敗時fallback、永続undo等は同等移植しない。コードアクションはSpace+aで手動選択する。GitHub Actions専用LSPは従来もパッケージ未導入で、今回も導入していない。フォーマッターやLSPは全言語の実プロジェクトで動作確認済みではない。
 
 ## 検証と実機確認
 
-確認済み: Omarchy/NixOS両方のHome Managerビルド、flake check --no-build、Zsh/Bash/Lua/Python構文、Helixの実PTY起動・入力・Ctrl+S保存、標準typescript-language-serverの診断2322/文字列補完、Vue診断/補完、端末移行の既存check-terminal.py。共通キーと退避機能はcheck-helix-keys.pyの専用PTYでも確認する。実機操作は別途確認する。
+確認済み: Omarchy/NixOS両方のHome Managerビルド、flake check --no-build、Zsh/Bash/Lua/Python構文、Helixの実PTY起動・入力・Ctrl+S保存、標準typescript-language-serverの診断2322/文字列補完、Vue診断/補完。共通キーと退避機能はcheck-helix-keys.pyの専用PTYでも確認する。実機操作は別途確認する。
 
 - 新しいRioで`printf '%s / %s\n' "$EDITOR" "$VISUAL"`が`hx / hx`になる。
-- Omarchyのエディター起動、Yaziの編集、TUIOS歯車の設定編集がHelixになる。
-- 日本語入力・保存・クリップボード、Ctrl+Enter / Ctrl+J/K/I/L / Ctrl+Shift+S / Space→mの操作、TUIOS Alt系キーの衝突を確認する。
+- Omarchyのエディター起動、Yaziの編集がHelixになる。
+- 日本語入力・保存・クリップボード、Ctrl+Enter / Ctrl+J/K/I/L / Ctrl+Shift+S / Space→mの操作、端末マルチプレクサのAlt系キーの衝突を確認する。
 - Vueプロジェクトで型エラー表示、補完、定義ジャンプ、整形を確認する。
 - テーマ変更でHelixの色も変わり、bufferが保持されることを確認する。
-- アプリ一覧にはRioだけが表示される。既定端末はパッケージの`rio.desktop`を使い、独自のRio + TUIOSエントリーは作らない。
 
-ロールバックは適用前のHome Manager世代の`activate`を使う。Neovimは`nvim` / `nv`で直ちに使用可能。リポジトリの変更はGit履歴から戻す。既存Rio/TUIOSセッションを終了したり、Git管理外の編集データを削除したりする必要はない。
+ロールバックは適用前のHome Manager世代の`activate`を使う。Neovimは`nvim` / `nv`で直ちに使用可能。リポジトリの変更はGit履歴から戻す。既存の端末セッションを終了したり、Git管理外の編集データを削除したりする必要はない。

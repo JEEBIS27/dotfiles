@@ -1,8 +1,6 @@
-# Rio renders one TUIOS client. Session ownership stays in TUIOS.
 theme = "Desktop"
 confirm-before-quit = false
 hide-cursor-when-typing = true
-scrollback-history-limit = 0
 margin = [14]
 
 # Avoid Intel GPU hangs during image preview resize in the native Vulkan backend.
@@ -10,7 +8,7 @@ margin = [14]
 backend = "Webgpu"
 
 [shell]
-program = "jeebis-tuios"
+program = "fish"
 args = []
 
 [fonts]
@@ -55,7 +53,7 @@ ime-cursor-positioning = true
 
 [bindings]
 keys = [
-  # Give application shortcuts back to TUIOS and its panes.
+  # Give application shortcuts to the foreground application.
   { key = "Space", with = "Alt|Shift", action = "ReceiveChar" },
   { key = "l", with = "Control", action = "ReceiveChar" },
   { key = "n", with = "Control|Shift", action = "ReceiveChar" },

@@ -28,7 +28,7 @@ def main():
         (root/'directory').mkdir()
         env = dict(os.environ, HOME=str(root), XDG_CONFIG_HOME=str(root/'.config'), TERM='xterm-256color')
         for name in ['fish_path_style_provider_protocol', 'fish_color_path_style_provider',
-                     'fish_color_path_style_provider_enabled', 'fish_color_path_by_type', 'TUIOS_WINDOW_ID']:
+                     'fish_color_path_style_provider_enabled', 'fish_color_path_by_type']:
             env.pop(name, None)
         fallback = ('source ' + shlex.quote(args.plugin) +
                     '; set -q fish_color_path_style_provider; and exit 1; printf STOCK_OK')

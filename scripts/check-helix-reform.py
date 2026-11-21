@@ -73,7 +73,7 @@ class Editor:
             k: v
             for k, v in os.environ.items()
             if not k.startswith(
-                ("TUIOS", "HERDR", "TMUX", "HELIX_STEEL_CONFIG", "STEEL_HOME")
+                ("HERDR", "TMUX", "HELIX_STEEL_CONFIG", "STEEL_HOME")
             )
         }
         env["TERM"] = "xterm-256color"

@@ -9,8 +9,6 @@ function __jeebis_prompt_reset
     set -g __jeebis_prompt_ready 0
     set -e __jeebis_previous_prompt_pwd
     set -e __jeebis_previous_prompt_git
-    set -e __jeebis_path_anchor
-    set -e __jeebis_git_anchor
 end
 
 function __jeebis_prompt_resize --on-signal WINCH
@@ -80,23 +78,6 @@ function __jeebis_prompt_environment_names
 end
 
 function __jeebis_prompt_refresh --on-event fish_prompt
-    # TUIOS can tell us whether the full context is still on the visible screen.
-    # Failure to inspect it is handled conservatively by printing full context.
-    if set -q TUIOS_WINDOW_ID; and begin; set -q __jeebis_path_anchor; or set -q __jeebis_git_anchor; end
-        set -l screen (command tuios capture-pane --window "$TUIOS_WINDOW_ID" --trim 2>/dev/null | string collect --allow-empty)
-        if test -z "$screen"
-            __jeebis_prompt_reset
-        else
-            if set -q __jeebis_path_anchor; and not string match --quiet --regex -- (string escape --style=regex -- "$__jeebis_path_anchor") "$screen"
-                set -e __jeebis_previous_prompt_pwd
-                set -e __jeebis_path_anchor
-            end
-            if set -q __jeebis_git_anchor; and not string match --quiet --regex -- (string escape --style=regex -- "$__jeebis_git_anchor") "$screen"
-                set -e __jeebis_previous_prompt_git
-                set -e __jeebis_git_anchor
-            end
-        end
-    end
     set -g __jeebis_prompt_time (date +%H:%M:%S)
     set -g __jeebis_prompt_pwd "$PWD"
     set -g __jeebis_prompt_path_label (__jeebis_prompt_path "$PWD" "$__jeebis_previous_prompt_pwd")
@@ -117,9 +98,6 @@ end
 function __jeebis_preexec --on-event fish_preexec
     set -g __jeebis_had_command 1
     set -g __jeebis_last_command $argv[1]
-    if set -q TUIOS_WINDOW_ID
-        printf '\e]133;C\a'
-    end
     if set -q JEEBIS_OUTPUT_TOKEN
         printf '\e]777;jeebis;%s;start\a' $JEEBIS_OUTPUT_TOKEN
     end
@@ -170,10 +148,6 @@ function __jeebis_postexec --on-event fish_postexec
     else if contains -- "$command_name" cd bd zd sd z zi cdi md / '~' - .. ... ....
         set -g __jeebis_face '≡( ⊂ ˆωˆ )⊃ '
         set -g __jeebis_color 87afaf
-    end
-    if set -q TUIOS_WINDOW_ID
-        # Keep status decoration outside the captured command-output region.
-        printf '\e]133;D;%s\a' $result
     end
     if set -q JEEBIS_OUTPUT_TOKEN
         printf '\e]777;jeebis;%s;end\a' $JEEBIS_OUTPUT_TOKEN
@@ -238,9 +212,6 @@ function fish_prompt
     if test "$__jeebis_prompt_ready" != 1; or test "$__jeebis_prompt_pwd" != "$PWD"
         __jeebis_prompt_refresh
     end
-    if set -q TUIOS_WINDOW_ID
-        printf '\e]133;A\a'
-    end
     set -l header (__jeebis_prompt_header $argv | string collect)
     printf '%s' "$header"
     if not contains -- --final-rendering $argv
@@ -259,19 +230,8 @@ function fish_prompt
     if contains -- --final-rendering $argv
         printf ' '
         # Commit context only when this prompt is actually retained in scrollback.
-        set -l git_changed 0
-        test "$__jeebis_prompt_git" != "$__jeebis_previous_prompt_git"; and set git_changed 1
         set -g __jeebis_previous_prompt_pwd "$__jeebis_prompt_pwd"
         set -g __jeebis_previous_prompt_git "$__jeebis_prompt_git"
-        if not string match --quiet --regex '^(\.|\.\.\./.*)$' -- "$__jeebis_prompt_path_label"
-            set -g __jeebis_path_anchor "$__jeebis_prompt_path_label"
-        end
-        if test -z "$__jeebis_prompt_branch"
-            set -e __jeebis_git_anchor
-        else if test $git_changed -eq 1
-            set -g __jeebis_git_anchor " $__jeebis_prompt_branch"
-            test $__jeebis_prompt_dirty -eq 1; and set -g __jeebis_git_anchor "$__jeebis_git_anchor*"
-        end
     else
         printf '\n'
         set_color $__jeebis_color
@@ -280,9 +240,6 @@ function fish_prompt
     set_color $__jeebis_color
     printf '❯ '
     set_color normal
-    if set -q TUIOS_WINDOW_ID
-        printf '\e]133;B\a'
-    end
 end
 
 function fish_right_prompt

@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-exec jeebis-terminal --app-id=org.omarchy.gh-dash -- gh-dash --config "$HOME/.config/gh-dash/config.yml" "$@"

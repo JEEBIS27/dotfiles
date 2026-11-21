@@ -213,19 +213,6 @@ let
               ]
               (directionBindings.render (builtins.readFile path))
           )
-        else if builtins.baseNameOf path == "app-bindings.lua" then
-          pkgs.writeText "jeebis-app-bindings.lua" (
-            builtins.replaceStrings
-              [
-                ''"jeebis-terminal", "rio"''
-                ''app("Codex (TUIOS)", "jeebis-codex-tuios", "org.omarchy.codex")''
-              ]
-              [
-                ''"jeebis-terminal", "com.mitchellh.ghostty"''
-                ''app("Herdr App", "jeebis-agents", "herdr-app")''
-              ]
-              (builtins.readFile path)
-          )
         else
           path;
     }) hyprFiles
@@ -342,34 +329,6 @@ in
       );
     home.file.".local/bin/jeebis-helix-reload" = {
       source = personalHelpers + /jeebis-helix-reload;
-      executable = true;
-    };
-    home.file.".local/bin/jeebis-tuios" = lib.mkIf legacy {
-      source = personalHelpers + /jeebis-tuios;
-      executable = true;
-    };
-    home.file.".local/bin/jeebis-tuios-select-tab" = lib.mkIf legacy {
-      source = personalHelpers + /jeebis-tuios-select-tab;
-      executable = true;
-    };
-    home.file.".local/bin/jeebis-tuios-edit-config" = lib.mkIf legacy {
-      source = personalHelpers + /jeebis-tuios-edit-config;
-      executable = true;
-    };
-    home.file.".local/bin/jeebis-tuios-worktree" = lib.mkIf legacy {
-      source = personalHelpers + /jeebis-tuios-worktree;
-      executable = true;
-    };
-    home.file.".local/bin/jeebis-codex-sidebar" = lib.mkIf legacy {
-      source = personalHelpers + /jeebis-codex-sidebar;
-      executable = true;
-    };
-    home.file.".local/bin/jeebis-gh-dash-tuios" = lib.mkIf legacy {
-      source = personalHelpers + /jeebis-gh-dash-tuios;
-      executable = true;
-    };
-    home.file.".local/bin/jeebis-codex-tuios" = lib.mkIf legacy {
-      source = personalHelpers + /jeebis-codex-tuios;
       executable = true;
     };
     home.file.".local/bin/jeebis-theme-cycle" = {

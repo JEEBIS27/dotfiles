@@ -117,13 +117,13 @@ function M.setup(desktop)
             .. " --new-window --class=" .. class, class, url_class)
     end
     local apps = {
-        terminal = app("Terminal", "jeebis-terminal", "rio"),
+        terminal = app("Terminal", "jeebis-terminal", "com.mitchellh.ghostty"),
         browser = app("Browser", desktop.command("browser"), "helium", "chromium", "chromium-browser"),
         activity = app("Activity (btop)", "jeebis-terminal --app-id=org.omarchy.btop -- btop", "org.omarchy.btop"),
         slides = webapp("Google Slides", "https://docs.google.com/presentation", "slides"),
         chatgpt = app("ChatGPT", o.launch("jeebis-chatgpt-new-window"), "chatgpt"),
-        codex = app("Codex (TUIOS)", "jeebis-codex-tuios", "org.omarchy.codex"),
-        github = app("GitHub (gh-dash)", "jeebis-gh-dash-tuios", "org.omarchy.gh-dash"),
+        codex = app("Herdr App", "jeebis-agents", "herdr-app"),
+        github = app("GitHub (gh-dash)", [[jeebis-terminal --app-id=org.omarchy.gh-dash -- gh-dash --config "$HOME/.config/gh-dash/config.yml"]], "org.omarchy.gh-dash"),
         sheets = webapp("Google Sheets", "https://docs.google.com/spreadsheets/", "sheets"),
         files = app("GUI file manager", o.launch("nautilus --new-window"), "org.gnome.Nautilus"),
         slack = app("Slack", o.launch("slack"), "Slack"),

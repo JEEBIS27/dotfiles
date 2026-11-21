@@ -1,6 +1,6 @@
 # Helixと統一キー
 
-AltはTUIOS、Ctrlは内側アプリの共通操作に使う。文字キーの編集モデル・LSP・整形はHelix標準を使う。公式Helix 25.07.1向けの設定で、本体パッチは追加しない。
+Altはtmux・Herdr、Ctrlは内側アプリの共通操作に使う。文字キーの編集モデル・LSP・整形はHelix標準を使う。公式Helix 25.07.1向けの設定で、本体パッチは追加しない。
 
 ## 共通操作と元機能の退避
 
@@ -53,11 +53,11 @@ normal/selectで **Space→m** を押すと候補が表示される。続けて�
 | \| / ! | shellへ選択を送る / shell出力を追記 | Alt+\| / Alt+! |
 | / | 行コメント切替 | Space→Alt+C |
 
-編集モードの元のAlt割当てはno_opにし、TUIOS専用という規則を明確にする。TUIOSやユーザー所有local.tomlは変更しない。insertの単語削除は上記Ctrl系へ退避し、それ以外の選択操作はEscでnormalに戻ってからメニューを使う。
+編集モードの元のAlt割当てはno_opにし、Altを端末マルチプレクサに渡す。insertの単語削除は上記Ctrl系へ退避し、それ以外の選択操作はEscでnormalに戻ってからメニューを使う。
 
 ## 固定UIと未対応操作
 
-picker・prompt・popupは編集モードと別のキー処理で、config.tomlだけではキー変更できない。ユーザー判断により本体パッチを避け、次の3操作はTUIOS経由では未対応として扱う。
+picker・prompt・popupは編集モードと別のキー処理で、config.tomlだけではキー変更できない。ユーザー判断により本体パッチを避け、次の3操作は端末マルチプレクサがAltを受け取る場合は未対応として扱う。
 
 - 署名ヘルプの前/次候補（Alt+P/N）
 - hoverの前/次ページ（Alt+P/N）
@@ -67,7 +67,7 @@ promptのAlt+B/F（単語移動）は既存のCtrl+左右、Alt+D（次の単語
 
 pickerのCtrl+Sは横分割で開く、Ctrl+Tはpreview切替、Ctrl+Nは次候補。promptのCtrl+Sは文書のカーソル位置の単語を入力、Ctrl+Wは直前の単語削除、Ctrl+Fは右へ1文字。編集モードの共通割当てではこれらを上書きしない。
 
-Ctrl+Shift+方向の任意リサイズ、可逆ズーム、Neovimのtabpage関連操作は同等実装できないため未割当て。Ctrl+Y/Tの埋込Yazi/端末も追加せず、TUIOSのAlt+Y/Tを使う。
+Ctrl+Shift+方向の任意リサイズ、可逆ズーム、Neovimのtabpage関連操作は同等実装できないため未割当て。Ctrl+Y/Tの埋込Yazi/端末も追加せず、tmuxのAlt+Y/Tを使う。
 
 ## 再検証
 
@@ -75,10 +75,9 @@ Ctrl+Shift+方向の任意リサイズ、可逆ズーム、Neovimのtabpage関�
 python -m venv /tmp/helix-key-tests
 /tmp/helix-key-tests/bin/pip install pyte
 /tmp/helix-key-tests/bin/python scripts/check-helix-keys.py --helix "$(command -v hx)"
-/tmp/helix-key-tests/bin/python scripts/check-helix-keys.py --helix "$(command -v hx)" --tuios "$(command -v tuios)"
 ```
 
-専用の一時HOME/XDGとPTYを使う。`--tuios`では私有daemon/sessionを作成し、終了後に私有daemonだけを停止する。保存、Undo境界、jumplist、選択反転、コピーせず削除、単語削除、分割移動、insertの行末削除、viewを閉じる操作を確認する。Shift文字はKittyのshifted Unicodeコードを使い、Ctrl+Sの単なる別名になっていないことも確認する。
+専用の一時HOME/XDGとPTYを使う。保存、Undo境界、jumplist、選択反転、コピーせず削除、単語削除、分割移動、insertの行末削除、viewを閉じる操作を確認する。Shift文字はKittyのshifted Unicodeコードを使い、Ctrl+Sの単なる別名になっていないことも確認する。
 
 実機のIME、全メニュー項目、popup、物理キー入力の受入試験は別途行う。
 

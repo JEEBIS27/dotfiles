@@ -101,9 +101,6 @@ end
 function __jeebis_yazi
     set -l tmp (mktemp -t yazi-cwd.XXXXXX); or return
     command yazi $argv --cwd-file="$tmp"
-    if set -q TUIOS_WINDOW_ID
-        command jeebis-tuios-select-tab --yazi-exited "$TUIOS_WINDOW_ID"
-    end
     set -l cwd (command cat -- "$tmp")
     command rm -f -- "$tmp"
     test -n "$cwd"; and test "$cwd" != "$PWD"; and cd -- "$cwd"
@@ -111,9 +108,7 @@ end
 
 # Read rendered output without running the command again.
 function __jeebis_last_output
-    if set -q TUIOS_WINDOW_ID
-        command tuios capture-pane --window "$TUIOS_WINDOW_ID" --last-command --unwrap
-    else if set -q JEEBIS_OUTPUT_LOG
+    if set -q JEEBIS_OUTPUT_LOG
         command jeebis-last-output
     else
         printf '出力記録が有効な新しいターミナルで実行してください。\n' >&2

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # This launcher deliberately has no compositor or multiplexer dependency.
-unset NO_COLOR JEEBIS_TUIOS_ROLE JEEBIS_TUIOS_CODEX
+unset NO_COLOR
 app_id=
 cwd=$PWD
 while [[ $# -gt 0 ]]; do

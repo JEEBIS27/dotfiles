@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-exec env JEEBIS_TUIOS_CODEX=1 jeebis-terminal --app-id=org.omarchy.codex -- codex "$@"

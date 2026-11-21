@@ -19,7 +19,7 @@ rcloneのsystemd/FUSEマウント、PCのテーマ生成とパスはAndroidに�
 
 共有するものはfishのプロンプト・関数・キー設定、CLIパッケージ定義。
 AndroidでもHelixを既定エディターにするが、公式パッケージと組み込みのKanagawaテーマを使う。
-Steel拡張・PCのHelixキー設定とLSP一式、Neovim/Yaziの独自設定、TUIOSはPC側のみ。
+Steel拡張・PCのHelixキー設定とLSP一式、Neovim/Yaziの独自設定はPC側のみ。
 AndroidのNeovim/Yaziは各パッケージの既定設定で動く。GUI起動・クリップボード連携は
 共有エイリアス中にあるが、Android側の専用連携はまだ追加していない。
 

@@ -2,7 +2,6 @@
 """Exercise unified Helix keys in private PTYs. Requires pyte in a test venv."""
 import argparse
 import fcntl
-import json
 import os
 from pathlib import Path
 import pty
@@ -27,11 +26,8 @@ class TerminalScreen(pyte.Screen):
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--helix', default=shutil.which('hx'))
 parser.add_argument('--boolswitcher', type=Path, default=Path.home()/'.local/share/jeebis-helix-steel/cogs/boolswitcher.hx')
-parser.add_argument('--tuios', help='Test through a private TUIOS daemon as well')
 a = parser.parse_args()
 assert a.helix, 'Pass --helix /path/to/hx'
-if a.tuios:
-    a.tuios = str(Path(shutil.which(a.tuios) or a.tuios).resolve())
 repo = Path(__file__).resolve().parent.parent
 config = tomllib.loads((repo/'files/helix/config.toml').read_text())
 for mode in ['normal', 'select', 'insert']:
@@ -73,21 +69,11 @@ with tempfile.TemporaryDirectory(prefix='helix-keys-') as temp:
     cogs.mkdir(parents=True)
     (cogs/'boolswitcher.hx').symlink_to(a.boolswitcher.resolve())
     (root/'runtime').mkdir(mode=0o700)
-    env = {k: v for k, v in os.environ.items() if not k.startswith(('TUIOS', 'HERDR', 'TMUX'))}
+    env = {k: v for k, v in os.environ.items() if not k.startswith(('HERDR', 'TMUX'))}
     env.update(HOME=str(root), XDG_CONFIG_HOME=str(root/'config'),
                XDG_CACHE_HOME=str(root/'cache'), XDG_RUNTIME_DIR=str(root/'runtime'),
                XDG_STATE_HOME=str(root/'state'), XDG_DATA_HOME=str(root/'data'),
                SHELL='/bin/sh', TERM='xterm-256color')
-    if a.tuios:
-        (root/'config/tuios').mkdir()
-        (root/'config/tuios/config.toml').write_text(
-            (repo/'files/tuios/config.toml').read_text().replace('preferred_shell = "@fish@"', 'preferred_shell = "/bin/sh"'))
-
-    def tuios(*arguments):
-        p = subprocess.run([a.tuios, *arguments], env=env, capture_output=True, text=True, timeout=30)
-        assert p.returncode == 0, (arguments, p.stdout, p.stderr)
-        return p.stdout
-
     class Editor:
         def __init__(self, name, text):
             self.path = root/(name+'.txt')
@@ -99,15 +85,9 @@ with tempfile.TemporaryDirectory(prefix='helix-keys-') as temp:
             self.output = b''
             self.scroll_frames = []
             command = [a.helix, str(self.path)]
-            if a.tuios:
-                tuios('new', name, '--detach')
-                first = json.loads(tuios('list-windows', '-s', name, '--json'))['windows'][0]['window_id']
-                tuios('new-window', 'helix', '-s', name, '--', *command)
-                tuios('close-window', '-s', name, first)
-                command = [a.tuios, 'attach', name]
             self.process = subprocess.Popen(command, stdin=slave, stdout=slave, stderr=slave, env=env)
             os.close(slave)
-            self.pump(2 if a.tuios else 1)
+            self.pump(1)
 
         def pump(self, duration=.15):
             deadline = time.monotonic()+duration
@@ -140,8 +120,6 @@ with tempfile.TemporaryDirectory(prefix='helix-keys-') as temp:
 
         def close(self):
             self.keys(b':quit-all!\r')
-            if a.tuios and self.process.poll() is None:
-                self.keys(b'\x1bd')
             if self.process.poll() is None:
                 self.process.terminate()
             self.process.wait(timeout=5)
@@ -437,6 +415,4 @@ with tempfile.TemporaryDirectory(prefix='helix-keys-') as temp:
                 e.process.terminate()
                 e.process.wait(timeout=5)
             os.close(e.fd)
-        if a.tuios:
-            tuios('kill-server')
 print('PASS: directional prefixes, word movement/extension, save, undo checkpoint, jumplist, selection flip, no-yank register, word deletion, split/focus, insert rescue, close')

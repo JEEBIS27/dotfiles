@@ -70,13 +70,12 @@ Lock generation only records dependencies and does not prove package builds.
    if the profile predates this migration. New profiles contain keyboard-jp and
    MejiroIME only. No other Japanese engine is installed by this profile.
 5. Herdr App palette and pinned Codex launch settings are implemented. Validate
-   agent status, window-close/reopen session persistence, and native Codex resume. Migrate TUIOS-owned Codex hooks before
-   removing TUIOS. The Niri Agent shortcut and the generated Hyprland Codex app shortcut
-   now launch Herdr App. The old TUIOS helper sources remain for recovery.
+   agent status, window-close/reopen session persistence, and native Codex resume. The Niri Agent shortcut and the generated Hyprland Codex app shortcut
+   now launch Herdr App.
 6. Move actual host configurations into the repository while keeping their
    hardware declarations separate. Replace `/etc/nixos` generated-wrapper lock
    updates with a single authoritative repository lock and explicit host routing.
-7. Legacy TUIOS, Rio and Omarchy sources remain in the repository for the
+7. Legacy Rio and Omarchy sources remain in the repository for the
    Omarchy profile, but are not deployed by Niri. Audit pre-existing mutable Codex
    hooks before agent acceptance: disabling the old activation hook does not
    remove hook entries previously written into local Codex state. App package-set

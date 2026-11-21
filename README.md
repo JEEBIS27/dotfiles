@@ -25,13 +25,13 @@ PC構成は `x86_64-linux`・ユーザー `jeebis`・リポジトリを `~/dotfi
 
 | 分類 | 主な内容 |
 |---|---|
-| シェル・CLI | Zsh、TUIOS、Sheldon、Yazi、Git、fzf、ripgrep、eza、bat、zoxide |
+| シェル・CLI | Zsh、Sheldon、Yazi、Git、fzf、ripgrep、eza、bat、zoxide |
 | エディター | Helix（既定）、共通LSP・フォーマッター、Neovim（代替） |
-| デスクトップ | Hyprland、Quickshell + Tide Island、Rio + TUIOS、固定テーマと壁紙 |
+| デスクトップ | Hyprland、Quickshell + Tide Island、Ghostty・tmux、固定テーマと壁紙 |
 | NixOS用アプリ・サービス | Helium、Nautilus、Fcitx5 / Mozkey、音声・Bluetooth・電源管理 |
 | クラウドマウント | rclone（Google Drive / OneDrive、認証は別途） |
 
-Omarchyでは既存のデスクトップ・IME本体を使用する。Rio本体はOmarchyのパッケージ管理、TUIOSはHome Managerで導入する。[パッケージ一覧](docs/managed-items.md)を参照。
+Omarchyでは既存のデスクトップ・IME本体を使用する。Rio本体はOmarchyのパッケージ管理で導入する。[パッケージ一覧](docs/managed-items.md)を参照。
 
 ## 初回の導入
 
@@ -75,7 +75,7 @@ just update-apps
 NixOSでは初回に既存のOS設定をバックアップして統合用の設定を生成し、OS全体に適用する。
 既存のNixOS flakeは上書きしない。既存flakeへの統合・復旧は[NixOS導入手順](docs/nixos-install.md)を参照。
 
-OmarchyのRio本体は `omarchy pkg add rio` で別途導入する。移行時は[検証・制限事項](docs/terminal-migration.md)も確認する。
+OmarchyのRio本体は `omarchy pkg add rio` で別途導入する。
 Androidはfish・CLIを共有し、PC用のHyprland・Quickshell・Rio・IME・クラウドマウントを読み込まない。[Android導入手順](docs/android-install.md)を参照。
 
 未対応OSはエラーで停止する。PC構成のユーザー名・配置先は現構成の前提を維持する。
@@ -87,7 +87,6 @@ Nixのインストール自体やAndroidアプリの導入は、このコマン�
 
 ## ドキュメント
 
-- [Rio + TUIOS：移行・検証・ロールバック](docs/terminal-migration.md)
 - [ターミナルキーの移行表](docs/terminal-keybindings.md)
 
 - [構成とOS別バックエンド](docs/desktop-architecture.md)

@@ -120,7 +120,7 @@ def main():
         sock.bind(str(work / 'socket'))
         env = dict(os.environ, HOME=str(home), XDG_CONFIG_HOME=str(home / '.config'),
                    TERM='xterm-256color', COLORTERM='truecolor', LC_ALL='C.UTF-8')
-        for name in ['EZA_COLORS', 'LS_COLORS', 'EXA_COLORS', 'EZA_CONFIG_DIR', 'TUIOS_WINDOW_ID']:
+        for name in ['EZA_COLORS', 'LS_COLORS', 'EXA_COLORS', 'EZA_CONFIG_DIR']:
             env.pop(name, None)
 
         def expected(name, environment=env):

@@ -1,5 +1,5 @@
 # Logical keys; modules/editor.nix applies files/helix/key-layout.nix.
-# Super: desktop. Alt: TUIOS. Ctrl: app. h/j/k/l: spatial; e/w: previous/next.
+# Super: desktop. Alt: multiplexer. Ctrl: app. h/j/k/l: spatial; e/w: previous/next.
 "theme" = "Desktop"
 
 [editor]

@@ -8,7 +8,7 @@
 
 | 分類 | パッケージ |
 |---|---|
-| シェル・ファイル操作 | fish、tuios、yazi、eza、bat、delta、dust、fzf、zoxide、ripgrep、fd |
+| シェル・ファイル操作 | fish、tmux、yazi、eza、bat、delta、dust、fzf、zoxide、ripgrep、fd |
 | 開発・通信 | git、curl、wget、just、neovim、gcc、gnumake、pkg-config |
 | アーカイブ・データ | unzip、7zz、stow、jq |
 | メディア | ffmpeg、poppler-utils、imagemagick、mediainfo、exiftool |
@@ -16,11 +16,11 @@
 
 ## PC用Codex CLI
 
-Codex CLI本体を固定済み`appPkgs.codex`から導入する。初回適用時に`CODEX_HOME`（未指定なら`~/.codex`）を作り、TUIOS連携フックを導入する。既存の設定全体を置き換えず、認証情報・会話履歴・ローカル状態はGitへ含めない。ログインは移行先で`codex`を起動して行う。Codex GUI本体は対象外。
+Codex CLI本体を固定済み`appPkgs.codex`から導入する。既存の設定全体を置き換えず、認証情報・会話履歴・ローカル状態はGitへ含めない。ログインは移行先で`codex`を起動して行う。Codex GUI本体は対象外。
 
 ## NixOS追加分
 
-- デスクトップ：Hyprland / UWSM、Quickshell + Ruixen、Rio + TUIOS、Chromium、Nautilus、HackGenフォント。
+- デスクトップ：Hyprland / UWSM、Quickshell + Ruixen、Ghostty・tmux、Chromium、Nautilus、HackGenフォント。
 - ツール：hyprland-preview-share-picker、hyprsunset、wl-clipboard、grim、slurp、libnotify、brightnessctl。
 - 入力・サービス：Fcitx5 / Mozkey、NetworkManager、Bluetooth、PipeWire、polkit、電源管理、FUSE。
 - 開発環境：Node.js、Cargo、Rust。
@@ -31,7 +31,7 @@ Codex CLI本体を固定済み`appPkgs.codex`から導入する。初回適用�
 
 ## 設定
 
-fish、TUIOS、Helix、Neovim（代替）、Yazi、bat、Rio、Hyprland、Tide Islandのシェル設定、Fcitx / Mozkey、テーマ・壁紙を`files/`に配置する。ChatGPT / Codex GUI等の本体はこの構成では導入しない。
+fish、tmux、Helix、Neovim（代替）、Yazi、bat、Rio、Hyprland、Tide Islandのシェル設定、Fcitx / Mozkey、テーマ・壁紙を`files/`に配置する。ChatGPT / Codex GUI等の本体はこの構成では導入しない。
 
 Neovim等のプラグインは各マネージャーが取得する。NixOSではMasonのPATHをappendにしてNix製の実行ファイルを優先する。`gh_actions_ls`は設定には含まれるがパッケージ未導入。
 

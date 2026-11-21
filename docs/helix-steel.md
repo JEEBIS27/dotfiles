@@ -32,7 +32,7 @@ Ctrl+Shift+Enterで上下分割して開く。ディレクトリでは中へ移�
 表示・非表示を切り替え、実行中のシェルと作業ディレクトリを保持する。
 端末からエディターへフォーカスだけ戻すにはShift+Tab。Ctrl+Escはfishの画面消去へ渡す。
 RGB色と既定色の復元は端末拡張のパッチで補正する。
-Altは引き続きTUIOSに予約する。本文のキー体系は[Helixのキー体系](helix-keybindings.md)を参照。
+Altはtmux・Herdrに割り当てる。本文のキー体系は[Helixのキー体系](helix-keybindings.md)を参照。
 Ctrl+Y/ Ctrl+TおよびCtrl+G uは、本文の編集モードから拡張を呼び出す。
 picker内などの固定UIには従来の操作が残る。
 
@@ -74,14 +74,14 @@ python scripts/check-helix-steel.py \
 Home Manager世代のビルド、`nix flake check --no-build`、Python/Lua/TOML/JSON構文が成功。
 隔離PTYで7拡張の起動、端末コマンド、ズーム、Yaziのキャンセル・特殊文字パス・
 未保存buffer保持・左右/上下分割後のフォーカスを確認した。既存の共通キーは
-直接起動と専用TUIOS daemon経由で検証した。
+直接起動で検証した。
 実際のRio画面でのIME・画像・テーマ切替は未確認。手元では次を確認する。
 
 1. `hx --version`、日本語入力、Ctrl+S、Ctrl+Shift+S、g/Gの方向移動と選択。
 2. 7つの拡張の起動・Escで戻る操作。Ctrl+Tの端末でコマンド実行とShift+Tab。
 3. Ctrl+Yで選択・複数選択・キャンセル。未保存bufferが変更されないこと。
 4. 空白・引用符・日本語を含むファイル名が正しく開くこと。
-5. Rio/TUIOS経由のYazi画像プレビュー、終了後の描画・マウス・ペースト。
+5. 端末内のYazi画像プレビュー、終了後の描画・マウス・ペースト。
 6. テーマ変更後のカーソルとステータスライン。
 7. 分割中のズームと復帰。復帰時のスクロール位置の制限を確認する。
 

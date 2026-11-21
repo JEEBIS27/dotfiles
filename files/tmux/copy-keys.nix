@@ -5,7 +5,7 @@ let
     inherit (import ../helix/key-layout.nix) directionKeys;
   };
   # Only unmodified command keys are translated; searches and jump targets
-  # remain literal, just as in Helix, Yazi and TUIOS's copy mode.
+  # remain literal, just as in Helix and Yazi.
   commands = {
     h = "cursor-left";
     j = "cursor-down";

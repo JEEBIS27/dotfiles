@@ -1,7 +1,7 @@
 # Helix のキー体系
 
 本文は「対象を選択 → 操作」。頻出の単語移動は単打を維持し、接頭辞を使う場合は「方向 → 対象」にする。
-Super はデスクトップ、Alt は TUIOS、Ctrl はアプリ共通操作。
+Super はデスクトップ、Alt は tmux・Herdr、Ctrl はアプリ共通操作。
 
 ## Graphite の実キー
 

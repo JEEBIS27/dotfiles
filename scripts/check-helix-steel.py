@@ -73,7 +73,7 @@ with tempfile.TemporaryDirectory(prefix='helix-steel-test-') as temporary:
                HELIX_STEEL_CONFIG=str(conf), STEEL_HOME=str(home), HELIX_YAZI_FILE=str(root/'runtime/yazi-state'),
                TERM='xterm-256color', PATH=str(binary)+':'+os.environ['PATH'])
     for key in list(env):
-        if key.startswith(('TUIOS', 'HERDR', 'TMUX')):
+        if key.startswith(('HERDR', 'TMUX')):
             del env[key]
     fd, slave = pty.openpty()
     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 40, 140, 0, 0))

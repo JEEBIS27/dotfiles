@@ -5,7 +5,6 @@
   ...
 }:
 let
-  directionBindings = import ../packages/direction-bindings.nix { inherit lib; };
   legacy = config.jeebis.desktop.compositor == "hyprland";
   yaziPlugins = builtins.mapAttrs (_: pin: pkgs.fetchFromGitHub pin) (
     builtins.fromJSON (builtins.readFile ../packages/yazi/sources.json)
@@ -17,28 +16,6 @@ in
     run ${pkgs.git}/bin/git config --global delta.syntax-theme Desktop
   '';
 
-  # Native TUIOS saves changes into the last writable include. Defaults stay
-  # declarative; local.toml belongs to the user and survives rebuilds.
-  home.activation.tuiosLocalConfig = lib.mkIf legacy (
-    lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-      if [ ! -e "${config.xdg.configHome}/tuios/local.toml" ]; then
-        run mkdir -p "${config.xdg.configHome}/tuios"
-        run touch "${config.xdg.configHome}/tuios/local.toml"
-      fi
-    ''
-  );
-  # Merge only TUIOS-owned hooks; keep Codex history, credentials and other
-  # integrations outside Home Manager. SessionStart records each new chat ID.
-  home.activation.tuiosCodexHooks = lib.mkIf legacy (
-    lib.hm.dag.entryAfter [ "linkGeneration" ] ''
-      # TUIOS requires this directory even before the first Codex login.
-      # Create only the local state root; do not manage auth or conversation data.
-      codex_home="''${CODEX_HOME:-${config.home.homeDirectory}/.codex}"
-      run mkdir -p -m 700 "$codex_home"
-      run ${config.home.profileDirectory}/bin/tuios integration install codex \
-        --no-skill --command "${config.home.profileDirectory}/bin/tuios"
-    ''
-  );
   xdg.configFile =
     lib.optionalAttrs legacy {
       "omarchy/extensions/omarchy-menu.jsonc".source = ../files/omarchy/extensions/omarchy-menu.jsonc;
@@ -50,37 +27,6 @@ in
 
       "rio/themes/Desktop.toml".source =
         config.lib.file.mkOutOfStoreSymlink "${config.jeebis.desktop.themeDirectory}/rio.toml";
-      "tuios/config.toml".text = "include = [\"defaults.toml\", \"?local.toml\"]\n";
-      # Client-only Codex profile: GUI project names and chats, not the file tree.
-      "tuios-codex/tuios/config.toml".text = ''
-        include = ["../../tuios/config.toml"]
-        [appearance.sidebar]
-        enabled = true
-        width = 28
-        sections = "custom"
-        [appearance.sidebar.custom]
-        title = "Chats"
-        command = "jeebis-codex-sidebar --rows"
-        refresh = "5s"
-        [appearance.sidebar.left]
-        sections = "custom"
-        [appearance.sidebar.right]
-        sections = "custom"
-      '';
-
-      "tuios/defaults.toml".text =
-        builtins.replaceStrings [ "@fish@" ] [ "${config.jeebis.shell.package}/bin/fish" ]
-          (
-            let
-              substitute = format: letters: lib.mapAttrs' (k: v: lib.nameValuePair (format k) (format v)) letters;
-              keys =
-                (substitute (k: ''+${k}"'') directionBindings.modified)
-                // (substitute (k: ''"${k}"'') directionBindings.plain);
-            in
-            builtins.replaceStrings (builtins.attrNames keys) (builtins.attrValues keys) (
-              builtins.readFile ../files/tuios/config.toml
-            )
-          );
     }
     // {
       "bat/themes/Desktop.tmTheme".source =
