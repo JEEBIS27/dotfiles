@@ -8,7 +8,7 @@
   ...
 }:
 let
-  # Keep the standard Fcitx daemon and MejiroIME addons on the same app pin.
+  # Keep the standard Fcitx daemon and Mejiro IME addons on the same app pin.
   package = appPkgs.callPackage (mejiroSource + "/nix/package.nix") {
     neuralPkgs = appPkgs;
     engineSource = mejiroEngineSource;
@@ -24,7 +24,7 @@ in
     inherit package;
     manageFcitx5 = true;
     fcitx5StartInactive = true;
-    # Let MejiroIME select Vulkan when available and fall back to CPU.
+    # Let Mejiro IME select Vulkan when available and fall back to CPU.
     neural.modelPath = "${model}";
   };
   i18n.inputMethod.package = lib.mkForce (

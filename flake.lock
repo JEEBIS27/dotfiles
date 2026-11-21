@@ -117,19 +117,19 @@
     "mejiroime": {
       "flake": false,
       "locked": {
-        "lastModified": 1795238604,
-        "narHash": "sha256-PrNo57vxwDqDU2Nd6jw9327BNNMW+UpoCfQJ8I06X20=",
+        "lastModified": 1795239390,
+        "narHash": "sha256-57fIZyLFlKf/4UrCCmEyCwb38VJCkuuQqJiNPOml8tc=",
         "ref": "develop",
-        "rev": "21438d059487e6a9c077d47150e9ffda070e2b77",
-        "revCount": 18,
+        "rev": "d31a9d8214a60bf6dc0962a49e9e3ea80d64e5c3",
+        "revCount": 19,
         "type": "git",
-        "url": "https://github.com/JEEBIS27/MejiroIME.git"
+        "url": "https://github.com/JEEBIS27/mejiro-ime.git"
       },
       "original": {
         "ref": "develop",
-        "rev": "21438d059487e6a9c077d47150e9ffda070e2b77",
+        "rev": "d31a9d8214a60bf6dc0962a49e9e3ea80d64e5c3",
         "type": "git",
-        "url": "https://github.com/JEEBIS27/MejiroIME.git"
+        "url": "https://github.com/JEEBIS27/mejiro-ime.git"
       }
     },
     "nix-formatter-pack": {

@@ -12,9 +12,9 @@
   The GUI app and herdr-core are separate fixed-version binary Nix packages.
 - Theme rendering now produces `ghostty.conf`; reload only signals Ghostty
   processes owned by the current user that already installed a reload handler.
-- NixOS owns the Fcitx daemon and MejiroIME server; Home Manager seeds a writable
+- NixOS owns the Fcitx daemon and Mejiro IME server; Home Manager seeds a writable
   Fcitx profile and installs the candidate UI metadata.
-- MejiroIME source and its Zenzai model URL/hash are pinned.
+- Mejiro IME source and its Zenzai model URL/hash are pinned.
   Herdr App 0.1.13 and core 0.1.18 use fixed official release URLs and SHA-256 hashes.
   Their own tested package/toolchain pins are explicit exceptions to shared pkgs.
 - Home Manager integrated with NixOS uses the system package set.
@@ -22,7 +22,7 @@
 ## Default NixOS profile
 
 `nixosModules.personal` now imports `nixosModules.niri`: `just switch` on an
-existing integrated NixOS installation selects Niri and MejiroIME without editing
+existing integrated NixOS installation selects Niri and Mejiro IME without editing
 `/etc/nixos/flake.nix`. Hyprland/UWSM are disabled for user sessions; SDDM uses
 an isolated Hyprland greeter for pre-login automatic rotation. Host
 boot, disks, users, stateVersion and graphics drivers remain host-owned.
@@ -33,9 +33,9 @@ helper, gtk-launch, Rio or TUIOS participates in these terminal shortcuts.
 Legacy runtime/aliases, TUIOS hooks and Rio configuration are not deployed by
 this profile. Lua sources remain in the repository for the Omarchy profile.
 
-MejiroIME is the only declared Japanese engine. Its upstream NixOS module
+Mejiro IME is the only declared Japanese engine. Its upstream NixOS module
 owns the server, Fcitx5 addon and the Mejiro31 HID access rule. Both
-MejiroIME and Mejiro_Engine are public, independently pinned in `flake.lock`,
+Mejiro IME and Mejiro_Engine are public, independently pinned in `flake.lock`,
 and require neither GitHub credentials nor local checkouts. Update the two
 inputs together when the IME change requires a newer Engine. The neural
 worker defaults to automatic Vulkan selection and falls back to CPU when
@@ -43,10 +43,10 @@ GPU execution is unavailable or fails. Set `services.mejiroime.neural.gpu = "off
 on an individual host to force CPU. The Zenz v3.1 small Q5_K_M model and its
 hash are unchanged.
 
-The stock Fcitx5 daemon, its standard frontend, and the MejiroIME addon use
+The stock Fcitx5 daemon, its standard frontend, and the Mejiro IME addon use
 the same `nixpkgs-apps` pin for compatibility. The old Fcitx/GTK inline color
 patch is not used. The module also supports Language 1/2 as dedicated on/off
-keys; this follows MejiroIME's default without replacing the Fcitx profile.
+keys; this follows Mejiro IME's default without replacing the Fcitx profile.
 
 Do not use `desktop-vm` as a real machine configuration: its root is tmpfs.
 Do not change boot/disk/hardware configuration to the VM example.
@@ -64,11 +64,11 @@ Lock generation only records dependencies and does not prove package builds.
    automatic rotation service. See `niri-keybindings.md` for mappings and limits.
 3. Check Niri login, Tide IPC, portals/screen sharing, image/video/GIF wallpaper,
    static lock wallpaper, actual locking/authentication, suspend and SDDM.
-4. On Niri, check MejiroIME in Ghostty, browser, GTK and Qt: live/neural
+4. On Niri, check Mejiro IME in Ghostty, browser, GTK and Qt: live/neural
    conversion, Mejiro input, candidate placement, focus, reconversion, logout and
-   suspend. Existing regular Fcitx profiles are preserved; select MejiroIME there
+   suspend. Existing regular Fcitx profiles are preserved; select Mejiro IME there
    if the profile predates this migration. New profiles contain keyboard-jp and
-   MejiroIME only. No other Japanese engine is installed by this profile.
+   Mejiro IME only. No other Japanese engine is installed by this profile.
 5. Herdr App palette and pinned Codex launch settings are implemented. Validate
    agent status, window-close/reopen session persistence, and native Codex resume. The Niri Agent shortcut and the generated Hyprland Codex app shortcut
    now launch Herdr App.
