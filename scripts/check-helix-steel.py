@@ -236,10 +236,25 @@ with tempfile.TemporaryDirectory(prefix='helix-steel-test-') as temporary:
         os.kill(find_editor(child.pid), signal.SIGUSR1)
         pump(2)
         prompt_start = len(output)
+        destination = root / 'visit 日本語 "quoted"'
+        destination.mkdir()
         send(b'\x19', .5)
         pump(3)
         assert b'HELIX_TEST_SHELL_PROMPT' not in output[prompt_start:], 'fish reclaimed the terminal during Yazi'
+        send(b'fvisit', .5)
+        send(b'\r', .5)
+        send(b'l', .5)
         send(b'q', 2)
+        editor_cwd = Path(f'/proc/{find_editor(child.pid)}/cwd')
+        assert editor_cwd.resolve() == destination, editor_cwd.resolve()
+        send(b'\x19', 2)
+        send(b'h', .5)
+        send(b'Q', 1)
+        assert editor_cwd.resolve() == destination
+        send(b'\x19', 2)
+        send(b'h', .5)
+        send(b'q', 1)
+        assert editor_cwd.resolve() == root, editor_cwd.resolve()
         assert 'unsaved' in '\n'.join(screen.display), '\n'.join(screen.display)
         assert sample.read_text() == 'alpha beta gamma\nsecond line\n'
         # Real Yazi chooser: only one candidate, with a deliberately awkward name.

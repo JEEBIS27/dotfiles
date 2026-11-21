@@ -24,7 +24,8 @@ Steelの可変状態は`$XDG_DATA_HOME/jeebis-helix-steel`（未指定時は
 
 Helixから開いたYaziでは、Enterで現在のviewに開き、Ctrl+Enterで左右分割、
 Ctrl+Shift+Enterで上下分割して開く。ディレクトリでは中へ移動する。
-通常のYazi起動では分割操作を追加しない。
+小文字の `q` で戻ると、表示中のディレクトリが Helix の作業ディレクトリ（`:pwd`）になる。
+次の Ctrl+Y や新しい一時ターミナルもそこから開く。大文字の `Q` は元の作業ディレクトリを保つ。
 
 端末の追加・切替・非表示・終了はCtrl+G u T / s / h / q。
 端末は画面中央に幅5/6・高さ3/4の角丸フロートで表示する。Ctrl+Tは端末内でも

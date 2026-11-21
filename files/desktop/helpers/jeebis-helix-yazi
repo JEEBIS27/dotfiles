@@ -13,12 +13,16 @@ request = start.read_text() if start.exists() else "1\n"
 mouse, _, initial = request.partition("\n")
 start.unlink(missing_ok=True)
 state.unlink(missing_ok=True)
+cwd_state = state.with_name(state.name + ".cwd")
+cwd_state.unlink(missing_ok=True)
 state.with_name(state.name + ".mode").unlink(missing_ok=True)
 try:
     with tempfile.TemporaryDirectory(prefix="helix-yazi-") as directory:
         chooser = Path(directory) / "selection"
-        args = ["@yazi@", "--chooser-file", str(chooser)]
-        if initial:
+        cwd_file = Path(directory) / "cwd"
+        args = ["@yazi@", "--chooser-file", str(chooser), "--cwd-file", str(cwd_file)]
+        # Reveal the buffer only when it belongs to the editor's current directory.
+        if initial and Path(initial).absolute().parent == Path.cwd():
             args.append(initial)
         with open("/dev/tty", "r+b", buffering=0) as tty:
             attributes = termios.tcgetattr(tty)
@@ -31,8 +35,13 @@ try:
             try:
                 result = subprocess.run(args, stdin=tty, stdout=tty, stderr=tty,
                                         env=dict(os.environ, HELIX_YAZI_CHOOSER="1", HELIX_YAZI_SELECTION=str(chooser)))
-                if result.returncode == 0 and chooser.exists():
-                    state.write_bytes(chooser.read_bytes())
+                if result.returncode == 0:
+                    if chooser.exists() and chooser.stat().st_size:
+                        state.write_bytes(chooser.read_bytes())
+                    elif cwd_file.exists():
+                        cwd = cwd_file.read_bytes()
+                        if os.path.isdir(cwd) and not os.path.samefile(cwd, "."):
+                            cwd_state.write_bytes(cwd)
             finally:
                 try:
                     # Yazi's documented Helix restoration, plus mouse tracking.
