@@ -20,9 +20,11 @@ Steelの可変状態は`$XDG_DATA_HOME/jeebis-helix-steel`（未指定時は
 | matte.hx | 分割のズームと中央寄せ | Ctrl+G u z / Ctrl+G u m |
 | notify.hx | 拡張が使う通知基盤 | `:notify メッセージ` / Ctrl+G u n（通知へ） |
 | moka.hx | ステータスライン | 有効。バッファラインはCtrl+G u bで有効、Ctrl+G u Bで無効 |
-| Yazi公式方式の連携 | ファイル選択後に同じHelixで開く | Ctrl+Y / `:yazi` |
+| Yazi chooser | ファイル選択後に同じHelixで開く | Ctrl+Y / `:yazi` |
 
-Helixから開いたYaziでは、Enterで現在のviewに開き、Ctrl+Enterで左右分割、
+Helixから開いたYaziでは、Enterで選んだファイルを現在のビューに表示する。
+元のファイルと未保存の編集は別のバッファに残り、Ctrl+B のバッファ一覧から戻れる。
+Ctrl+Enterで左右分割、
 Ctrl+Shift+Enterで上下分割して開く。ディレクトリでは中へ移動する。
 小文字の `q` で戻ると、表示中のディレクトリが Helix の作業ディレクトリ（`:pwd`）になる。
 次の Ctrl+Y や新しい一時ターミナルもそこから開く。大文字の `Q` は元の作業ディレクトリを保つ。
@@ -48,8 +50,8 @@ picker内などの固定UIには従来の操作が残る。
   各viewのジャンプリストとスクロール位置は保持されない。
 - steel-ptyは仮想端末のライブラリを内部利用する。旧ターミナルアプリや設定は追加しない。
   Yaziの画像転送をこの埋め込み端末に依存させない。
-- Yaziは専用の公開Steelプラグインが確認できなかったため、公式の
-  `:insert-output`方式を小さな連携コードで包む。常設サイドバーではない。
+- Steel は元のビューで chooser の終了を待ち、Yazi が返したファイルを開く。
+  tmux 内では chooser の間だけ拡張キーを要求し、終了時に元のキーモードに戻す。
   選択ファイルは引数として直接渡し、空白や引用符をシェルコードとして解釈しない。
   chooserの改行区切り仕様上、改行を含むファイル名は対象外。
   Terminaの入力スレッドとの競合を避けるため、Yazi表示中は呼び出し元Helixだけを

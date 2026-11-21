@@ -232,6 +232,13 @@ with tempfile.TemporaryDirectory(prefix='helix-steel-test-') as temporary:
         command('kill-active-terminal')
         command('cd ..')
         print('terminal OK: floating, Ctrl+T toggle, retained shell, truecolor/reset, resize', flush=True)
+        # Opening and canceling from a new empty split must keep that split.
+        command('test-only')
+        command('vsplit-new')
+        send(b'\x19', 2)
+        send(b'Q', 1)
+        assert '│' in screen.display[0] and 'alpha beta gamma' in screen.display[0], screen.display[0]
+        command('buffer-close')
         send(b'i unsaved\x1b')
         os.kill(find_editor(child.pid), signal.SIGUSR1)
         pump(2)
@@ -270,16 +277,20 @@ with tempfile.TemporaryDirectory(prefix='helix-steel-test-') as temporary:
         send(b'\r', 1)
         assert 'chosen-content' in '\n'.join(screen.display), '\n'.join(screen.display)
         assert sample.read_text() == 'alpha beta gamma\nsecond line\n'
+        command('buffer-previous')
+        assert 'unsaved' in '\n'.join(screen.display), 'Enter lost the original buffer'
+        command('buffer-next')
+        assert 'chosen-content' in '\n'.join(screen.display), 'Enter did not open a separate buffer'
         send(b'i saved\x1b')
         send(b'\x13', .5)
         assert 'saved' in chosen.read_text(), chosen.read_text()
         # Distinct buffers on both sides prove the split direction and focus.
-        for packet, back, label in [(b'\x1b[13;5u', b'\x08', 'vertical'),
-                                     (b'\x1b[13;6u', b'\x0b', 'horizontal')]:
+        for packet, back, label in [(b'\x1b[13;5u', b'\x1b[104;5u', 'vertical'),
+                                     (b'\x1b[13;6u', b'\x1b[107;5u', 'horizontal')]:
             command('test-only')
             command('open '+str(sample))
-            command('yazi')
-            pump(3)
+            send(b'\x19', 2)
+            assert 'original.txt' in screen.display[-1] and 'rw-' in screen.display[-1], label
             send(b'fspace', .5)
             send(b'\r', .5)
             send(packet, 1)

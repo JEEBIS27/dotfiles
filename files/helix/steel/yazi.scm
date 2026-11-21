@@ -3,8 +3,7 @@
 (require "helix/configuration.scm")
 (provide yazi)
 
-;; Follow Yazi's official :insert-output integration, using a scratch buffer
-;; so cancellation and empty output never change the user's selections/text.
+;; The chooser returns its result through files. Wait in the originating view.
 (define (yazi)
   (define state (env-var "HELIX_YAZI_FILE"))
   (define initial (editor-document->path (editor->doc-id (editor-focus))))
@@ -12,9 +11,8 @@
     (lambda (port)
       (write-string (if (get-config-option-value "mouse") "1\n" "0\n") port)
       (when (string? initial) (write-string initial port))) #:exists 'truncate)
-  (hx.new)
-  (hx.insert-output "jeebis-helix-yazi")
-  (hx.buffer-close!)
+  (define child (Ok->value (spawn-process (command "jeebis-helix-yazi" '()))))
+  (Ok->value (wait child))
   (define cwd-file (string-append state ".cwd"))
   (when (path-exists? cwd-file)
     (define cwd (call-with-input-file cwd-file read-port-to-string))

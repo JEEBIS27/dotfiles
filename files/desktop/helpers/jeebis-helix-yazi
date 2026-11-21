@@ -7,6 +7,15 @@ import subprocess
 import tempfile
 import termios
 
+def tmux_keyboard_mode():
+    pane = os.environ.get("TMUX_PANE")
+    if not pane or not os.environ.get("TMUX"):
+        return None
+    result = subprocess.run(["tmux", "display-message", "-p", "-t", pane, "#{pane_key_mode}"],
+                            capture_output=True)
+    return {b"VT10x": b"0", b"Ext 1": b"1", b"Ext 2": b"2"}.get(result.stdout.strip())
+
+
 state = Path(os.environ["HELIX_YAZI_FILE"])
 start = state.with_name(state.name + ".start")
 request = start.read_text() if start.exists() else "1\n"
@@ -31,8 +40,12 @@ try:
             editor_pid = int(os.environ["HELIX_YAZI_EDITOR_PID"])
             if editor_pid <= 1 or os.getpgid(editor_pid) != os.getpgrp():
                 raise OSError("Helix process is outside this terminal session")
+            key_mode = tmux_keyboard_mode()
             os.kill(editor_pid, signal.SIGSTOP)
             try:
+                if key_mode is not None:
+                    # tmux otherwise folds modified Enter into ordinary Return.
+                    tty.write(b"\x1b[>4;1m")
                 result = subprocess.run(args, stdin=tty, stdout=tty, stderr=tty,
                                         env=dict(os.environ, HELIX_YAZI_CHOOSER="1", HELIX_YAZI_SELECTION=str(chooser)))
                 if result.returncode == 0:
@@ -47,10 +60,11 @@ try:
                     # Yazi's documented Helix restoration, plus mouse tracking.
                     termios.tcsetattr(tty, termios.TCSANOW, attributes)
                     tty.write(b"\x1b[?1049h\x1b[?2004h")
+                    if key_mode is not None:
+                        tty.write(b"\x1b[>4;" + key_mode + b"m")
                     if mouse == "1":
                         tty.write(b"\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1015h\x1b[?1006h")
                 finally:
                     os.kill(editor_pid, signal.SIGCONT)
 except OSError as error:
-    # Keep stdout empty: :insert-output must never insert diagnostics as text.
     print(f"Yazi: {error}", file=__import__("sys").stderr)
