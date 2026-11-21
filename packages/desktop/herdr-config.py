@@ -22,6 +22,18 @@ def merge(old, owned):
     return result
 
 
+def merge_keys(old, owned):
+    result = merge(old, owned)
+    if "global" in owned:
+        # Remove only former managed exchange sequences with their original action.
+        for layout in ("hjkl", "haoe", "jkil"):
+            for letter, direction in zip(layout, ("left", "down", "up", "right")):
+                chord = f"alt-e {letter}"
+                if chord not in owned["global"] and result["global"].get(chord) == f"pane.swap:{direction}":
+                    del result["global"][chord]
+    return result
+
+
 def write_json(path, value, backup=False):
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.is_symlink():
@@ -61,7 +73,9 @@ def main():
             if name not in preferences:
                 continue
             path = args.root / (name + ".json")
-            updates.append((path, merge(read_object(path), preferences[name])))
+            current = read_object(path)
+            merger = merge_keys if name == "keys" else merge
+            updates.append((path, merger(current, preferences[name])))
     theme_path = args.root / "themes/jeebis.json"
     for path in [theme_path] + [path for path, _ in updates]:
         if path.is_symlink():

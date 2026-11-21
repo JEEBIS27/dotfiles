@@ -8,10 +8,10 @@ TUIOS時代の対応表は[tuios-terminal-keybindings.md](tuios-terminal-keybind
 
 | キー | tmux | Herdr App |
 | --- | --- | --- |
-| Alt+H/J/K/L・矢印 | ペイン移動 | ペイン移動 |
+| Alt+J/K/I/L・矢印 | ペイン移動 | ペイン移動 |
 | Alt+Shift+方向 | 5セルのリサイズ | App 0.1.13には非対応。マウスで境界をドラッグ |
-| Alt+E → H/J/K/L・矢印 | ペイン交換 | ペイン交換（GPUIのキーシーケンス） |
-| Alt+Ctrl+H/J/K/L・矢印 | 端末側の操作 | 隣接ペインとの交換（`pane.swap`） |
+| Alt+E → H/A/O/E・矢印 | ペイン交換 | ペイン交換（GPUIのキーシーケンス） |
+| Alt+Ctrl+J/K/I/L・矢印 | 端末側の操作 | 隣接ペインとの交換（`pane.swap`） |
 | Alt+Enter / Alt+Shift+Enter | 左右 / 上下分割 | 同じ |
 | Alt+W / Alt+Shift+W | ペイン / ウィンドウを閉じる | ペイン / タブを閉じる |
 | Alt+Shift+F | ペインのズーム切替 | 同じ |
@@ -53,7 +53,7 @@ Shift+矢印は内側アプリへ届く。これがHelix・Yazi・fishの共通�
 | Ctrl+Insert / Ctrl+Shift+C | コピー |
 | Shift+Insert / Ctrl+Shift+V | クリップボード貼付け |
 | Ctrl+Alt+= / - / 0 | 文字サイズ拡大 / 縮小 / リセット |
-| Ctrl+Alt+H/J/K/L・矢印 | Ghosttyの分割移動 |
+| Ctrl+Alt+J/K/I/L・矢印 | Ghosttyの分割移動 |
 | Ctrl+Alt+Shift+方向 | Ghosttyの分割リサイズ（5px。旧WezTermの5セルとは単位が違う） |
 | Ctrl+Alt+Enter / Ctrl+Alt+Shift+Enter | 左右 / 上下分割 |
 | Ctrl+Alt+Shift+F | 分割のズーム切替 |
@@ -73,8 +73,8 @@ Ghostty操作はない。Alt層のtmuxでセッション・ペイン交換・コ
 ## 内側アプリとデスクトップ
 
 Helix、Yazi、fish、Neovimのキー設定はHyprlandからの移行で変更されていない。
-Helix/Yaziの文字移動とtmuxのコピーモードは共通の`directionKeys = "haoe"`を使う。
-Ctrl/Alt/Super付き方向キーはHJKLのまま。検索文字と挿入文字は変換しない。
+方向は左・下・上・右の順に論理 `hjkl` で定義する。実キーは一打ごとに決まり、Graphite の単独・Shift のみは `haoe`、Ctrl・Alt・Super を含む方向指定は `jkil`。通常配列では `files/helix/key-layout.nix` の `directionKeys` を `"jkil"` にすると単独・Shift も同じ配置になる。
+たとえば tmux で上ペインに移るのは Alt+I、Alt+E を離して上ペインと交換するのは O。検索文字と挿入文字は入力どおりに扱う。
 
 - [Helix](helix-keybindings.md)、[共通Ctrl操作](editor-keybindings.md)
 - [Yazi](yazi-keybindings.md)、[fish](fish-migration.md)

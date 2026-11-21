@@ -5,6 +5,7 @@
   ...
 }:
 let
+  directionBindings = import ../packages/direction-bindings.nix { inherit lib; };
   legacy = config.jeebis.desktop.compositor == "hyprland";
   yaziPlugins = builtins.mapAttrs (_: pin: pkgs.fetchFromGitHub pin) (
     builtins.fromJSON (builtins.readFile ../packages/yazi/sources.json)
@@ -69,7 +70,17 @@ in
 
       "tuios/defaults.toml".text =
         builtins.replaceStrings [ "@fish@" ] [ "${config.jeebis.shell.package}/bin/fish" ]
-          (builtins.readFile ../files/tuios/config.toml);
+          (
+            let
+              substitute = format: letters: lib.mapAttrs' (k: v: lib.nameValuePair (format k) (format v)) letters;
+              keys =
+                (substitute (k: ''+${k}"'') directionBindings.modified)
+                // (substitute (k: ''"${k}"'') directionBindings.plain);
+            in
+            builtins.replaceStrings (builtins.attrNames keys) (builtins.attrValues keys) (
+              builtins.readFile ../files/tuios/config.toml
+            )
+          );
     }
     // {
       "bat/themes/Desktop.tmTheme".source =
@@ -98,7 +109,7 @@ in
         import ../packages/yazi/keymap.nix {
           inherit lib;
           settings = builtins.fromTOML (builtins.readFile ../files/yazi/keymap.toml);
-          inherit (import ../files/helix/key-layout.nix) directionKeys;
+          inherit (import ../files/helix/key-layout.nix) directionKeys modifiedDirectionKeys;
         }
       );
       "yazi/plugins/unified-actions.yazi/main.lua".source =

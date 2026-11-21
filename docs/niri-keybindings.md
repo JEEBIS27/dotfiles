@@ -21,7 +21,7 @@ Spotify, Obsidian, Nautilus, LocalSend, Zathura and btop are declared packages.
 | Add Shift to an app shortcut | Open a new window directly below the initially focused tiled window |
 | Super+Return / Super+Shift+Return | Ghostty + independent tmux session, right / below |
 | Super+Alt+Return / Super+Alt+Shift+Return | Plain Ghostty, right / below |
-| Super+HJKL or arrows | Focus left/down/up/right |
+| Super+J/K/I/L or arrows | Focus left/down/up/right |
 | Add Shift | Resize by 10 percentage points; horizontal resizing compensates the adjacent column |
 | Add Ctrl | Swap left/right; reorder up/down |
 | Add Ctrl+Shift | Move column left/right; window up/down |
@@ -41,7 +41,7 @@ Spotify, Obsidian, Nautilus, LocalSend, Zathura and btop are declared packages.
 | Super+Ctrl+D / Super+Ctrl+W | Tide calendar / weather |
 | Super+Ctrl+Space | Tide wallpaper picker |
 | Super+N | Tide notification center |
-| Super+I / Super+Shift+I | Temporarily reveal / toggle Tide Island |
+| Super+H / Super+Shift+H | Temporarily reveal / toggle Tide Island |
 | Super+Alt+T | Cycle shared theme |
 | Super+Shift+F / Super+Ctrl+F | Search keybindings / search and focus open windows |
 | Super+R | Cycle preset column widths |
@@ -53,7 +53,7 @@ Spotify, Obsidian, Nautilus, LocalSend, Zathura and btop are declared packages.
 | Super+Ctrl+Escape | Tide power menu (shutdown/reboot/suspend/logout) |
 
 Control Center and the power menu accept `Tab`/`Shift+Tab`, arrows, or
-`H/J/K/L` for focus movement, and `Enter`/`Space` for activation. Press `F` to
+`H/A/O/E` (Graphite) for focus movement, and `Enter`/`Space` for activation. Press `F` to
 show Vimium-style direct-action hints; hints stay hidden until requested.
 Restart and power-off actions require `Enter` confirmation.
 

@@ -1,6 +1,6 @@
 # Yazi キーバインド
 
-Helix と同じ `files/helix/key-layout.nix` の設定で論理キーを変換する。Ctrl/Alt/Super を含むキーは QWERTY のまま。入力する文字列は変換しない。
+Helix と同じ `files/helix/key-layout.nix` の設定で論理キーを変換する。単独・Shift のみの方向指定は h/a/o/e。一覧の Ctrl+J/K/I/L は親・下・上・入る、補完候補の Alt+K/I は下・上。入力する文字列は変換しない。
 
 以下は現在の Graphite（hjkl → haoe）で押すキー。
 

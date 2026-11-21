@@ -72,19 +72,19 @@ end
 
 local directions = {
     {
-        key = "LEFT", vim = "H", direction = "l", scroll_direction = "l",
+        key = "LEFT", vim = "H", plain = "@plain:H@", modified = "@mod:H@", direction = "l", scroll_direction = "l",
         resize = { x = -RESIZE_STEP }, scroll_resize = { x = -RESIZE_STEP },
     },
     {
-        key = "DOWN", vim = "J", direction = "d", scroll_direction = "l",
+        key = "DOWN", vim = "J", plain = "@plain:J@", modified = "@mod:J@", direction = "d", scroll_direction = "l",
         resize = { y = RESIZE_STEP }, scroll_resize = { x = -RESIZE_STEP },
     },
     {
-        key = "UP", vim = "K", direction = "u", scroll_direction = "r",
+        key = "UP", vim = "K", plain = "@plain:K@", modified = "@mod:K@", direction = "u", scroll_direction = "r",
         resize = { y = -RESIZE_STEP }, scroll_resize = { x = RESIZE_STEP },
     },
     {
-        key = "RIGHT", vim = "L", direction = "r", scroll_direction = "r",
+        key = "RIGHT", vim = "L", plain = "@plain:L@", modified = "@mod:L@", direction = "r", scroll_direction = "r",
         resize = { x = RESIZE_STEP }, scroll_resize = { x = RESIZE_STEP },
     },
 }
@@ -665,29 +665,29 @@ hl.unbind("SUPER + ALT + SHIFT + F")
 for _, item in ipairs(directions) do
     -- SUPER + 矢印、および SUPER + H/J/K/L: フォーカス移動
     hl.unbind("SUPER + " .. item.key)
-    hl.unbind("SUPER + " .. item.vim)
+    hl.unbind("SUPER + " .. item.modified)
     desktop.bind("SUPER + " .. item.key, nil, function() focus_direction(item) end)
-    desktop.bind("SUPER + " .. item.vim, nil, function() focus_direction(item) end)
+    desktop.bind("SUPER + " .. item.modified, nil, function() focus_direction(item) end)
 
     -- SUPER + SHIFT + 矢印/HJKL: リサイズ
     hl.unbind("SUPER + SHIFT + " .. item.key)
-    hl.unbind("SUPER + SHIFT + " .. item.vim)
+    hl.unbind("SUPER + SHIFT + " .. item.modified)
     desktop.bind("SUPER + SHIFT + " .. item.key, "Resize window", function() resize(item) end)
-    desktop.bind("SUPER + SHIFT + " .. item.vim, "Resize window", function() resize(item) end)
+    desktop.bind("SUPER + SHIFT + " .. item.modified, "Resize window", function() resize(item) end)
 
     -- SUPER + SHIFT + CTRL + 矢印/HJKL: ウィンドウをMove
     local move_key = "SUPER + SHIFT + CTRL + "
     local move_key_alt_order = "SUPER + CTRL + SHIFT + "
     hl.unbind(move_key .. item.key)
     hl.unbind(move_key_alt_order .. item.key)
-    hl.unbind(move_key .. item.vim)
-    hl.unbind(move_key_alt_order .. item.vim)
+    hl.unbind(move_key .. item.modified)
+    hl.unbind(move_key_alt_order .. item.modified)
     desktop.bind(move_key .. item.key, "Move window", function() move_direction(item) end)
-    desktop.bind(move_key .. item.vim, "Move window", function() move_direction(item) end)
+    desktop.bind(move_key .. item.modified, "Move window", function() move_direction(item) end)
 
     -- SUPER + CTRL + H/J/K/L: Swap (Shift is reserved for resize)
-    hl.unbind("SUPER + CTRL + " .. item.vim)
-    desktop.bind("SUPER + CTRL + " .. item.vim, nil, function()
+    hl.unbind("SUPER + CTRL + " .. item.modified)
+    desktop.bind("SUPER + CTRL + " .. item.modified, nil, function()
         swap_direction(item)
     end)
 
@@ -768,7 +768,6 @@ hl.unbind("SUPER + N")
 hl.unbind("SUPER + ALT + RETURN")
 hl.unbind("SUPER + CTRL + RETURN")
 hl.unbind("SUPER + ALT + K")
-hl.unbind("SUPER + CTRL + K")
 -- Keep application and monitor switching in the desktop's Super namespace.
 for _, binding in ipairs({
     { "SUPER + PAGE_UP", "Previous workspace", "e-1" },
@@ -823,10 +822,10 @@ hl.define_submap("exchange", function()
             hl.dispatch(hl.dsp.submap("reset"))
             swap_direction(item)
         end
-        for _, key in ipairs({ item.vim, item.key }) do
-            hl.bind(key, exchange_once)
-            hl.bind("SUPER + " .. key, exchange_once)
-        end
+        hl.bind(item.plain, exchange_once)
+        hl.bind(item.key, exchange_once)
+        hl.bind("SUPER + " .. item.modified, exchange_once)
+        hl.bind("SUPER + " .. item.key, exchange_once)
     end
     hl.bind("escape", hl.dsp.submap("reset"))
     hl.bind("catchall", hl.dsp.submap("reset"))

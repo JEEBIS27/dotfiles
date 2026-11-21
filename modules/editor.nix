@@ -22,7 +22,7 @@ in
     settings = import ../packages/helix-steel/keymap.nix {
       inherit lib;
       settings = builtins.fromTOML (builtins.readFile ../files/helix/config.toml);
-      inherit (import ../files/helix/key-layout.nix) directionKeys;
+      inherit (import ../files/helix/key-layout.nix) directionKeys modifiedDirectionKeys;
     };
     languages =
       let

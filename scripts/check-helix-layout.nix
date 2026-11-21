@@ -2,9 +2,17 @@
 let
   source = builtins.fromTOML (builtins.readFile ../files/helix/config.toml);
   render =
-    settings: directionKeys:
-    import ../packages/helix-steel/keymap.nix { inherit lib settings directionKeys; };
-  rendered = render source (import ../files/helix/key-layout.nix).directionKeys;
+    settings: directionKeys: modifiedDirectionKeys:
+    import ../packages/helix-steel/keymap.nix {
+      inherit
+        lib
+        settings
+        directionKeys
+        modifiedDirectionKeys
+        ;
+    };
+  layout = import ../files/helix/key-layout.nix;
+  rendered = render source layout.directionKeys layout.modifiedDirectionKeys;
   fixture.editor.cursorline = true;
   fixture.keys.normal = {
     h = "left";
@@ -16,6 +24,7 @@ let
     k = "up";
     l = "right";
     a = "append";
+    i = "insert";
     o = "open";
     e = "end";
     J = "extend-down";
@@ -29,7 +38,7 @@ let
       "C-j" = "modified-swap-down";
     };
   };
-  mapped = (render fixture "haoe").keys.normal;
+  mapped = (render fixture "haoe" "jkil").keys.normal;
 in
 assert
   mapped.a == "down"
@@ -38,26 +47,46 @@ assert
   && mapped.k == "open"
   && mapped.e == "right"
   && mapped.l == "end";
-assert (render fixture "haoe").editor == fixture.editor;
+assert (render fixture "haoe" "jkil").editor == fixture.editor;
 assert mapped.z == fixture.keys.normal.z;
-assert rendered.keys.normal.j == source.keys.normal.a && rendered.keys.normal.k == "open_below";
-assert rendered.keys.normal.l == ":jeebis-word-prev";
+assert
+  rendered.keys.normal.j == source.keys.normal.a && rendered.keys.normal.k == source.keys.normal.o;
+assert
+  rendered.keys.normal.l == [
+    ":jeebis-before-motion"
+    ":jeebis-word-prev"
+  ];
 assert mapped.A == "extend-down" && mapped."S-a" == "shift-down";
 assert
-  mapped."C-j" == "view-down"
-  && mapped."C-S-j" == "shift-view-down"
-  && mapped."A-j" == "alt-down"
-  && mapped."Meta-j" == "meta-down";
-assert mapped."C-e".a == "swap-down" && mapped."C-e"."C-j" == "modified-swap-down";
-assert (render fixture "hjkl") == fixture;
-assert (render fixture "jklh").keys.normal.j == "left";
+  mapped."C-k" == "view-down"
+  && mapped."C-S-k" == "shift-view-down"
+  && mapped."A-k" == "alt-down"
+  && mapped."Meta-k" == "meta-down";
+assert mapped."C-e".a == "swap-down" && mapped."C-e"."C-k" == "modified-swap-down";
+assert (render fixture "hjkl" "hjkl") == fixture;
+assert (render fixture "jklh" "hjkl").keys.normal.j == "left";
 assert
-  (render fixture "jaoe").keys.normal.a == "down"
-  && (render fixture "jaoe").keys.normal.h == "append";
+  (render fixture "jaoe" "hjkl").keys.normal.a == "down"
+  && (render fixture "jaoe" "hjkl").keys.normal.h == "append";
 assert rendered.keys.normal.space == "command_mode";
+assert rendered.keys.normal."A-i" == "no_op" && !(rendered.keys.normal ? "A-h");
 assert
-  rendered.keys.normal.a == "move_visual_line_down"
-  && rendered.keys.normal.o == "move_visual_line_up"
-  && rendered.keys.normal.e == "move_char_right";
-assert rendered.keys.normal."C-j" == "jump_view_down";
+  rendered.keys.normal.a == [
+    ":jeebis-before-motion"
+    "move_visual_line_down"
+  ]
+  &&
+    rendered.keys.normal.o == [
+      ":jeebis-before-motion"
+      "move_visual_line_up"
+    ]
+  &&
+    rendered.keys.normal.e == [
+      ":jeebis-before-motion"
+      "move_char_right"
+    ];
+assert
+  rendered.keys.normal."C-k" == "jump_view_down" && rendered.keys.normal."C-i" == "jump_view_up";
+assert (render fixture "jkil" "jkil").keys.normal.h == "insert";
+assert (render fixture "jkil" "hjkl").keys.normal.i == "up";
 true

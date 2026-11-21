@@ -9,7 +9,7 @@ AltはTUIOS、Ctrlは内側アプリの共通操作に使う。文字キーの�
 | Ctrl+S | 保存 | 元の固有機能はCtrl+Shift+Sへ |
 | Ctrl+Shift+S（normal/select） | 選択位置をjumplistへ保存 | 元のCtrl+S。ファイル保存ではない |
 | Ctrl+Shift+S（insert） | Undoの区切りを作成 | 元のCtrl+S。ファイル保存ではない |
-| Ctrl+H/J/K/L、Ctrl+矢印 | 分割移動 | insertのCtrl+HはBackspace、Ctrl+JはEnter、Ctrl+KはCtrl+Shift+Deleteへ |
+| Ctrl+J/K/I/L、Ctrl+矢印 | 分割移動 | insertのCtrl+HはBackspace、Ctrl+JはEnter、Ctrl+KはCtrl+Shift+Deleteへ |
 | Ctrl+Enter / Ctrl+Shift+Enter | 縦 / 横分割 | 編集モードの既定割当てなし |
 | Ctrl+W | 現在のviewを閉じる | windowメニューはSpace→w。insertの単語削除はCtrl+Backspace |
 | Ctrl+N | 新規buffer | picker・補完中は標準の次候補のまま |
@@ -18,7 +18,7 @@ AltはTUIOS、Ctrlは内側アプリの共通操作に使う。文字キーの�
 | Ctrl+B | buffer一覧 | 1ページ上移動はPageUp |
 | Ctrl+D（normal/select） | Git変更ファイル一覧 | 半ページ下移動はz→Space、またはz→Ctrl+D。NeovimのGit差分UIとは異なる |
 | Ctrl+PageUp / Ctrl+PageDown | 前 / 次buffer | Neovimのtabpageではない |
-| Ctrl+E→H/J/K/L、矢印 | view交換 | 標準の交換コマンドを利用 |
+| Ctrl+E→H/A/O/E、矢印 | view交換 | 標準の交換コマンドを利用 |
 | Ctrl+Backspace（insert） | 直前の単語を削除 | 元のCtrl+W / Alt+Backspace |
 | Ctrl+Delete（insert） | 次の単語を削除 | 元のAlt+D / Alt+Delete |
 | Ctrl+Shift+Delete（insert） | カーソルから行末まで削除 | 元のCtrl+K |

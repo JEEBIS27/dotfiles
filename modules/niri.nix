@@ -6,6 +6,7 @@
   ...
 }:
 let
+  directionBindings = import ../packages/direction-bindings.nix { inherit lib; };
   cfg = config.jeebis.desktop;
   niri = import ../packages/niri.nix { inherit pkgs; };
   batteryFocusRingFile = "${config.xdg.configHome}/niri/battery-focus-ring.kdl";
@@ -98,7 +99,7 @@ let
         "${resize}/bin/jeebis-niri-resize"
         (builtins.toJSON batteryFocusRingFile)
       ]
-      (builtins.readFile ../files/niri/config.kdl);
+      (directionBindings.render (builtins.readFile ../files/niri/config.kdl));
 in
 {
   config = lib.mkIf (cfg.compositor == "niri") {

@@ -39,5 +39,5 @@ let
     lower // lib.mapAttrs' (key: value: lib.nameValuePair (lib.toUpper key) (lib.toUpper value)) lower;
 in
 assert lib.assertMsg valid
-  "Helix directionKeys must contain four distinct lowercase ASCII letters (left/down/up/right).";
+  "directionKeys must contain four distinct lowercase ASCII letters (left/down/up/right).";
 letters

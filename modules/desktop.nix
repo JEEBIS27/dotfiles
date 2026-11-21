@@ -6,6 +6,7 @@
   ...
 }:
 let
+  directionBindings = import ../packages/direction-bindings.nix { inherit lib; };
   cfg = config.jeebis.desktop;
   native = cfg.backend == "nixos";
   legacy = cfg.compositor == "hyprland";
@@ -210,7 +211,7 @@ let
                 ''"Show Tide Island", desktop.command("shell", "island", "show")''
                 ''"Hide Tide Island", desktop.command("shell", "island", "hide")''
               ]
-              (builtins.readFile path)
+              (directionBindings.render (builtins.readFile path))
           )
         else if builtins.baseNameOf path == "app-bindings.lua" then
           pkgs.writeText "jeebis-app-bindings.lua" (

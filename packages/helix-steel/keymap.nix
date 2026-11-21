@@ -2,21 +2,34 @@
   lib,
   settings,
   directionKeys ? "hjkl",
+  modifiedDirectionKeys ? "hjkl",
 }:
 let
   letters = import ../key-layout.nix { inherit lib directionKeys; };
+  modified = import ../key-layout.nix {
+    inherit lib;
+    directionKeys = modifiedDirectionKeys;
+  };
   rename =
-    key:
+    node: key:
     let
       parts = lib.splitString "-" key;
       name = lib.last parts;
       modifiers = lib.init parts;
-      shiftOnly = builtins.all (modifier: modifier == "S") modifiers;
+      chord = letter: lib.concatStringsSep "-" (modifiers ++ [ letter ]);
+      # A modifier group containing only disabled keys has no navigation to remap.
+      hasDirections = builtins.any (letter: (node.${chord letter} or "no_op") != "no_op") (
+        lib.stringToCharacters "hjklHJKL"
+      );
+      layout =
+        if builtins.all (modifier: modifier == "S") modifiers then
+          letters
+        else if hasDirections then
+          modified
+        else
+          { };
     in
-    if shiftOnly && builtins.hasAttr name letters then
-      lib.concatStringsSep "-" (modifiers ++ [ letters.${name} ])
-    else
-      key;
+    if builtins.hasAttr name layout then chord layout.${name} else key;
   isMotion =
     command:
     builtins.isString command
@@ -61,7 +74,7 @@ let
     node:
     lib.mapAttrs' (
       key: value:
-      lib.nameValuePair (rename key) (
+      lib.nameValuePair (rename node key) (
         if builtins.isAttrs value then transform value else motionGuard value
       )
     ) node;

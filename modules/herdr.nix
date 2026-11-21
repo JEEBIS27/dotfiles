@@ -6,6 +6,7 @@
   ...
 }:
 let
+  directionBindings = import ../packages/direction-bindings.nix { inherit lib; };
   app = import ../packages/herdr-app.nix { inherit pkgs; };
   colors = builtins.fromTOML (builtins.readFile ../files/desktop/themes/kanagawa.toml);
   fallback = pkgs.writeText "jeebis-herdr-initial-theme.json" (
@@ -35,14 +36,17 @@ let
   );
   preferences = pkgs.writeText "jeebis-herdr-preferences.json" (
     builtins.toJSON {
-      keys = lib.recursiveUpdate (builtins.fromJSON (builtins.readFile ../files/herdr-app/keys.json)) {
-        global.alt-y.args.argv = [
-          "${config.jeebis.shell.package}/bin/fish"
-          "-i"
-          "-c"
-          "__jeebis_yazi"
-        ];
-      };
+      keys =
+        lib.recursiveUpdate
+          (builtins.fromJSON (directionBindings.render (builtins.readFile ../files/herdr-app/keys.json)))
+          {
+            global.alt-y.args.argv = [
+              "${config.jeebis.shell.package}/bin/fish"
+              "-i"
+              "-c"
+              "__jeebis_yazi"
+            ];
+          };
       settings = {
         core = "${app.core}/bin/herdr-core";
         theme = "jeebis";

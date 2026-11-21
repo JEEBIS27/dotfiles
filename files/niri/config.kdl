@@ -67,39 +67,39 @@ binds {
     Mod+Ctrl+W { spawn "@desktop@" "shell" "tide" "toggleWeather"; }
     Mod+Ctrl+Space { spawn "@desktop@" "shell" "tide" "toggleWallpaperPicker"; }
     Mod+N { spawn "@desktop@" "shell" "tide" "toggleNotificationCenter"; }
-    Mod+I repeat=false { spawn "@desktop@" "shell" "island" "peek"; }
-    Mod+Shift+I { spawn "@desktop@" "shell" "island" "toggle"; }
+    Mod+@mod:I@ repeat=false { spawn "@desktop@" "shell" "island" "peek"; }
+    Mod+Shift+@mod:I@ { spawn "@desktop@" "shell" "island" "toggle"; }
     Mod+Alt+T { spawn "@desktop@" "theme" "cycle"; }
     Mod+W { close-window; }
     Mod+Shift+W { spawn "@actions@" "close-workspace"; }
-    Mod+H { focus-column-left; }
-    Mod+Shift+H { spawn "@resize@" "shrink"; }
-    Mod+Ctrl+H { swap-window-left; }
-    Mod+Ctrl+Shift+H { move-column-left; }
+    Mod+@mod:H@ { focus-column-left; }
+    Mod+Shift+@mod:H@ { spawn "@resize@" "shrink"; }
+    Mod+Ctrl+@mod:H@ { swap-window-left; }
+    Mod+Ctrl+Shift+@mod:H@ { move-column-left; }
     Mod+Left { focus-column-left; }
     Mod+Shift+Left { spawn "@resize@" "shrink"; }
     Mod+Ctrl+Left { swap-window-left; }
     Mod+Ctrl+Shift+Left { move-column-left; }
-    Mod+J { focus-window-down; }
-    Mod+Shift+J { set-window-height "+10%"; }
-    Mod+Ctrl+J { move-window-down; }
-    Mod+Ctrl+Shift+J { move-window-down; }
+    Mod+@mod:J@ { focus-window-down; }
+    Mod+Shift+@mod:J@ { set-window-height "+10%"; }
+    Mod+Ctrl+@mod:J@ { move-window-down; }
+    Mod+Ctrl+Shift+@mod:J@ { move-window-down; }
     Mod+Down { focus-window-down; }
     Mod+Shift+Down { set-window-height "+10%"; }
     Mod+Ctrl+Down { move-window-down; }
     Mod+Ctrl+Shift+Down { move-window-down; }
-    Mod+K { focus-window-up; }
-    Mod+Shift+K { set-window-height "-10%"; }
-    Mod+Ctrl+K { move-window-up; }
-    Mod+Ctrl+Shift+K { move-window-up; }
+    Mod+@mod:K@ { focus-window-up; }
+    Mod+Shift+@mod:K@ { set-window-height "-10%"; }
+    Mod+Ctrl+@mod:K@ { move-window-up; }
+    Mod+Ctrl+Shift+@mod:K@ { move-window-up; }
     Mod+Up { focus-window-up; }
     Mod+Shift+Up { set-window-height "-10%"; }
     Mod+Ctrl+Up { move-window-up; }
     Mod+Ctrl+Shift+Up { move-window-up; }
-    Mod+L { focus-column-right; }
-    Mod+Shift+L { spawn "@resize@" "grow"; }
-    Mod+Ctrl+L { swap-window-right; }
-    Mod+Ctrl+Shift+L { move-column-right; }
+    Mod+@mod:L@ { focus-column-right; }
+    Mod+Shift+@mod:L@ { spawn "@resize@" "grow"; }
+    Mod+Ctrl+@mod:L@ { swap-window-right; }
+    Mod+Ctrl+Shift+@mod:L@ { move-column-right; }
     Mod+Right { focus-column-right; }
     Mod+Shift+Right { spawn "@resize@" "grow"; }
     Mod+Ctrl+Right { swap-window-right; }

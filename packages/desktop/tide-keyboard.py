@@ -165,18 +165,22 @@ replace_once(
             return;
         }
 
-        if (!powerViewActive && (event.key === Qt.Key_Left || event.key === Qt.Key_H)
+        const modified = event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier);
+        const left = event.key === Qt.Key_Left || event.key === (modified ? Qt.Key_@mod:H@ : Qt.Key_@plain:H@);
+        const down = event.key === Qt.Key_Down || event.key === (modified ? Qt.Key_@mod:J@ : Qt.Key_@plain:J@);
+        const up = event.key === Qt.Key_Up || event.key === (modified ? Qt.Key_@mod:K@ : Qt.Key_@plain:K@);
+        const right = event.key === Qt.Key_Right || event.key === (modified ? Qt.Key_@mod:L@ : Qt.Key_@plain:L@);
+        if (!powerViewActive && left
                 && adjustSelectedSlider((event.modifiers & Qt.ShiftModifier) ? -0.01 : -0.05)) {
             event.accepted = true;
             return;
         }
-        if (!powerViewActive && (event.key === Qt.Key_Right || event.key === Qt.Key_L)
+        if (!powerViewActive && right
                 && adjustSelectedSlider((event.modifiers & Qt.ShiftModifier) ? 0.01 : 0.05)) {
             event.accepted = true;
             return;
         }
-        if (event.key === Qt.Key_Tab || event.key === Qt.Key_Right || event.key === Qt.Key_Down
-                || event.key === Qt.Key_L || event.key === Qt.Key_J) {
+        if (event.key === Qt.Key_Tab || right || down) {
             const backwards = event.key === Qt.Key_Tab && (event.modifiers & Qt.ShiftModifier);
             if (powerViewActive)
                 powerSelection = (powerSelection + (backwards ? 3 : 1)) % 4;
@@ -185,8 +189,7 @@ replace_once(
             event.accepted = true;
             return;
         }
-        if (event.key === Qt.Key_Backtab || event.key === Qt.Key_Left || event.key === Qt.Key_Up
-                || event.key === Qt.Key_H || event.key === Qt.Key_K) {
+        if (event.key === Qt.Key_Backtab || left || up) {
             if (powerViewActive)
                 powerSelection = (powerSelection + 3) % 4;
             else

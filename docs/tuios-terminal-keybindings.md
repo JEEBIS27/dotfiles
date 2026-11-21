@@ -6,8 +6,8 @@
 
 | 旧キー | 旧担当・意味 | Rio + TUIOS |
 |---|---|---|
-| Alt+H/J/K/L、Alt+矢印 | Herdr/tmuxのペイン移動 | TUIOSの方向移動 |
-| Alt+Shift+H/J/K/L、Alt+Shift+矢印 | ペインを5単位リサイズ | TUIOSの5単位リサイズ |
+| Alt+J/K/I/L、Alt+矢印 | Herdr/tmuxのペイン移動 | TUIOSの方向移動 |
+| Alt+Shift+J/K/I/L、Alt+Shift+矢印 | ペインを5単位リサイズ | TUIOSの5単位リサイズ |
 | Alt+Enter / Shift+Enter | 左右 / 上下分割 | TUIOSのvertical / horizontal split |
 | Alt+N | Herdrタブ / tmuxウィンドウ | TUIOS新規ウィンドウ（ペイン） |
 | Alt+Shift+N | 新規Tab / Workspace | 最初の空Tabに作成。Codexタブ中はCodexを起動 |
@@ -22,7 +22,7 @@
 | Alt+Shift+T | tmuxレイアウト切替 | TUIOSレイアウト切替 |
 | Alt+S（Alt+Gも可） | Tab検索 | TUIOS Tab選択 |
 | Alt+Shift+S | Workspace検索 | 内蔵検索でEnter切替・Delete削除確認 |
-| Alt+E → H/J/K/L、矢印 | ペイン交換 | TUIOS prefix→方向交換 |
+| Alt+E → H/A/O/E、矢印 | ペイン交換 | TUIOS prefix→方向交換 |
 | Alt+B | サイドバー操作 | 開いてフォーカス。表示済みならフォーカスし、操作中なら閉じて元のペインへ戻る |
 | Alt+Shift+B | サイドバー表示 | フォーカスを変えずに表示・非表示を切り替える |
 | Alt+O | 通知対象へ移動 | TUIOSの最新メッセージ対象へ移動 |
@@ -47,7 +47,7 @@ TUIOSの表示名は **Workspace → Tab → Pane**（内部識別子は従来�
 
 | 旧キー | 移行先 / 差異 |
 |---|---|
-| Ctrl+Alt+H/J/K/L、矢印、Shift付き | Alt層と同じ移動・リサイズ |
+| Ctrl+Alt+J/K/I/L、矢印、Shift付き | Alt層と同じ移動・リサイズ |
 | Ctrl+Alt+Enter、Shift付き | TUIOS左右・上下分割 |
 | Ctrl+Alt+Shift+F | TUIOSズーム |
 | Ctrl+Alt+W | TUIOSウィンドウを閉じる |
@@ -63,7 +63,7 @@ TUIOSの表示名は **Workspace → Tab → Pane**（内部識別子は従来�
 | Ctrl+Alt+, / Shift+, | TUIOS再読込 / 設定画面（旧ファイルをエディターで開く操作とは異なる） |
 | Ctrl+Alt+= / - / 0 | Rioのフォント拡大 / 縮小 / リセット |
 | Ctrl+Alt+U、Shift+U | WezTerm独自の透過切替を削除。透明度はHyprlandのlooknfeelで管理 |
-| Ctrl+Alt+I | 旧Herdr起動を削除。TUIOS Inboxを表示 |
+| Ctrl+Alt+H | 旧Herdr起動を削除。TUIOS Inboxを表示 |
 | Ctrl+Alt+Shift+I | 外部`chat`起動は未移行（リポジトリにコマンド本体なし） |
 | Ctrl+Alt+Home / End | Rio独自スクロールは削除。TUIOSコピー内のg/Gを使用 |
 | Ctrl+Insert / Shift+Insert | Rioコピー / 貼付け |
@@ -84,7 +84,7 @@ TUIOS標準のVim移動・`v/V`選択・`/ ? n N`検索・`y`コピーを使用�
 
 Ctrl+P/N/F/Y/V、Shift+Enter、Shift+PageUp/Down、Shift+矢印は内側アプリへ渡す。fishのCtrl+F/G/D/Y/Rとネイティブのキー処理、Yaziの`d/D/x/X`などの操作は維持する。Rio標準のCtrl+Shift+P/F/B/NとCtrl+Lは明示的に転送へ変更した。
 
-Alt+H/J/K/L・Alt+矢印など、この表で予約したキーは内側アプリへ届かない。fishのAlt+矢印による単語移動は元からペイン移動との競合対象であり、Ctrl+矢印を使う。CodexのAlt+キー操作と衝突する場合もTUIOS層が優先する。`tuios keybinds doctor --guest nvim`等は参考情報であり、実機入力確認の代わりではない。
+Alt+J/K/I/L・Alt+矢印など、この表で予約したキーは内側アプリへ届かない。fishのAlt+矢印による単語移動は元からペイン移動との競合対象であり、Ctrl+矢印を使う。CodexのAlt+キー操作と衝突する場合もTUIOS層が優先する。`tuios keybinds doctor --guest nvim`等は参考情報であり、実機入力確認の代わりではない。
 
 fishの画面消去＋一覧表示はCtrl+Esc。Ctrl+Lはfishで処理しない。シェルの移行内容と出力保存は[fish-migration.md](fish-migration.md)を参照。
 

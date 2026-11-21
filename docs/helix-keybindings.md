@@ -15,7 +15,7 @@ Super はデスクトップ、Alt は TUIOS、Ctrl はアプリ共通操作。
 | k/K | o/O | e/E | l/L |
 | l/L | e/E | その他 | そのまま |
 
-Shift だけなら変換する。Ctrl・Alt・Super・Meta を含むキーは変換しない。
+単独と Shift のみには上表を使う。Ctrl・Alt・Super・Meta を含む方向指定には `modifiedDirectionKeys = "jkil"` を使う。
 接頭辞の後も入力ごとに判定する。Ctrl+E 自体はそのまま、離した後の方向指定は haoe。
 挿入文字、検索欄、picker、補完、文字ジャンプの検索文字、置換文字、囲み文字は変換しない。
 
@@ -179,7 +179,7 @@ f/F 単独は次/前の指定文字まで選択するジャンプ。検索文字
 | Ctrl+F/B/D | ファイル/バッファー/変更ファイル一覧 |
 | Ctrl+P | コマンド・割当キー検索。キーで探すなら %bindings x |
 | Ctrl+/ | 行コメント切替 |
-| Ctrl+H/J/K/L、Ctrl+矢印 | ビューを左/下/上/右へ |
+| Ctrl+J/K/I/L、Ctrl+矢印 | ビューを左/下/上/右へ |
 | Ctrl+E → h/j/k/l | ビュー交換。離した後の実キーは h/a/o/e |
 | Ctrl+Enter / Ctrl+Shift+Enter | 左右/上下分割 |
 | Ctrl+PgUp/PgDown | 前/次のバッファー |

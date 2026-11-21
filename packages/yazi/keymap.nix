@@ -2,20 +2,37 @@
   lib,
   settings,
   directionKeys ? "hjkl",
+  modifiedDirectionKeys ? "hjkl",
 }:
 let
   letters = import ../key-layout.nix { inherit lib directionKeys; };
+  modified = import ../key-layout.nix {
+    inherit lib;
+    directionKeys = modifiedDirectionKeys;
+  };
   rename =
-    key:
+    layer: key:
     if builtins.hasAttr key letters then
       letters.${key}
     else if lib.hasPrefix "<" key && lib.hasSuffix ">" key then
       let
         parts = lib.splitString "-" (lib.removeSuffix ">" (lib.removePrefix "<" key));
         name = lib.last parts;
+        layout =
+          if builtins.all (x: x == "S") (lib.init parts) then
+            letters
+          else if
+            builtins.elem layer [
+              "mgr"
+              "cmp"
+            ]
+          then
+            modified
+          else
+            { };
       in
-      if builtins.all (x: x == "S") (lib.init parts) && builtins.hasAttr name letters then
-        "<${lib.concatStringsSep "-" ((lib.init parts) ++ [ letters.${name} ])}>"
+      if builtins.hasAttr name layout then
+        "<${lib.concatStringsSep "-" ((lib.init parts) ++ [ layout.${name} ])}>"
       else
         key
     else
@@ -28,15 +45,15 @@ let
     else
       command;
   binding =
-    b:
+    layer: b:
     b
     // {
-      on = if builtins.isList b.on then map rename b.on else rename b.on;
+      on = if builtins.isList b.on then map (rename layer) b.on else rename layer b.on;
       run = if builtins.isList b.run then map run b.run else run b.run;
     };
 in
 lib.mapAttrs (
-  _: layer:
+  layerName: layer:
   lib.mapAttrs (
     name: value:
     if
@@ -46,7 +63,7 @@ lib.mapAttrs (
         "append_keymap"
       ]
     then
-      map binding value
+      map (binding layerName) value
     else
       value
   ) layer

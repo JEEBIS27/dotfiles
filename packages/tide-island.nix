@@ -3,6 +3,10 @@
   withNiri ? false,
 }:
 let
+  directionBindings = import ./direction-bindings.nix { inherit (pkgs) lib; };
+  keyboard = pkgs.writeText "tide-keyboard.py" (
+    directionBindings.render (builtins.readFile ./desktop/tide-keyboard.py)
+  );
   quickshell = import ./quickshell.nix { inherit pkgs; };
   wifi = import ./tide-wifi.nix { inherit pkgs; };
   deps =
@@ -77,7 +81,7 @@ pkgs.stdenv.mkDerivation rec {
   postPatch = ''
     rm -rf tests Tide-island-app/tests
     ${pkgs.python3}/bin/python3 ${./desktop/tide-integration.py} .
-    ${pkgs.python3}/bin/python3 ${./desktop/tide-keyboard.py} .
+    ${pkgs.python3}/bin/python3 ${keyboard} .
     ${pkgs.python3}/bin/python3 ${./desktop/tide-search.py} .
     cp ${./desktop/LevelStatusIcon.qml} qml/common/LevelStatusIcon.qml
     ${pkgs.python3}/bin/python3 ${./desktop/tide-level-osd.py} .

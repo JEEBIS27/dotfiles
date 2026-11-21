@@ -6,6 +6,7 @@
   ...
 }:
 let
+  directionBindings = import ../packages/direction-bindings.nix { inherit lib; };
   recordedFish = pkgs.writeShellApplication {
     name = "jeebis-recorded-fish";
     runtimeInputs = [
@@ -89,7 +90,7 @@ in
         config-file = "?${config.jeebis.desktop.themeDirectory}/ghostty.conf";
         # Explicitly own only the emulator layer. Ghostty defaults consume
         # Ctrl+Enter, Ctrl+Tab, Ctrl+numbers and Shift movement before TUIs.
-        keybind = import ../files/ghostty/keybindings.nix;
+        keybind = map directionBindings.render (import ../files/ghostty/keybindings.nix);
       };
     };
     xdg.configFile."ghostty/cursor-trail.glsl".source = ../files/ghostty/cursor-trail.glsl;
@@ -108,7 +109,7 @@ in
         builtins.replaceStrings
           [ "@fish@" "@tmux-helper@" ]
           [ "${config.jeebis.shell.package}/bin/fish" "${tmuxStatus}/bin/jeebis-tmux-status" ]
-          (builtins.readFile ../files/tmux/tmux.conf)
+          (directionBindings.render (builtins.readFile ../files/tmux/tmux.conf))
         + "\n"
         + import ../files/tmux/copy-keys.nix { inherit lib; };
     };

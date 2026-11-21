@@ -17,6 +17,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--tmux-config', required=True)
     parser.add_argument('--ghostty-config', required=True)
+    parser.add_argument('--herdr-keys', type=Path, default=Path.home()/'.config/herdr-app/keys.json')
     args = parser.parse_args()
     subprocess.run(['ghostty', '+validate-config', '--config-file=' + args.ghostty_config], check=True)
     with tempfile.TemporaryDirectory(prefix='ghostty-keys-') as directory:
@@ -40,9 +41,9 @@ def main():
             tmux('-f', '/dev/null', 'new-session', '-d', '-s', 'keys', '/bin/sh')
             tmux('source-file', str(Path(args.tmux_config).resolve()))
             root = tmux('list-keys', '-T', 'root')
-            for key, action in {'M-h':'select-pane -L', 'M-j':'select-pane -D',
-                                'M-k':'select-pane -U', 'M-l':'select-pane -R',
-                                'M-H':'resize-pane -L 5', 'M-Enter':'split-window -h',
+            for key, action in {'M-j':'select-pane -L', 'M-k':'select-pane -D',
+                                'M-i':'select-pane -U', 'M-l':'select-pane -R',
+                                'M-J':'resize-pane -L 5', 'M-Enter':'split-window -h',
                                 'M-S-Enter':'split-window -v', 'M-n':'new-window',
                                 'M-N':'new-session', 'M-Y':'copy-mode', 'M-t':'if-shell'}.items():
                 assert any(key in line.split() and action in line for line in root.splitlines()), (key, action)
@@ -54,12 +55,16 @@ def main():
             for key, action in {'h':'cursor-left','a':'cursor-down','o':'cursor-up','e':'cursor-right','l':'next-word-end'}.items():
                 assert any(key in line.split() and action in line for line in copy.splitlines()), (key, action)
             assert 'wl-copy' in copy
-            assert 'swap-pane' in tmux('list-keys', '-T', 'exchange')
+            exchange = tmux('list-keys', '-T', 'exchange')
+            for key, direction in zip('haoe', ['left', 'down', 'up', 'right']):
+                assert any(key in line.split() and direction + '-of' in line for line in exchange.splitlines())
+            assert not any('M-h' in line.split() for line in root.splitlines())
         finally:
             subprocess.run([*command, 'kill-server'], check=False, capture_output=True)
-    keys = json.loads((ROOT / 'files/herdr-app/keys.json').read_text())
+    keys = json.loads(args.herdr_keys.read_text())
     commands = {c['name']: c for c in json.loads(subprocess.check_output(['herdr-app','commands'], text=True))}
-    for section in keys.values():
+    for scope in ['global', 'terminal']:
+        section = keys[scope]
         for value in section.values():
             name = value['command'] if isinstance(value, dict) else value.split(':',1)[0]
             assert name == 'terminal' or name in commands, name
@@ -70,16 +75,19 @@ def main():
         assert keys['terminal'][f'ctrl-{number}'] == 'terminal'
     for key in ['ctrl-tab','ctrl-shift-tab','ctrl-pageup','ctrl-pagedown','ctrl-backspace','ctrl-v']:
         assert keys['terminal'][key] == 'terminal'
-    for key,direction in zip('hjkl',['left','down','up','right']):
-        assert keys['global'][f'alt-e {key}'] == 'pane.swap:' + direction
+    for key, plain, direction in zip('jkil', 'haoe', ['left','down','up','right']):
+        assert f"ctrl+alt+{key}=goto_split:{direction}" in bindings
+        assert keys['global'][f'alt-{key}'] == 'pane.go:' + direction
+        assert keys['global'][f'alt-e {plain}'] == 'pane.swap:' + direction
         assert keys['global'][f'ctrl-alt-{key}'] == 'pane.swap:' + direction
         assert keys['global'][f'ctrl-alt-{direction}'] == 'pane.swap:' + direction
         assert keys['global'][f'alt-shift-{key}'] == 'terminal'
     spec = importlib.util.spec_from_file_location('herdr_config', ROOT / 'packages/desktop/herdr-config.py')
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    old = {'global': {'alt-1': 'space.select:1', 'f12': 'app.help'}, 'mod:custom': {'ctrl-s':'custom.save'}}
-    updated = module.merge(old, keys)
+    old = {'global': {'alt-1': 'space.select:1', 'f12': 'app.help', 'alt-e j': 'pane.swap:down', 'alt-e k': 'app.help'}, 'mod:custom': {'ctrl-s':'custom.save'}}
+    updated = module.merge_keys(old, keys)
+    assert 'alt-e j' not in updated['global'] and updated['global']['alt-e k'] == 'app.help'
     assert updated['global']['alt-1'] == 'tab.select:1'
     assert updated['global']['f12'] == 'app.help'
     assert updated['mod:custom'] == old['mod:custom']
