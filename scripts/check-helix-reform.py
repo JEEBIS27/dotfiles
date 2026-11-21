@@ -709,9 +709,12 @@ if not args.live:
         assert e.clipboard.read_text() == "a", e.view()
         e.key("l")
         e.key("d")
-        e.key("p")
-        assert e.save() == "acad\n", e.view()
         assert e.clipboard.read_text() == "a"
+        e.key("p")  # Paste the b that d cut into the internal register.
+        assert e.save() == "acbd\n", e.view()
+        e.send(b"\x16")  # Ctrl+V pastes the a that Y copied to the clipboard.
+        assert e.save() == "acbad\n", e.view()
+        print("PASS clipboard.txt", flush=True)
     finally:
         e.close()
 print(
