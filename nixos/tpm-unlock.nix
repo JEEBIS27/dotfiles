@@ -24,7 +24,6 @@ in
       }
     ];
     boot.loader.systemd-boot.enable = lib.mkForce false;
-    boot.initrd.systemd.enable = true;
     boot.initrd.systemd.tpm2.enable = true;
     boot.lanzaboote = {
       enable = true;
