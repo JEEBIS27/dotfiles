@@ -26,7 +26,11 @@ def shell_ipc(target,method,*values):
   elif target.startswith(('ruixen.','jeebis.bar')):
    target,method,values='tide',{'toggleLauncher':'toggleApplicationLauncher','toggleNotch':'toggle','toggleFixedNotch':'toggle','toggleFixedBar':'toggle'}.get(method,method),()
    if method=='toggle':target='island'
-  argv=[command('quickshell'),'ipc','-p',cfg['shellPath'],'call',target,method,*values]
+  # The running service can use a different generation than this command.
+  pid=call([command('systemctl'),'--user','show','--property=MainPID','--value','tide-island.service'],
+           text=True,stdout=subprocess.PIPE).stdout.strip()
+  if not pid.isdecimal() or int(pid)==0:raise ValueError('tide-island.service is not running')
+  argv=[command('quickshell'),'ipc','--pid',pid,'call',target,method,*values]
  elif cfg['backend']=='omarchy':argv=['omarchy-shell',target,method,*values]
  else:argv=[command('quickshell'),'ipc','-n','-p',cfg['runtime']+'/shell','call','--',target,method,*values]
  result=call(argv,text=True,stdout=subprocess.PIPE)

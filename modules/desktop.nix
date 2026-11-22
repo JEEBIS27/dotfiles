@@ -50,7 +50,6 @@ let
       backend = cfg.backend;
       compositor = cfg.compositor;
       shell = "tide";
-      shellPath = "${tide}/share/tide-island";
       loginAssets = if native then "/var/lib/jeebis-theme" else null;
       runtime = if legacy then toString runtime else null;
       backgrounds = "${coreSource}/backgrounds";
