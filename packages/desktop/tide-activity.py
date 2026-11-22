@@ -442,8 +442,10 @@ def main():
     elif op == "hook":
         event = json.load(sys.stdin)
         name = event.get("hook_event_name")
+        # PermissionRequest runs before Codex resolves approval, including when
+        # no human prompt is shown. Old hook registrations must be harmless too.
         kinds = {"UserPromptSubmit": ("working", "Working"), "PreToolUse": ("working", "Working"),
-                 "PostToolUse": ("working", "Working"), "PermissionRequest": ("attention", "Approval requested"),
+                 "PostToolUse": ("working", "Working"),
                  "Stop": ("done", "Completed"), "Interrupt": ("remove", ""), "SessionEnd": ("remove", "")}
         if name in kinds and event.get("session_id"):
             kind, label = kinds[name]

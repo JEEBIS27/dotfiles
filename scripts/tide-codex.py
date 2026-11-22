@@ -33,7 +33,17 @@ def configure(directory, command):
     data = json.loads(hooks.read_text()) if hooks.exists() else {}
     events = data.setdefault("hooks", {})
     invocation = shlex.join([str(command), "hook", "--app", "Codex", "--desktop", "chatgpt"])
-    for name in ("UserPromptSubmit", "PreToolUse", "PostToolUse", "PermissionRequest", "Stop", "Interrupt", "SessionEnd"):
+    if "PermissionRequest" in events:
+        groups = []
+        for group in events["PermissionRequest"]:
+            handlers = [hook for hook in group.get("hooks", []) if hook.get("command") != invocation]
+            if handlers:
+                groups.append({**group, "hooks": handlers})
+        if groups:
+            events["PermissionRequest"] = groups
+        else:
+            del events["PermissionRequest"]
+    for name in ("UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop", "Interrupt", "SessionEnd"):
         groups = events.setdefault(name, [])
         if not any(h.get("command") == invocation for g in groups for h in g.get("hooks", [])):
             groups.append({"hooks": [{"type": "command", "command": invocation, "timeout": 4}]})

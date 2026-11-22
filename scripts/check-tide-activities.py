@@ -91,6 +91,18 @@ async def check(binary, directory):
         await mcp.wait()
         await cli("hook", "--app", "Codex", data=b'{"hook_event_name":"UserPromptSubmit","session_id":"sample"}')
         await state(has("ai:sample"))
+        await cli("hook", "--app", "Codex", data=b'{"hook_event_name":"PermissionRequest","session_id":"sample","tool_name":"Bash"}')
+        # Let a subsequent hook delimit the snapshots without relying on a sleep.
+        await cli("hook", "--app", "Codex", data=b'{"hook_event_name":"PostToolUse","session_id":"sample","tool_name":"Bash"}')
+
+        def still_working(message):
+            for activity in message.get("items", []):
+                if activity["id"] == "job:ai:sample":
+                    assert activity["kind"] == "working", "PermissionRequest alone does not establish a user wait"
+                    return activity["body"] == "Bash"
+            return False
+
+        await state(still_working)
         await cli("hook", "--app", "Codex", data=b'{"hook_event_name":"Stop","session_id":"sample"}')
         final = await state(lambda m: any(r["kind"] == "done" for r in m.get("items", [])))
         assert final["history"][0]["source"]["app"] == "Codex"
@@ -109,12 +121,17 @@ def check_config(directory):
     hooks = directory / "hooks.json"
     config.write_text('# local\n[features]\nhooks = true\n')
     original = {"hooks":[{"type":"command","command":"other"}]}
-    hooks.write_text(json.dumps({"hooks":{"Stop":[original]}}))
+    old_permission = {"type": "command", "command": "/desktop/tide-activity hook --app Codex --desktop chatgpt", "timeout": 4}
+    hooks.write_text(json.dumps({"hooks": {
+        "Stop": [original],
+        "PermissionRequest": [original, {"matcher": "Bash", "hooks": [old_permission, original["hooks"][0]]}],
+    }}))
     for _ in range(2):
         module.configure(directory, Path("/desktop/tide-activity"))
     assert config.read_text().startswith("# local") and tomllib.loads(config.read_text())["features"]["hooks"]
-    saved = json.loads(hooks.read_text())["hooks"]["Stop"]
-    assert len(saved) == 2 and saved[0] == original
+    saved = json.loads(hooks.read_text())["hooks"]
+    assert len(saved["Stop"]) == 2 and saved["Stop"][0] == original
+    assert saved["PermissionRequest"] == [original, {"matcher": "Bash", **original}]
     print("PASS idempotent configuration merge")
 
 
