@@ -82,7 +82,7 @@ class Broker:
             if w:
                 source.update(window=w[0], windowApp=w[1])
 
-    def put(self, key, kind, title, body, source, *, choices=(), token="", value=None, native=0, actions=(), started=None):
+    def put(self, key, kind, title, body, source, *, choices=(), token="", value=None, native=0, actions=(), started=None, new_turn=False):
         previous = self.live.get(key) or self.history.get(key)
         self.remove(key)
         if previous and not source.get("window") and previous["source"].get("window"):
@@ -90,9 +90,13 @@ class Broker:
         if not source.get("window"):
             self.spawn(self.pin(source))
         continuing = previous and previous["kind"] not in ("done", "notification")
+        updated = now()
+        same_phase = previous and previous["kind"] == kind and not new_turn
+        phase_changed = previous["phaseChangedAt"] if same_phase else updated
         row = dict(id=key, kind=kind, title=str(title or source["app"])[:512], body=str(body or "")[:8192],
                    source=source, choices=list(choices), token=token, value=value, actions=list(actions), native=native,
-                   started=started or (previous["started"] if continuing else now()), updated=now())
+                   started=started or (previous["started"] if continuing and not new_turn else updated),
+                   updated=updated, phaseChangedAt=phase_changed)
         self.live[key] = row
         if kind in ("done", "notification") or native:
             self.history.pop(key, None)
@@ -139,7 +143,7 @@ class Broker:
                 if value is not None and not 0 <= float(value) <= 100:
                     raise ValueError("Progress must be between 0 and 100")
                 self.put(key, "needs" if op == "attention" else op, message["title"], message.get("body"), source,
-                         value=value, started=now() if message.get("newTurn") else None)
+                         value=value, new_turn=bool(message.get("newTurn")))
             else:
                 raise ValueError("Unknown activity operation")
             writer.write(line({"ok": True}))
@@ -268,8 +272,7 @@ class Broker:
                     source = clean_source(dict(app=app, desktop="jeebis-agents"), 0)
                     source["terminal"] = address
                     value = status.get("progress")
-                    kind = {"working": "progress" if value is not None else "working", "blocked": "needs",
-                            "done": "done", "error": "done"}[state]
+                    kind = {"working": "working", "blocked": "needs", "done": "done", "error": "done"}[state]
                     label = status.get("title") or {"working":"Working", "blocked":"Needs you", "done":"Completed", "error":"Failed"}[state]
                     old = self.live.get(key)
                     self.put(key, kind, label, status.get("msg"), source, value=value,

@@ -7,18 +7,29 @@ ColumnLayout {
     id: form
     required property var request
     required property var hub
+    signal editingRequested()
     readonly property string token: request ? request.token || "" : ""
     readonly property bool japanese: Qt.locale().name.startsWith("ja")
+    readonly property bool editorWindowActive: Window.active
     property string option: ""
     property bool restoring: false
+    property bool editorFocusPending: false
     spacing: 10
 
     onTokenChanged: {
+        editorFocusPending = false
         restoring = true
         const draft = hub && hub.drafts[token]
         option = draft ? draft.option : ""
         editor.text = draft ? draft.text : ""
         restoring = false
+    }
+    onEditorWindowActiveChanged: focusEditor()
+    function focusEditor() {
+        if (editorWindowActive && editorFocusPending) {
+            editorFocusPending = false
+            editor.forceActiveFocus()
+        }
     }
     function remember() {
         if (!restoring && token && hub)
@@ -89,6 +100,11 @@ ColumnLayout {
             selectByMouse: true; wrapMode: TextEdit.Wrap
             background: null
             onTextChanged: form.remember()
+            onPressed: {
+                form.editorFocusPending = true
+                form.editingRequested()
+                form.focusEditor()
+            }
             Keys.onPressed: event => {
                 if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
                         && (event.modifiers & Qt.ControlModifier) && !inputMethodComposing) {

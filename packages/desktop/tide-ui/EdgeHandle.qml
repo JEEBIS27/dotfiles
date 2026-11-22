@@ -1,27 +1,42 @@
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
+import IslandBackend
 
 PanelWindow {
     id: handle
     required property bool leftEdge
-    signal activated()
+    required property bool opened
+    signal activated(bool wasOpen)
+    anchors.top: true
     anchors.left: leftEdge
     anchors.right: !leftEdge
-    implicitWidth: 12
-    implicitHeight: 88
+    margins.left: leftEdge ? 12 : 0
+    margins.right: leftEdge ? 0 : 12
+    implicitWidth: 56
+    implicitHeight: 26
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: WlrLayer.Top
     WlrLayershell.namespace: leftEdge ? "tide-notification-handle" : "tide-control-handle"
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
     Rectangle {
-        anchors.centerIn: parent
-        width: pointer.containsMouse || pointer.pressed ? 5 : 3
-        height: pointer.containsMouse || pointer.pressed ? 54 : 38
-        radius: width / 2
-        color: pointer.containsMouse ? "#ddffffff" : "#83969ba5"
-        Behavior on height { NumberAnimation { duration: 150 } }
+        anchors.fill: parent
+        anchors.topMargin: -8
+        radius: 12
+        color: pointer.containsMouse || pointer.pressed || handle.opened ? StyleTokens.module : StyleTokens.panel
+        border.color: StyleTokens.surfaceBorder
+        border.width: 1
+
+        Rectangle {
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 11
+            width: 25
+            height: 3
+            radius: height / 2
+            color: pointer.containsMouse || handle.opened ? StyleTokens.textPrimary : StyleTokens.textTertiary
+        }
     }
     MouseArea {
         id: pointer
@@ -31,14 +46,20 @@ PanelWindow {
         preventStealing: true
         property real startX: 0
         property real startY: 0
-        onPressed: mouse => { startX = mouse.x; startY = mouse.y }
+        property bool wasOpen: false
+        onPressed: mouse => {
+            startX = mouse.x
+            startY = mouse.y
+            wasOpen = handle.opened
+        }
         onReleased: mouse => {
-            const inward = (mouse.x - startX) * (handle.leftEdge ? 1 : -1)
-            if (inward >= 14 || (Math.abs(inward) < 8 && Math.abs(mouse.y - startY) < 8))
-                handle.activated()
+            const dx = mouse.x - startX
+            const dy = mouse.y - startY
+            if (dy >= 14 || (Math.abs(dx) < 8 && Math.abs(dy) < 8))
+                handle.activated(wasOpen)
         }
         Accessible.role: Accessible.Button
         Accessible.name: handle.leftEdge ? "Notification Center" : "Control Center"
-        Accessible.onPressAction: handle.activated()
+        Accessible.onPressAction: handle.activated(handle.opened)
     }
 }

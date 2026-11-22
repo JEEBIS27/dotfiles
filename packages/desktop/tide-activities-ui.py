@@ -41,10 +41,34 @@ if services.is_file():
 edit("DynamicIslandWindow.qml", [
     ("    property var shellRootController: null", """    property var shellRootController: null
     readonly property var activityHub: shellRootController ? shellRootController.activityHub : null
-    readonly property bool activityLayerOpen: activities.wanted && !overviewVisible && !capsuleMouseArea.sideSwipeInteractive
+    readonly property bool activityPresentationAllowed: !overviewVisible && !capsuleMouseArea.sideSwipeInteractive
         && ["normal","lyrics","custom"].includes(islandContainer.islandState)
-    EdgeHandle { screen: root.screen; leftEdge: true; onActivated: root.toggleNotificationCenterWindow() }
-    EdgeHandle { screen: root.screen; leftEdge: false; onActivated: root.toggleControlCenterWindow() }
+    readonly property bool activityLayerOpen: activities.wanted && activityPresentationAllowed
+    readonly property bool sourceActivityExpanded: activityLayerOpen && activities.detailed && !activities.listing
+        && activities.activatedSourceId !== "" && activities.activatedSourceId === activities.selected
+    readonly property bool sourcePlayerExpanded: islandContainer.expandedLayerVisible && activities.activatedSourceId === "media"
+    readonly property bool centerOpen: islandContainer.controlCenterLayerVisible || islandContainer.notificationCenterLayerVisible
+    readonly property real capsuleTop: centerOpen ? Math.max(userConfig.islandTopMargin, controlHandle.implicitHeight + 6)
+        : userConfig.islandTopMargin
+    EdgeHandle {
+        screen: root.screen
+        leftEdge: true
+        opened: islandContainer.notificationCenterLayerVisible
+        onActivated: wasOpen => {
+            if (wasOpen) islandContainer.smartRestoreState();
+            else if (!opened) root.toggleNotificationCenterWindow();
+        }
+    }
+    EdgeHandle {
+        id: controlHandle
+        screen: root.screen
+        leftEdge: false
+        opened: islandContainer.controlCenterLayerVisible
+        onActivated: wasOpen => {
+            if (wasOpen) islandContainer.smartRestoreState();
+            else if (!opened) root.toggleControlCenterWindow();
+        }
+    }
     IdleInhibitor { window: root; enabled: !!root.activityHub && root.activityHub.awake }"""),
     ("    mask: Region {", """    mask: Region {
         Region {
@@ -55,10 +79,39 @@ edit("DynamicIslandWindow.qml", [
         }"""),
     ("readonly property bool dismissibleMenu: islandContainer.controlCenterLayerVisible",
      "readonly property bool dismissibleMenu: (root.activityLayerOpen && activities.detailed) || islandContainer.controlCenterLayerVisible"),
+    ("compositorIsNiri && dismissibleMenu && !menuWindowActive",
+     "compositorIsNiri && dismissibleMenu && !menuWindowActive && !sourceActivityExpanded && !sourcePlayerExpanded"),
+    ("&& dismissibleMenu && !connectivityPromptActive)\n            islandContainer.smartRestoreState();",
+     """&& dismissibleMenu && !connectivityPromptActive && !sourceActivityExpanded && !sourcePlayerExpanded)
+            islandContainer.smartRestoreState();"""),
     ("    WlrLayershell.keyboardFocus: {", """    WlrLayershell.keyboardFocus: {
+        if (root.sourceActivityExpanded || root.sourcePlayerExpanded)
+            return WlrKeyboardFocus.None;
         if (root.activityLayerOpen && activities.detailed)
             return WlrKeyboardFocus.OnDemand;"""),
-    ("    readonly property bool autoHideCanHideNow: autoHideEnabled", "    readonly property bool autoHideCanHideNow: autoHideEnabled && !activities.wanted"),
+    ("    function focusExpandedPlayer() {", """    function focusExpandedPlayer() {
+        if (root.sourcePlayerExpanded) return;"""),
+    ("        focus: controlCenterLayerVisible", """        focus: (root.activityLayerOpen && activities.detailed && !root.sourceActivityExpanded)
+            || controlCenterLayerVisible"""),
+    ("""        function showWorkspaceCapsule(wsId) {
+            currentWs = wsId;""", """        function showWorkspaceCapsule(wsId) {
+            currentWs = wsId;
+            if (root.sourceActivityExpanded || root.sourcePlayerExpanded) return;"""),
+    ("""        onExpandedLayerVisibleChanged: {
+            if (expandedLayerVisible)
+                requestExpandedPlayerKeyboardFocus();
+            else
+                expandedPlayerKeyboardFocusRequested = false;
+        }""", """        onExpandedLayerVisibleChanged: {
+            if (expandedLayerVisible) {
+                if (!root.sourcePlayerExpanded) requestExpandedPlayerKeyboardFocus();
+            } else {
+                expandedPlayerKeyboardFocusRequested = false;
+                if (activities.activatedSourceId === "media") activities.activatedSourceId = "";
+            }
+        }"""),
+    ("    readonly property bool autoHideCanHideNow: autoHideEnabled", """    readonly property bool autoHideCanHideNow: autoHideEnabled
+        && !activities.wanted && activities.rows.length === 0"""),
     ("readonly property bool hoverExpandEnabled: configuredHoverExpandAction > 0", """readonly property bool hoverExpandEnabled: configuredHoverExpandAction > 0 && !activities.wanted
         && (configuredHoverExpandAction === 2 || (islandContainer.activePlayer && islandContainer.activePlayer.isPlaying))"""),
     (("        onCurrentTrackChanged: {", "        // --- UI"), ""),
@@ -70,6 +123,15 @@ edit("DynamicIslandWindow.qml", [
 """),
     ("        function smartRestoreState() {", """        function smartRestoreState() {
             activities.closeDetails();"""),
+    ("""        Keys.onPressed: (event) => {
+            if (event.key === Qt.Key_Escape) {""", """        Keys.onPressed: (event) => {
+            if (event.key === Qt.Key_Escape) {
+                if (root.activityLayerOpen && activities.detailed) {
+                    activities.closeDetails();
+                    event.accepted = true;
+                    return;
+                }
+"""),
     ("        readonly property bool timerBubbleWanted: (timerActive && timerRemainingSeconds > 0 || timerCompletionAnimating)",
      "        readonly property bool timerBubbleWanted: timerCompletionAnimating"),
     ("                if (root.overviewVisible) return root.overviewCapsuleWidth;", """                if (root.overviewVisible) return root.overviewCapsuleWidth;
@@ -78,6 +140,12 @@ edit("DynamicIslandWindow.qml", [
                 if (root.activityLayerOpen && activities.detailed) return activities.detailHeight;"""),
     ("                if (root.overviewVisible) return root.overviewCapsuleRadius;", """                if (root.overviewVisible) return root.overviewCapsuleRadius;
                 if (root.activityLayerOpen && activities.detailed) return 26;"""),
+    ("        userConfig.islandTopMargin + mainCapsule.targetHeight", "        root.capsuleTop + mainCapsule.targetHeight"),
+    ("Math.ceil(userConfig.islandTopMargin + root.connectivityDetailHeight", "Math.ceil(root.capsuleTop + root.connectivityDetailHeight"),
+    ("? userConfig.islandTopMargin + 320 + root.controlCenterMaximumExtraHeight",
+     "? root.capsuleTop + 320 + root.controlCenterMaximumExtraHeight"),
+    ("? userConfig.islandTopMargin + (notificationCenterLoader.item", "? root.capsuleTop + (notificationCenterLoader.item"),
+    ("            y: userConfig.islandTopMargin", "            y: root.capsuleTop"),
     ("            x: parent ? parent.width * userConfig.islandPositionX / 100 - width / 2 : 0",
      """            x: !parent ? 0 : islandContainer.controlCenterLayerVisible ? Math.max(0, parent.width - width - 12)
                 : islandContainer.notificationCenterLayerVisible ? 12
@@ -100,11 +168,27 @@ edit("DynamicIslandWindow.qml", [
                 timerActive: islandContainer.timerActive; timerSeconds: islandContainer.timerRemainingSeconds
                 onOpenPlayer: islandContainer.showExpandedPlayer(false)
                 onOpenTimer: islandContainer.showExpandedTimerPage()
+                onEditingRequested: {
+                    if (root.sourceActivityExpanded) {
+                        activatedSourceId = "";
+                        if (root.compositorIsNiri && !root.menuWindowActive) {
+                            root.remappingMenu = true;
+                            menuRemapTimer.restart();
+                        }
+                    }
+                }
             }
             Loader {
                 id: controlCenterLoader"""),
+    ("onControlPressed: islandContainer.suppressCapsuleClick()", """onControlPressed: {
+                            if (root.sourcePlayerExpanded) {
+                                activities.activatedSourceId = "";
+                                islandContainer.requestExpandedPlayerKeyboardFocus();
+                            }
+                            islandContainer.suppressCapsuleClick();
+                        }"""),
     ("onBackgroundClicked: islandContainer.smartRestoreState()", """onBackgroundClicked: {
-                            if (islandContainer.activePlayer) activities.open({kind:"music"});
+                            if (islandContainer.activePlayer) activities.activatePlayerSource();
                             else islandContainer.smartRestoreState();
                         }"""),
     ("                    ControlCenterLayer {", """                    ControlCenterLayer {
@@ -122,7 +206,7 @@ edit("DynamicIslandWindow.qml", [
             x: Math.min(parent.width - width, mainCapsule.x + mainCapsule.width + 5)
             y: mainCapsule.y + (userConfig.islandHeight - height) / 2
             z: 8; opacity: root.autoHideProgress
-            visible: (root.activityLayerOpen || expandedMusic) && !!smallItem && opacity > 0.01
+            visible: (root.activityPresentationAllowed || expandedMusic) && !!smallItem && opacity > 0.01
             IslandButton {
                 visible: !!activityChips.smallItem
                 text: activityChips.smallItem ? activities.glyph(activityChips.smallItem.kind) : ""
@@ -138,7 +222,7 @@ edit("DynamicIslandWindow.qml", [
                 text: "+" + Math.max(0, activityChips.others.length - 1); description: "All activities"
                 onClicked: {
                     if (activityChips.expandedMusic) islandContainer.smartRestoreState();
-                    activities.selected = ""; activities.listing = true;
+                    activities.closeDetails(); activities.listing = true;
                 }
             }
         }

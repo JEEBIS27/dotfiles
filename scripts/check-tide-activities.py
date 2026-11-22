@@ -90,7 +90,8 @@ async def check(binary, directory):
         mcp.stdin.close()
         await mcp.wait()
         await cli("hook", "--app", "Codex", data=b'{"hook_event_name":"UserPromptSubmit","session_id":"sample"}')
-        await state(has("ai:sample"))
+        start = await state(has("ai:sample"))
+        work_started = next(row for row in start["items"] if row["id"] == "job:ai:sample")
         await cli("hook", "--app", "Codex", data=b'{"hook_event_name":"PermissionRequest","session_id":"sample","tool_name":"Bash"}')
         # Let a subsequent hook delimit the snapshots without relying on a sleep.
         await cli("hook", "--app", "Codex", data=b'{"hook_event_name":"PostToolUse","session_id":"sample","tool_name":"Bash"}')
@@ -99,10 +100,16 @@ async def check(binary, directory):
             for activity in message.get("items", []):
                 if activity["id"] == "job:ai:sample":
                     assert activity["kind"] == "working", "PermissionRequest alone does not establish a user wait"
+                    assert activity["phaseChangedAt"] == work_started["phaseChangedAt"], "Tool hooks must not restart the brief work notice"
                     return activity["body"] == "Bash"
             return False
 
         await state(still_working)
+        await cli("hook", "--app", "Codex", data=b'{"hook_event_name":"UserPromptSubmit","session_id":"sample"}')
+        second_turn = await state(has("ai:sample"))
+        restarted = next(row for row in second_turn["items"] if row["id"] == "job:ai:sample")
+        assert restarted["phaseChangedAt"] > work_started["phaseChangedAt"]
+        assert restarted["started"] > work_started["started"]
         await cli("hook", "--app", "Codex", data=b'{"hook_event_name":"Stop","session_id":"sample"}')
         final = await state(lambda m: any(r["kind"] == "done" for r in m.get("items", [])))
         assert final["history"][0]["source"]["app"] == "Codex"
