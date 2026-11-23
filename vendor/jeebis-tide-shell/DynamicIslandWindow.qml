@@ -28,6 +28,7 @@ PanelWindow {
     readonly property real capsuleFrameWidth: capsuleFrame.alignedWidth
     readonly property real chipFrameWidth: activityChip.background?.alignedFrameWidth ?? 0
     readonly property real centerCornerRadius: 15
+    readonly property real compactCapsuleHeight: snapToOutputPixel(userConfig.islandHeight)
 
     // Sample a small patch adjacent to the capsule. This follows windows as well
     // as the wallpaper without feeding the Island's own pixels back into its outline.
@@ -482,7 +483,7 @@ PanelWindow {
         || root.anyConnectivityDetailMounted
     readonly property bool islandNormallyVisible: autoHideMustShow
         || (!autoHideForcedHidden && (!autoHideEnabled || autoHideVisible))
-    readonly property bool autoHideTargetVisible: islandContainer.islandState === "app_queue" || islandNormallyVisible || islandPeekTimer.running || islandContainer.levelOsdVisible
+    readonly property bool autoHideTargetVisible: !!clickMerge.source || islandContainer.islandState === "app_queue" || islandNormallyVisible || islandPeekTimer.running || islandContainer.levelOsdVisible
     readonly property bool autoHideSuppressesTransientReveal: (autoHideEnabled || autoHideForcedHidden)
         && !autoHideTargetVisible
     property real autoHideProgress: autoHideTargetVisible ? 1 : 0
@@ -3095,7 +3096,7 @@ PanelWindow {
                 id: handoff
                 foreground: activities.current
                 secondary: activities.chip
-                animate: root.activityPresentationAllowed && !activities.detailed && !root.overviewVisible
+                animate: root.activityPresentationAllowed && !activities.detailed && !clickMerge.source && !clickMerge.returnSource
                 onMerging: (row, finished) => {
                     if (row && ["done", "notification"].includes(row.kind) && root.activityHub?.send)
                         root.activityHub.send({op:"presentation", id:row.id, updated:row.updated, finished})
@@ -3390,13 +3391,48 @@ PanelWindow {
         QtObject {
             id: clickMerge
             property Item source: null
+            property Item returnSource: null
+            property string returnActivityId: ""
+            property string detailState: ""
+            property bool returning: false
+            readonly property point destination: returning && source?.parent
+                ? source.parent.mapToItem(islandContainer, source.x + source.width / 2, source.y + source.height / 2)
+                : origin
+            readonly property string currentDetail: islandContainer.islandState + "|" + activities.selected + "|" + activities.listing
+            onCurrentDetailChanged: if (returnSource) Qt.callLater(restoreSource)
+
+            function restoreSource() {
+                if (!returnSource || currentDetail === detailState) return
+                const item = returnSource
+                const activityId = returnActivityId
+                // The completion bubble is temporary. Restore it only while that event is live.
+                if (item === timerBubble && islandContainer.timerBubbleWanted) {
+                    timerBubbleHideAnimation.stop()
+                    timerBubbleShowAnimation.stop()
+                    timerBubble.reveal = 1
+                    timerBubble.mounted = true
+                }
+                handoff.reconcile()
+                returnSource = null
+                if (root.overviewVisible || (!root.activityPresentationAllowed && !activityChips.expandedMusic)
+                        || activities.detailed || !item.visible
+                        || (item === activityChip && activityChips.smallItem?.id !== activityId))
+                    return
+                origin = item.mapToItem(islandContainer, item.width / 2, item.height / 2)
+                returning = true
+                phase = 0
+                source = item
+                motion.start()
+            }
             property point origin
             property real phase: 1
             property var action: null
             function open(item, callback) {
                 if (source || !item.visible) return
                 origin = item.mapToItem(islandContainer, item.width / 2, item.height / 2)
+                returning = false
                 phase = 1
+                returnActivityId = item === activityChip ? activityChips.smallItem?.id || "" : ""
                 action = callback
                 source = item
                 motion.start()
@@ -3404,16 +3440,27 @@ PanelWindow {
             function cancel() {
                 motion.stop()
                 source = null
+                returning = false
                 action = null
             }
             readonly property NumberAnimation motion: NumberAnimation {
                 target: clickMerge
                 property: "phase"
-                from: 1; to: 0; duration: 300
+                from: clickMerge.returning ? 0 : 1
+                to: clickMerge.returning ? 1 : 0
+                duration: clickMerge.returning ? 420 : 300
                 easing.type: Easing.Linear
                 onFinished: {
                     const callback = clickMerge.action
-                    if (callback && clickMerge.source?.visible && !root.overviewVisible) callback()
+                    const item = clickMerge.source
+                    const previous = clickMerge.currentDetail
+                    if (callback && item?.visible && !root.overviewVisible) {
+                        callback()
+                        if (clickMerge.currentDetail !== previous) {
+                            clickMerge.detailState = clickMerge.currentDetail
+                            clickMerge.returnSource = item
+                        }
+                    }
                     clickMerge.cancel()
                 }
             }
@@ -3424,26 +3471,26 @@ PanelWindow {
             main: mainCapsule
             readonly property bool clicked: !!clickMerge.source
             readonly property bool app: !clicked && appIconQueue.active && appIconQueue.movingApp !== ""
-            readonly property bool chip: activityChips.progress > 0 && activityChips.progress < 1
+            readonly property bool chip: handoff.moving && activityChips.progress > 0 && activityChips.progress < 1
             // Phase grows toward detachment in both directions. The row and
             // body settle before the satellite reaches the end of its travel.
             readonly property real phase: clicked ? clickMerge.phase : app ? appIconQueue.separation : activityChips.progress
-            readonly property bool releasing: clicked ? false : app ? !appIconQueue.opening : (handoff.moving ? handoff.direction === "split" : activityChips.wanted)
+            readonly property bool releasing: clicked ? clickMerge.returning : app ? !appIconQueue.opening : (handoff.moving ? handoff.direction === "split" : activityChips.wanted)
             readonly property real separation: appIconQueue.smoothPhase(phase, 0, releasing ? 0.62 : 0.84)
             readonly property real rebound: releasing
                 ? Math.sin(Math.PI * appIconQueue.smoothPhase(phase, 0.45, 0.89)) : 0
             readonly property real emerge: app ? 1 - appIconQueue.smoothPhase(phase, 0.86, 1) : 1
             readonly property real contact: Math.sin(Math.PI * separation)
-            readonly property int side: clicked ? (clickMerge.origin.x < mainCapsule.x + mainCapsule.width / 2 ? -1 : 1) : app ? (userConfig.islandPositionX <= 50 ? 1 : -1)
+            readonly property int side: clicked ? (clickMerge.destination.x < mainCapsule.x + mainCapsule.width / 2 ? -1 : 1) : app ? (userConfig.islandPositionX <= 50 ? 1 : -1)
                 : (activityChips.restX + activityChip.width / 2 >= mainCapsule.x + mainCapsule.width / 2 ? 1 : -1)
             readonly property real edge: mainCapsule.x + (side > 0 ? mainCapsule.width : 0)
-            readonly property real diameter: Math.min(32, mainCapsule.height)
+            readonly property real diameter: root.compactCapsuleHeight
             readonly property real dock: app ? mainCapsule.x + appIconQueue.slotX
                 : edge - side * Math.min(mainCapsule.width / 2, diameter / 2)
-            readonly property real detached: clicked ? clickMerge.origin.x : app ? edge + side * (diameter / 2 + 10 + root.capsuleFrameWidth)
+            readonly property real detached: clicked ? clickMerge.destination.x : app ? edge + side * (diameter / 2 + 10 + root.capsuleFrameWidth)
                 : activityChips.restX + activityChip.width / 2
             satelliteX: dock + (detached - dock) * separation + side * rebound * diameter * 0.36
-            satelliteY: clicked ? clickMerge.origin.y
+            satelliteY: clicked ? clickMerge.destination.y
                 : mainCapsule.y + mainCapsule.height / 2
             satelliteWidth: (clicked ? clickMerge.source.width : app ? diameter : activityChip.width) * (1 + 0.085 * contact - 0.12 * rebound) * emerge
             satelliteHeight: (clicked ? clickMerge.source.height : app ? diameter : activityChip.height) * (1 + 0.085 * contact + 0.10 * rebound) * emerge
@@ -3486,12 +3533,14 @@ PanelWindow {
             readonly property var others: expandedMusic ? activities.rows.filter(r => r.kind !== "music") : activities.secondary
             readonly property var smallItem: expandedMusic ? others[0] || null : handoff.chip
             spacing: 3 + root.chipFrameWidth * 2
-            readonly property bool wanted: (root.activityPresentationAllowed || expandedMusic) && !!smallItem && !activities.listing
+            readonly property bool compactTransient: ["split", "long_capsule", "app_queue"].includes(islandContainer.islandState)
+                && !root.overviewVisible
+            readonly property bool wanted: (root.activityPresentationAllowed || expandedMusic || compactTransient)
+                && !!smallItem && !activities.listing
             property var retained: null
             onSmallItemChanged: if (smallItem) retained = smallItem
             readonly property real progress: handoff.moving ? handoff.separation : reveal
-            property real reveal: wanted && handoff.direction !== "merge" ? 1 : 0
-            Behavior on reveal { enabled: !clickMerge.source && !handoff.moving; NumberAnimation { duration: activityChips.wanted ? 450 : 285; easing.type: Easing.Linear } }
+            readonly property real reveal: wanted && handoff.direction !== "merge" ? 1 : 0
             readonly property real gap: 5 + root.capsuleFrameWidth + root.chipFrameWidth
             readonly property real restX: mainCapsule.x + mainCapsule.width + gap + width <= parent.width
                 ? mainCapsule.x + mainCapsule.width + gap : Math.max(0, mainCapsule.x - gap - width)
@@ -3502,7 +3551,9 @@ PanelWindow {
             enabled: wanted && !handoff.moving && !clickMerge.source
             IslandButton {
                 id: activityChip
-                transform: Translate { x: clickMerge.source === activityChip ? liquid.satelliteX - clickMerge.origin.x : 0 }
+                transform: Translate { x: clickMerge.source === activityChip ? liquid.satelliteX - clickMerge.destination.x : 0 }
+                height: root.compactCapsuleHeight
+                width: Math.max(height, implicitWidth)
                 surfaceColor: root.materialColor
                 opacity: clickMerge.source === activityChip ? liquid.separation : 1
                 outsideFrame: true
@@ -3512,7 +3563,7 @@ PanelWindow {
                 visible: !!(activityChips.smallItem || activityChips.retained)
                 surfaceOpacity: liquid.visible && !liquid.app && (!liquid.clicked || clickMerge.source === activityChip) ? 0 : 1
                 labelOpacity: activityChips.progress
-                labelBlur: liquid.chip && !liquid.app ? liquid.contact : 0
+                labelBlur: (liquid.chip && !liquid.app || clickMerge.source === activityChip) ? liquid.contact : 0
                 text: activities.glyph((activityChips.smallItem || activityChips.retained)?.kind || "")
                 description: activityChips.smallItem ? activityChips.smallItem.title : ""
                 onClicked: {
@@ -3527,7 +3578,9 @@ PanelWindow {
             }
             IslandButton {
                 id: moreActivityChip
-                transform: Translate { x: clickMerge.source === moreActivityChip ? liquid.satelliteX - clickMerge.origin.x : 0 }
+                transform: Translate { x: clickMerge.source === moreActivityChip ? liquid.satelliteX - clickMerge.destination.x : 0 }
+                height: root.compactCapsuleHeight
+                width: Math.max(height, implicitWidth)
                 surfaceColor: root.materialColor
                 opacity: clickMerge.source === moreActivityChip ? liquid.separation : 1
                 outsideFrame: true
@@ -3548,9 +3601,9 @@ PanelWindow {
         }
         Item {
             id: fileShelfBubble
-            transform: Translate { x: clickMerge.source === fileShelfBubble ? liquid.satelliteX - clickMerge.origin.x : 0 }
+            transform: Translate { x: clickMerge.source === fileShelfBubble ? liquid.satelliteX - clickMerge.destination.x : 0 }
 
-            readonly property int bubbleSize: 36
+            readonly property real bubbleSize: root.compactCapsuleHeight
 
             width: bubbleSize
             height: bubbleSize
@@ -3571,6 +3624,7 @@ PanelWindow {
                 tint: StyleTokens.panel
                 materialOpacity: liquid.visible && clickMerge.source === fileShelfBubble ? 0 : root.materialOpacity
                 frameColor: Qt.alpha(StyleTokens.surfaceBorder, StyleTokens.surfaceBorder.a * root.compactKeyline)
+                outsideFrame: true
                 frameWidth: liquid.visible && clickMerge.source === fileShelfBubble ? 0 : userConfig.islandFrameWidth
                 pixelRatio: root.devicePixelRatio
                 radius: width / 2
@@ -3624,11 +3678,11 @@ PanelWindow {
 
         Item {
             id: timerBubble
-            transform: Translate { x: clickMerge.source === timerBubble ? liquid.satelliteX - clickMerge.origin.x : 0 }
+            transform: Translate { x: clickMerge.source === timerBubble ? liquid.satelliteX - clickMerge.destination.x : 0 }
 
             property bool mounted: islandContainer.timerBubbleWanted
             property real reveal: islandContainer.timerBubbleWanted ? 1 : 0
-            readonly property int bubbleSize: 34
+            readonly property real bubbleSize: root.compactCapsuleHeight
             readonly property real hiddenX: mainCapsule.x + mainCapsule.width - width * 0.62
             readonly property real shownX: mainCapsule.x + mainCapsule.width + Math.max(8, root.capsuleFrameWidth + 4)
             readonly property real centerY: mainCapsule.y + mainCapsule.height / 2 - height / 2
@@ -3775,6 +3829,7 @@ PanelWindow {
                 tint: StyleTokens.panel
                 materialOpacity: liquid.visible && clickMerge.source === timerBubble ? 0 : root.materialOpacity
                 frameColor: Qt.alpha(StyleTokens.surfaceBorder, StyleTokens.surfaceBorder.a * root.compactKeyline)
+                outsideFrame: true
                 frameWidth: liquid.visible && clickMerge.source === timerBubble ? 0 : userConfig.islandFrameWidth
                 pixelRatio: root.devicePixelRatio
                 radius: width / 2
