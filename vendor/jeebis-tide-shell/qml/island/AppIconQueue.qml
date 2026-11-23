@@ -10,14 +10,24 @@ Item {
 
     readonly property int slotWidth: 26
     readonly property int spacing: 4
-    readonly property int motionDuration: 380
-    readonly property int preferredWidth: Math.max(44, 24 + icons.count * (slotWidth + spacing) - spacing)
+    readonly property int motionDuration: opening ? 400 : 540
+    readonly property int pitch: slotWidth + spacing
+    // The moving slot gives up its space during contact. Its delegate stays
+    // alive until the satellite has finished rebounding beyond the row.
+    readonly property real slotFraction: movingApp ? 1 - smoothPhase(separation, 0.12, 0.78) : 1
+    readonly property int movingIndex: movingApp ? indexOf(movingApp) : -1
+    readonly property real occupiedSlots: icons.count - (movingIndex >= 0 ? 1 - slotFraction : 0)
+    function smoothPhase(value, start, end) {
+        const t = Math.max(0, Math.min(1, (value - start) / (end - start)))
+        return t * t * (3 - 2 * t)
+    }
+    readonly property real preferredWidth: Math.max(44, 24 + occupiedSlots * pitch - spacing)
     property var pending: []
     property string movingApp: ""
     property bool opening: false
     property real separation: 0
-    readonly property var movingSlot: row.currentItem
-    readonly property real slotX: movingSlot ? row.x + movingSlot.x - row.contentX + slotWidth / 2 : width / 2
+    readonly property var movingSlot: slots.itemAt(movingIndex)
+    readonly property real slotX: movingSlot ? row.x + movingSlot.x + movingSlot.width / 2 - spacing * slotFraction / 2 : width / 2
     readonly property string movingIcon: movingApp ? Quickshell.iconPath(
         DesktopEntries.heuristicLookup(movingApp)?.icon || movingApp, true) : ""
     visible: active
@@ -68,15 +78,15 @@ Item {
     function applyChange() {
         const {appId, opened} = pending.shift()
         opening = opened
+        separation = opened ? 1 : 0
         movingApp = appId
         const index = indexOf(appId)
         if (opened && index < 0) {
             icons.append({appId})
-            Qt.callLater(row.positionViewAtEnd)
+            row.requestedOffset = Math.max(0, icons.count * pitch - row.width)
         } else if (!opened && index >= 0) {
-            row.positionViewAtIndex(index, ListView.Contain)
+            row.requestedOffset = Math.max((index + 1) * pitch - row.width, Math.min(index * pitch, row.offset))
         }
-        separation = opened ? 1 : 0
         travel.to = opened ? 0 : 1
         travel.start()
     }
@@ -86,7 +96,7 @@ Item {
         target: queue
         property: "separation"
         duration: queue.motionDuration
-        easing.type: Easing.InOutCubic
+        easing.type: Easing.Linear
         onFinished: {
             const index = queue.indexOf(queue.movingApp)
             if (!queue.opening && index >= 0) icons.remove(index)
@@ -106,34 +116,40 @@ Item {
         onTriggered: queue.dismissRequested()
     }
 
-    ListView {
+    Item {
         id: row
+        property real requestedOffset: 0
+        readonly property real offset: Math.min(Math.max(0, requestedOffset),
+            Math.max(0, queue.occupiedSlots * queue.pitch - width))
         anchors.centerIn: parent
-        width: Math.max(0, Math.min(parent.width - 24, queue.preferredWidth - 24))
+        width: Math.max(0, Math.min(parent.width - 24 + queue.spacing, queue.occupiedSlots * queue.pitch))
+        anchors.horizontalCenterOffset: queue.spacing / 2
         height: parent.height
-        orientation: ListView.Horizontal
-        spacing: queue.spacing
-        interactive: false
         clip: true
-        model: icons
-        currentIndex: queue.indexOf(queue.movingApp)
-        delegate: Item {
-            id: slot
-            required property string appId
-            readonly property var entry: DesktopEntries.heuristicLookup(appId)
-            width: queue.slotWidth
-            height: row.height
-            opacity: appId === queue.movingApp ? 0 : 1
-            Accessible.name: entry?.name || appId
-            QueueAppIcon {
-                anchors.centerIn: parent
-                width: 20
-                height: 20
-                iconSource: Quickshell.iconPath(slot.entry?.icon || slot.appId, true)
+        Repeater {
+            id: slots
+            model: icons
+            delegate: Item {
+                id: slot
+                required property int index
+                required property string appId
+                readonly property var entry: DesktopEntries.heuristicLookup(appId)
+                // Layout every neighbor from the same contact phase as the surface,
+                // including during removal of a slot in the middle of the row.
+                x: (index - (queue.movingIndex >= 0 && index > queue.movingIndex
+                    ? 1 - queue.slotFraction : 0)) * queue.pitch - row.offset
+                width: queue.pitch * (index === queue.movingIndex ? queue.slotFraction : 1)
+                height: row.height
+                opacity: index === queue.movingIndex ? 0 : 1
+                Accessible.name: entry?.name || appId
+                QueueAppIcon {
+                    anchors.centerIn: parent
+                    anchors.horizontalCenterOffset: -queue.spacing / 2
+                    width: 20
+                    height: 20
+                    iconSource: Quickshell.iconPath(slot.entry?.icon || slot.appId, true)
+                }
             }
-        }
-        displaced: Transition {
-            NumberAnimation { property: "x"; duration: queue.motionDuration; easing.type: Easing.OutCubic }
         }
     }
 }

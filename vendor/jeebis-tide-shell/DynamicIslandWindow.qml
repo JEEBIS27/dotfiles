@@ -2505,7 +2505,9 @@ PanelWindow {
                 : parent.width * userConfig.islandPositionX / 100 - width / 2
             clip: true
             width: root.snapToOutputPixel(displayedWidth)
-            height: root.snapToOutputPixel(targetHeight)
+            readonly property bool liquidContact: roundedCapsule && (liquid.app || liquid.chip)
+            height: root.snapToOutputPixel(targetHeight
+                + (liquidContact ? Math.min(3, targetHeight * 0.08) * liquid.contact : 0))
             radius: targetRadius
             opacity: root.autoHideProgress
             transform: Scale {
@@ -2523,12 +2525,12 @@ PanelWindow {
             Behavior on displayedWidth  {
                 NumberAnimation {
                     id: capsuleWidthAnimation
-                    duration: capsuleMouseArea.sideSwipeInteractive ? 0 : mainCapsule.morphDuration
+                    duration: capsuleMouseArea.sideSwipeInteractive || liquid.app ? 0 : mainCapsule.morphDuration
                     easing.type: Easing.OutQuint
                 }
             }
             Behavior on height {
-                enabled: !(controlCenterLoader.item && controlCenterLoader.item.batteryDrawerMoving)
+                enabled: !mainCapsule.liquidContact && !(controlCenterLoader.item && controlCenterLoader.item.batteryDrawerMoving)
 
                 NumberAnimation {
                     id: capsuleHeightAnimation
@@ -3340,19 +3342,26 @@ PanelWindow {
             main: mainCapsule
             readonly property bool app: appIconQueue.active && appIconQueue.movingApp !== ""
             readonly property bool chip: activityChips.progress > 0 && activityChips.progress < 1
-            readonly property real separation: app ? Math.min(1, appIconQueue.separation / 0.84) : activityChips.progress
-            readonly property real emerge: app ? Math.min(1, (1 - appIconQueue.separation) / 0.14) : 1
+            // Phase grows toward detachment in both directions. The row and
+            // body settle before the satellite reaches the end of its travel.
+            readonly property real phase: app ? appIconQueue.separation : activityChips.progress
+            readonly property bool releasing: app ? !appIconQueue.opening : activityChips.wanted
+            readonly property real separation: appIconQueue.smoothPhase(phase, 0, releasing ? 0.62 : 0.84)
+            readonly property real rebound: releasing
+                ? Math.sin(Math.PI * appIconQueue.smoothPhase(phase, 0.45, 0.89)) : 0
+            readonly property real emerge: app ? 1 - appIconQueue.smoothPhase(phase, 0.86, 1) : 1
             readonly property real contact: Math.sin(Math.PI * separation)
-            readonly property int side: mainCapsule.x + mainCapsule.width + 54 < parent.width ? 1 : -1
+            readonly property int side: app ? (userConfig.islandPositionX <= 50 ? 1 : -1)
+                : (activityChips.restX + activityChip.width / 2 >= mainCapsule.x + mainCapsule.width / 2 ? 1 : -1)
             readonly property real edge: mainCapsule.x + (side > 0 ? mainCapsule.width : 0)
             readonly property real diameter: Math.min(32, mainCapsule.height)
             readonly property real dock: app ? mainCapsule.x + appIconQueue.slotX
                 : edge - side * Math.min(mainCapsule.width / 2, diameter / 2)
             readonly property real detached: app ? edge + side * (diameter / 2 + 10 + root.capsuleFrameWidth)
                 : activityChips.restX + activityChip.width / 2
-            satelliteX: dock + (detached - dock) * separation
-            satelliteWidth: (app ? diameter : activityChip.width) * (1 + 0.085 * contact) * emerge
-            satelliteHeight: (app ? diameter : activityChip.height) * (1 + 0.085 * contact) * emerge
+            satelliteX: dock + (detached - dock) * separation + side * rebound * diameter * 0.36
+            satelliteWidth: (app ? diameter : activityChip.width) * (1 + 0.085 * contact - 0.12 * rebound) * emerge
+            satelliteHeight: (app ? diameter : activityChip.height) * (1 + 0.085 * contact + 0.10 * rebound) * emerge
             stroke: root.capsuleFrameWidth
             fillTint: root.materialColor
             edgeTint: mainCapsule.outlineColor
@@ -3366,8 +3375,8 @@ PanelWindow {
             x: liquid.satelliteX - width / 2
             y: mainCapsule.y + (mainCapsule.height - height) / 2
             width: liquid.app ? liquid.satelliteWidth : 0
-            height: width
-            radius: width / 2
+            height: liquid.app ? liquid.satelliteHeight : 0
+            radius: Math.min(width, height) / 2
             z: mainCapsule.z - 0.1
             color: liquid.visible ? "transparent" : root.materialColor
             visible: liquid.app
@@ -3396,10 +3405,11 @@ PanelWindow {
             property var retained: null
             onSmallItemChanged: if (smallItem) retained = smallItem
             property real progress: wanted ? 1 : 0
-            Behavior on progress { NumberAnimation { duration: 285; easing.type: Easing.InOutCubic } }
-            readonly property real restX: Math.min(parent.width - width - root.chipFrameWidth,
-                mainCapsule.x + mainCapsule.width + 5 + root.capsuleFrameWidth + root.chipFrameWidth)
-            y: mainCapsule.y + (userConfig.islandHeight - height) / 2
+            Behavior on progress { NumberAnimation { duration: activityChips.wanted ? 450 : 285; easing.type: Easing.Linear } }
+            readonly property real gap: 5 + root.capsuleFrameWidth + root.chipFrameWidth
+            readonly property real restX: mainCapsule.x + mainCapsule.width + gap + width <= parent.width
+                ? mainCapsule.x + mainCapsule.width + gap : Math.max(0, mainCapsule.x - gap - width)
+            y: mainCapsule.y + ((mainCapsule.roundedCapsule ? mainCapsule.height : userConfig.islandHeight) - height) / 2
             x: liquid.chip && !liquid.app && mainCapsule.roundedCapsule ? liquid.satelliteX - activityChip.width / 2 : restX
             z: 8; opacity: root.autoHideProgress
             visible: progress > 0 && opacity > 0.01 && (wanted || mainCapsule.roundedCapsule && !liquid.app)
