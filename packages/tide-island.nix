@@ -68,6 +68,7 @@ pkgs.stdenv.mkDerivation rec {
   version = "1.0.49";
   src = shellSource;
   nativeBuildInputs = [
+    pkgs.qt6.qtshadertools
     pkgs.cmake
     pkgs.pkg-config
     pkgs.qt6.wrapQtAppsHook

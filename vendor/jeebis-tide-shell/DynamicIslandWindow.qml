@@ -1,4 +1,6 @@
 import QtQuick
+import QtQuick.Effects
+import Quickshell.Io
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Services.Mpris
@@ -26,6 +28,39 @@ PanelWindow {
     readonly property real capsuleFrameWidth: capsuleFrame.alignedWidth
     readonly property real chipFrameWidth: activityChip.background?.alignedFrameWidth ?? 0
     readonly property real centerCornerRadius: 15
+
+    // Sample a small patch adjacent to the capsule. This follows windows as well
+    // as the wallpaper without feeding the Island's own pixels back into its outline.
+    property real compactKeyline: 1
+    Behavior on compactKeyline { NumberAnimation { duration: 200 } }
+    Timer {
+        interval: 1800
+        repeat: true
+        triggeredOnStart: true
+        running: root.visible && !!root.screen && mainCapsule.roundedCapsule
+            && root.autoHideTargetVisible && userConfig.islandFrameWidth > 0
+            && !root.shellRootController?.sessionLocked
+        onTriggered: {
+            if (backdrop.running) return
+            const sx = mainCapsule.x > 20 ? mainCapsule.x - 16 : mainCapsule.x + mainCapsule.width + 55
+            const x = Math.round(root.screen.x + Math.max(0, Math.min(root.width - 8, sx)))
+            const y = Math.round(root.screen.y + mainCapsule.y + mainCapsule.height / 2 - 3)
+            backdrop.command = ["bash", "-o", "pipefail", "-c",
+                'grim -g "$1" -s 1 -t ppm - | magick ppm:- -colorspace gray -format "%[fx:mean]" info:',
+                "island-keyline", x + "," + y + " 8x6"]
+            backdrop.running = true
+        }
+    }
+    Process {
+        id: backdrop
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const luminance = parseFloat(this.text)
+                if (Number.isFinite(luminance))
+                    root.compactKeyline = Math.min(1, Math.max(0, (0.26 - luminance) / 0.18))
+            }
+        }
+    }
 
     function snapToOutputPixel(value) {
         const scale = devicePixelRatio > 0 ? devicePixelRatio : 1;
@@ -142,6 +177,11 @@ PanelWindow {
             surface: mainCapsule
             active: mainCapsule.opacity > 0.01
             surfaceRadius: mainCapsule.radius
+        }
+        InsetBlurRegion {
+            surface: appBubble
+            active: appBubble.visible && appBubble.width > 1
+            surfaceRadius: appBubble.radius
         }
         InsetBlurRegion {
             surface: fileShelfBubble
@@ -2297,7 +2337,7 @@ PanelWindow {
             surfaceRadius: mainCapsule.radius
             strokeColor: mainCapsule.outlineColor
             outset: true
-            opacity: mainCapsule.opacity
+            opacity: liquid.visible ? 0 : mainCapsule.opacity
             x: mainCapsule.x - extension
             y: mainCapsule.y - extension
             width: mainCapsule.width + extension * 2
@@ -2314,6 +2354,10 @@ PanelWindow {
         IslandSurface {
             id: mainCapsule
             frameWidth: 0
+            // The material is drawn by the liquid contour during contact.
+            // Diffuse only the disappearing foreground, leaving that contour sharp.
+            layer.enabled: liquid.visible && liquid.chip && !liquid.app
+            layer.effect: MultiEffect { blurEnabled: true; blurMax: 8; blur: liquid.contact * 0.65 }
             pixelRatio: root.devicePixelRatio
 
             Shortcut {
@@ -2340,7 +2384,7 @@ PanelWindow {
             readonly property bool notificationHistorySurface: islandContainer.islandState === "notification_center"
             property color outlineColor: root.overviewContentVisible
                 ? root.overviewCapsuleBorderColor
-                : StyleTokens.surfaceBorder
+                : roundedCapsule ? Qt.alpha(StyleTokens.surfaceBorder, StyleTokens.surfaceBorder.a * root.compactKeyline) : StyleTokens.surfaceBorder
             property real displayedWidth: baseTargetWidth
             readonly property real baseTargetWidth: {
                 if (root.overviewVisible) return root.overviewCapsuleWidth;
@@ -2449,7 +2493,7 @@ PanelWindow {
                 islandContainer.swipeTransitionProgress
             )
             tint: root.overviewContentVisible ? root.overviewCapsuleColor : StyleTokens.panel
-            materialOpacity: root.materialOpacity
+            materialOpacity: liquid.visible ? 0 : root.materialOpacity
             // Keep the top edge fixed and grow out from a small capsule.
             readonly property real revealWidthScale: 1 - (1 - Math.min(1, 34 / Math.max(1, width)))
                 * (1 - root.autoHideProgress)
@@ -2493,7 +2537,6 @@ PanelWindow {
                 }
             }
             Behavior on radius { NumberAnimation { duration: mainCapsule.morphDuration; easing.type: Easing.OutQuint } }
-            Behavior on color { ColorAnimation { duration: 280; easing.type: Easing.InOutQuad } }
             Behavior on outlineColor { ColorAnimation { duration: 260; easing.type: Easing.InOutQuad } }
 
             antialiasing: true
@@ -3292,25 +3335,87 @@ PanelWindow {
 
         }
 
+        LiquidCapsule {
+            id: liquid
+            main: mainCapsule
+            readonly property bool app: appIconQueue.active && appIconQueue.movingApp !== ""
+            readonly property bool chip: activityChips.progress > 0 && activityChips.progress < 1
+            readonly property real separation: app ? Math.min(1, appIconQueue.separation / 0.84) : activityChips.progress
+            readonly property real emerge: app ? Math.min(1, (1 - appIconQueue.separation) / 0.14) : 1
+            readonly property real contact: Math.sin(Math.PI * separation)
+            readonly property int side: mainCapsule.x + mainCapsule.width + 54 < parent.width ? 1 : -1
+            readonly property real edge: mainCapsule.x + (side > 0 ? mainCapsule.width : 0)
+            readonly property real diameter: Math.min(32, mainCapsule.height)
+            readonly property real dock: app ? mainCapsule.x + appIconQueue.slotX
+                : edge - side * Math.min(mainCapsule.width / 2, diameter / 2)
+            readonly property real detached: app ? edge + side * (diameter / 2 + 10 + root.capsuleFrameWidth)
+                : activityChips.restX + activityChip.width / 2
+            satelliteX: dock + (detached - dock) * separation
+            satelliteWidth: (app ? diameter : activityChip.width) * (1 + 0.085 * contact) * emerge
+            satelliteHeight: (app ? diameter : activityChip.height) * (1 + 0.085 * contact) * emerge
+            stroke: root.capsuleFrameWidth
+            fillTint: root.materialColor
+            edgeTint: mainCapsule.outlineColor
+            z: mainCapsule.z - 0.1
+            visible: (app || chip) && mainCapsule.roundedCapsule && root.autoHideProgress > 0.98
+                && GraphicsInfo.api !== GraphicsInfo.Software
+            opacity: mainCapsule.opacity
+        }
+        Rectangle {
+            id: appBubble
+            x: liquid.satelliteX - width / 2
+            y: mainCapsule.y + (mainCapsule.height - height) / 2
+            width: liquid.app ? liquid.satelliteWidth : 0
+            height: width
+            radius: width / 2
+            z: mainCapsule.z - 0.1
+            color: liquid.visible ? "transparent" : root.materialColor
+            visible: liquid.app
+        }
+        QueueAppIcon {
+            visible: liquid.app
+            iconSource: appIconQueue.movingIcon
+            width: 20
+            height: 20
+            x: liquid.satelliteX - width / 2
+            y: mainCapsule.y + (mainCapsule.height - height) / 2
+            opacity: mainCapsule.opacity * liquid.emerge
+            scale: liquid.emerge
+            z: mainCapsule.z + 2
+            layer.enabled: liquid.contact > 0.01
+            layer.effect: MultiEffect { blurEnabled: true; blurMax: 8; blur: liquid.contact * 0.75 }
+        }
+
         Row {
             id: activityChips
             readonly property bool expandedMusic: islandContainer.expandedLayerVisible && activities.playing
             readonly property var others: expandedMusic ? activities.rows.filter(r => r.kind !== "music") : activities.secondary
             readonly property var smallItem: expandedMusic ? others[0] || null : activities.chip
             spacing: 3 + root.chipFrameWidth * 2
-            x: Math.min(parent.width - width - root.chipFrameWidth,
+            readonly property bool wanted: (root.activityPresentationAllowed || expandedMusic) && !!smallItem
+            property var retained: null
+            onSmallItemChanged: if (smallItem) retained = smallItem
+            property real progress: wanted ? 1 : 0
+            Behavior on progress { NumberAnimation { duration: 285; easing.type: Easing.InOutCubic } }
+            readonly property real restX: Math.min(parent.width - width - root.chipFrameWidth,
                 mainCapsule.x + mainCapsule.width + 5 + root.capsuleFrameWidth + root.chipFrameWidth)
             y: mainCapsule.y + (userConfig.islandHeight - height) / 2
+            x: liquid.chip && !liquid.app && mainCapsule.roundedCapsule ? liquid.satelliteX - activityChip.width / 2 : restX
             z: 8; opacity: root.autoHideProgress
-            visible: (root.activityPresentationAllowed || expandedMusic) && !!smallItem && opacity > 0.01
+            visible: progress > 0 && opacity > 0.01 && (wanted || mainCapsule.roundedCapsule && !liquid.app)
+            enabled: wanted
             IslandButton {
                 id: activityChip
                 surfaceColor: root.materialColor
                 outsideFrame: true
                 capsuleFrameWidth: userConfig.islandFrameWidth
+                outlineColor: mainCapsule.outlineColor
                 pixelRatio: root.devicePixelRatio
-                visible: !!activityChips.smallItem
-                text: activityChips.smallItem ? activities.glyph(activityChips.smallItem.kind) : ""
+                visible: !!(activityChips.smallItem || activityChips.retained)
+                surfaceOpacity: liquid.visible && !liquid.app ? 0 : 1
+                labelOpacity: activityChips.progress
+                labelBlur: liquid.chip && !liquid.app ? liquid.contact : 0
+                text: activities.glyph((activityChips.smallItem || activityChips.retained)?.kind || "")
                 description: activityChips.smallItem ? activityChips.smallItem.title : ""
                 onClicked: {
                     const row = activityChips.smallItem;
@@ -3323,6 +3428,7 @@ PanelWindow {
                 surfaceColor: root.materialColor
                 outsideFrame: true
                 capsuleFrameWidth: userConfig.islandFrameWidth
+                outlineColor: mainCapsule.outlineColor
                 pixelRatio: root.devicePixelRatio
                 visible: activityChips.others.length > 1
                 text: "+" + Math.max(0, activityChips.others.length - 1); description: "All activities"
@@ -3355,7 +3461,7 @@ PanelWindow {
                 anchors.fill: parent
                 tint: StyleTokens.panel
                 materialOpacity: root.materialOpacity
-                frameColor: StyleTokens.surfaceBorder
+                frameColor: Qt.alpha(StyleTokens.surfaceBorder, StyleTokens.surfaceBorder.a * root.compactKeyline)
                 frameWidth: userConfig.islandFrameWidth
                 pixelRatio: root.devicePixelRatio
                 radius: width / 2
@@ -3556,7 +3662,7 @@ PanelWindow {
                 anchors.fill: parent
                 tint: StyleTokens.panel
                 materialOpacity: root.materialOpacity
-                frameColor: StyleTokens.surfaceBorder
+                frameColor: Qt.alpha(StyleTokens.surfaceBorder, StyleTokens.surfaceBorder.a * root.compactKeyline)
                 frameWidth: userConfig.islandFrameWidth
                 pixelRatio: root.devicePixelRatio
                 radius: width / 2

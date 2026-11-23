@@ -13,6 +13,7 @@ Scope {
     ActivityHub { id: activities; silent: shellRoot.focusEnabled }
     property bool focusEnabled: false
     property bool nightLightEnabled: false
+    readonly property bool sessionLocked: lockScreenController.secure
     property bool shuttingDown: false
     property bool islandAutoHideRuntimeEnabled: true
 

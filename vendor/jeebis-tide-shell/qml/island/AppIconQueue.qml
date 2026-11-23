@@ -10,26 +10,32 @@ Item {
 
     readonly property int slotWidth: 26
     readonly property int spacing: 4
-    readonly property int motionDuration: 240
-    readonly property int preferredWidth: Math.max(44, 24 + Math.max(icons.count, heldCount) * (slotWidth + spacing) - spacing)
-    property int heldCount: 0
-    property bool applyingChange: false
+    readonly property int motionDuration: 380
+    readonly property int preferredWidth: Math.max(44, 24 + icons.count * (slotWidth + spacing) - spacing)
     property var pending: []
+    property string movingApp: ""
+    property bool opening: false
+    property real separation: 0
+    readonly property var movingSlot: row.currentItem
+    readonly property real slotX: movingSlot ? row.x + movingSlot.x - row.contentX + slotWidth / 2 : width / 2
+    readonly property string movingIcon: movingApp ? Quickshell.iconPath(
+        DesktopEntries.heuristicLookup(movingApp)?.icon || movingApp, true) : ""
     visible: active
     clip: true
 
     onActiveChanged: {
         if (active) return
+        travel.stop()
+        movingApp = ""
         stage.stop()
         dismiss.stop()
         pending = []
-        heldCount = 0
         icons.clear()
     }
 
     function enqueue(appId, opened, before) {
         dismiss.stop()
-        const first = !stage.running
+        const first = !stage.running && !travel.running
         pending.push({appId, opened, before: Array.from(before)})
         if (first) prepare()
     }
@@ -42,8 +48,6 @@ Item {
     }
 
     function prepare() {
-        applyingChange = false
-        heldCount = 0
         if (pending.length === 0) {
             if (icons.count === 0) dismissRequested()
             else dismiss.restart()
@@ -62,28 +66,39 @@ Item {
     }
 
     function applyChange() {
-        applyingChange = true
         const {appId, opened} = pending.shift()
+        opening = opened
+        movingApp = appId
         const index = indexOf(appId)
         if (opened && index < 0) {
             icons.append({appId})
             Qt.callLater(row.positionViewAtEnd)
         } else if (!opened && index >= 0) {
             row.positionViewAtIndex(index, ListView.Contain)
-            heldCount = icons.count
-            icons.remove(index)
         }
-        stage.interval = motionDuration
-        stage.restart()
+        separation = opened ? 1 : 0
+        travel.to = opened ? 0 : 1
+        travel.start()
+    }
+
+    NumberAnimation {
+        id: travel
+        target: queue
+        property: "separation"
+        duration: queue.motionDuration
+        easing.type: Easing.InOutCubic
+        onFinished: {
+            const index = queue.indexOf(queue.movingApp)
+            if (!queue.opening && index >= 0) icons.remove(index)
+            queue.movingApp = ""
+            queue.prepare()
+        }
     }
 
     ListModel { id: icons }
     Timer {
         id: stage
-        onTriggered: {
-            if (!queue.applyingChange) queue.applyChange()
-            else queue.prepare()
-        }
+        onTriggered: queue.applyChange()
     }
     Timer {
         id: dismiss
@@ -101,51 +116,21 @@ Item {
         interactive: false
         clip: true
         model: icons
+        currentIndex: queue.indexOf(queue.movingApp)
         delegate: Item {
             id: slot
             required property string appId
-            property real motionOffset: 0
-            transform: Translate { x: slot.motionOffset }
             readonly property var entry: DesktopEntries.heuristicLookup(appId)
             width: queue.slotWidth
             height: row.height
+            opacity: appId === queue.movingApp ? 0 : 1
             Accessible.name: entry?.name || appId
-            Rectangle {
+            QueueAppIcon {
                 anchors.centerIn: parent
-                width: 17
-                height: 14
-                radius: 3
-                color: "transparent"
-                border.color: StyleTokens.textPrimary
-                visible: icon.status !== Image.Ready
-                Rectangle {
-                    x: 1
-                    y: 4
-                    width: parent.width - 2
-                    height: 1
-                    color: parent.border.color
-                }
-            }
-            Image {
-                id: icon
-                anchors.centerIn: parent
-                visible: status === Image.Ready
                 width: 20
-                height: width
-                source: Quickshell.iconPath(slot.entry?.icon || slot.appId, "application-x-executable")
+                height: 20
+                iconSource: Quickshell.iconPath(slot.entry?.icon || slot.appId, true)
             }
-        }
-        add: Transition {
-            enabled: queue.applyingChange
-            NumberAnimation { property: "motionOffset"; from: 10; to: 0; duration: queue.motionDuration; easing.type: Easing.OutCubic }
-            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: queue.motionDuration }
-            NumberAnimation { property: "scale"; from: 0.55; to: 1; duration: queue.motionDuration; easing.type: Easing.OutCubic }
-        }
-        remove: Transition {
-            enabled: queue.applyingChange
-            NumberAnimation { property: "motionOffset"; to: 12; duration: queue.motionDuration; easing.type: Easing.InCubic }
-            NumberAnimation { property: "opacity"; to: 0; duration: queue.motionDuration }
-            NumberAnimation { property: "scale"; to: 0.55; duration: queue.motionDuration; easing.type: Easing.InCubic }
         }
         displaced: Transition {
             NumberAnimation { property: "x"; duration: queue.motionDuration; easing.type: Easing.OutCubic }

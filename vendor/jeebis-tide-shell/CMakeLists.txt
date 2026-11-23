@@ -324,6 +324,14 @@ install(FILES
     DynamicIslandWindow.qml
     DESTINATION ${CMAKE_INSTALL_DATADIR}/tide-island
 )
+find_program(QSB_EXECUTABLE qsb REQUIRED)
+set(liquid_shader "${CMAKE_CURRENT_BINARY_DIR}/liquid.frag.qsb")
+add_custom_command(OUTPUT "${liquid_shader}"
+    COMMAND "${QSB_EXECUTABLE}" --qt6 -o "${liquid_shader}" "${CMAKE_CURRENT_SOURCE_DIR}/qml/island/liquid.frag"
+    DEPENDS qml/island/liquid.frag VERBATIM)
+add_custom_target(island_motion_shader ALL DEPENDS "${liquid_shader}")
+install(FILES "${liquid_shader}" DESTINATION ${CMAKE_INSTALL_DATADIR}/tide-island/qml/island)
+
 install(DIRECTORY qml
     DESTINATION ${CMAKE_INSTALL_DATADIR}/tide-island
     FILES_MATCHING
