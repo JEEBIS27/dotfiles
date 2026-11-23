@@ -48,8 +48,7 @@ edit("DynamicIslandWindow.qml", [
         && activities.activatedSourceId !== "" && activities.activatedSourceId === activities.selected
     readonly property bool sourcePlayerExpanded: islandContainer.expandedLayerVisible && activities.activatedSourceId === "media"
     readonly property bool centerOpen: islandContainer.controlCenterLayerVisible || islandContainer.notificationCenterLayerVisible
-    readonly property real capsuleTop: centerOpen ? Math.max(userConfig.islandTopMargin, controlHandle.implicitHeight + 6)
-        : userConfig.islandTopMargin
+    readonly property real capsuleTop: centerOpen ? 6 : userConfig.islandTopMargin
     EdgeHandle {
         screen: root.screen
         leftEdge: true
@@ -60,7 +59,6 @@ edit("DynamicIslandWindow.qml", [
         }
     }
     EdgeHandle {
-        id: controlHandle
         screen: root.screen
         leftEdge: false
         opened: islandContainer.controlCenterLayerVisible
@@ -245,6 +243,10 @@ edit("qml/controlcenter/ControlCenterLayer.qml", [
                 const enabled = text.trim().split(/\\s+/).includes("tide-silent");'''),
     ('["swaync-client", "-dn"]', '["makoctl", "mode", "-a", "tide-silent"]'),
     ('["swaync-client", "-df"]', '["makoctl", "mode", "-r", "tide-silent"]'),
+    ("text: wifiStatusText\n                            color: StyleTokens.textMuted\n                            font.pixelSize: 10",
+     "text: wifiStatusText\n                            color: textPrimary\n                            font.pixelSize: 11"),
+    ("text: bluetoothStatusText\n                            color: StyleTokens.textMuted\n                            font.pixelSize: 10",
+     "text: bluetoothStatusText\n                            color: textPrimary\n                            font.pixelSize: 11"),
     ("    readonly property real batteryModeCardHeight: 80", """    readonly property real profileCardHeight: batteryCapacity >= 0 && tlpControlsEnabled ? 58 : 0
     readonly property real batteryModeCardHeight: 112 + (profileCardHeight ? profileCardHeight + 4 : 0)"""),
     ("controlCenterExtraHeight: 12 + batteryDrawerHandleHeight", "controlCenterExtraHeight: 12 + batteryDrawerHandleHeight - (brightnessLevel < 0 ? 88 : 0)"),

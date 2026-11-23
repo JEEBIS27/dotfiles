@@ -65,6 +65,8 @@ in
           style = "Fusion";
         };
       };
+      # Leave the deprecated data-directory file available to app installers such as MATLAB.
+      xdg.dataFile."applications/mimeapps.list".enable = false;
       xdg.mimeApps = {
         enable = true;
         defaultApplications = {

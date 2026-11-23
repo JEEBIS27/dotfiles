@@ -1,4 +1,5 @@
 {
+  "bluetoothDetailDurationMs": 2500,
   "clockFormat": "24",
   "dynamicIslandLeftSwipeItems": [
     "time",
@@ -14,10 +15,13 @@
   "dynamicIslandPrimaryButton": 3,
   "dynamicIslandSecondaryAction": "toggleControlCenter",
   "dynamicIslandSecondaryButton": 1,
+  "edgeHandleDurationMs": 2000,
   "hoverExpandAction": 0,
   "iconFontFamily": "HackGen35 Console NF",
   "islandAutoHideDelayMs": 2000,
   "islandExclusiveZone": 0,
+  "islandExpandedFrameWidth": 4,
+  "islandFrameWidth": 1,
   "lockScreen": {
     "avatarPath": "",
     "blur": 48,
@@ -28,7 +32,7 @@
     "layout": "dashboard",
     "message": "",
     "positions": {},
-    "radius": 20,
+    "radius": 15,
     "showAlbumArt": true,
     "showAvatar": true,
     "showBattery": true,
@@ -42,6 +46,10 @@
     "use24Hour": true,
     "wallpaperPath": ""
   },
+  "notificationDurationMs": 6000,
   "textFontFamily": "Sans Serif",
-  "weatherRefreshInterval": 900000
+  "trackChangeDurationMs": 5000,
+  "transientCapsuleDurationMs": 1250,
+  "weatherRefreshInterval": 900000,
+  "workingForegroundDurationMs": 6000
 }

@@ -24,20 +24,13 @@ let
     pkgs = appPkgs;
     withNiri = cfg.compositor == "niri";
   };
-  tideDefaults = pkgs.writeText "tide-island-userconfig.json" (
-    builtins.toJSON (
-      (builtins.fromJSON (builtins.readFile ../files/desktop/tide-preferences.json))
-      // {
-        wallpaperLibraryPath = "${config.xdg.dataHome}/jeebis-desktop/backgrounds";
-        wallpaperPath = "${config.xdg.stateHome}/${
-          if native then "jeebis-desktop" else "omarchy"
-        }/current/home-background";
-        wallpaperCustomCommandEnabled = true;
-        wallpaperCustomCommand = "${package}/bin/jeebis-desktop wallpaper set \"$1\"";
-        wallpaperPywalEnabled = false;
-      }
-    )
-  );
+  tideManaged = pkgs.writeText "tide-island-integration.json" (builtins.toJSON {
+    wallpaperLibraryPath = "${config.xdg.dataHome}/jeebis-desktop/backgrounds";
+    wallpaperPath = "${config.xdg.stateHome}/${if native then "jeebis-desktop" else "omarchy"}/current/home-background";
+    wallpaperCustomCommandEnabled = true;
+    wallpaperCustomCommand = "${package}/bin/jeebis-desktop wallpaper set \"$1\"";
+    wallpaperPywalEnabled = false;
+  });
   presetDefinitions = builtins.fromJSON (builtins.readFile ../files/desktop/presets.json);
   presetFiles = builtins.listToAttrs (
     map (preset: {
@@ -205,7 +198,7 @@ let
               ]
               [
                 ''"Tide App Launcher", desktop.command("shell", "tide", "toggleApplicationLauncher")''
-                ''"Tide Settings", desktop.command("settings")''
+                ''"Jeebis Island Settings", desktop.command("settings")''
                 ''"Toggle Tide Island", desktop.command("shell", "island", "toggle")''
                 ''"Show Tide Island", desktop.command("shell", "island", "show")''
                 ''"Hide Tide Island", desktop.command("shell", "island", "hide")''
@@ -365,7 +358,7 @@ in
       '';
       # Merge portable GUI preferences and generated integration settings.
       initializeTideConfig = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
-        run ${pkgs.python3}/bin/python3 ${../scripts/tide-config.py} apply ${tideDefaults} \
+        run ${pkgs.python3}/bin/python3 ${../scripts/tide-config.py} apply ${../files/desktop/tide-preferences.json} --managed ${tideManaged} \
           --config "${config.xdg.configHome}/tide-island/userconfig.json"
       '';
 
@@ -422,7 +415,8 @@ in
       jeebis-display-rotation = {
         Unit = {
           Description = "Automatic display rotation, including the locked session";
-          After = [ "wayland-session-waitenv.service" ];
+          # Niri imports NIRI_SOCKET before it reports readiness.
+          After = [ (if legacy then "wayland-session-waitenv.service" else "niri.service") ];
           PartOf = [ "graphical-session.target" ];
         };
         Service = {

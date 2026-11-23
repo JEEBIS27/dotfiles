@@ -17,7 +17,6 @@ from tide_origin import ancestors, capture, choose, locate, open_source, outputs
 
 
 LIMIT = 256 * 1024
-TRANSIENT = 6
 RANK = {"needs": 0, "notification": 1, "done": 1, "progress": 2, "working": 3}
 SOCKET = Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")) / "tide-island" / "activity.sock"
 
@@ -47,6 +46,8 @@ class Broker:
         self.tasks = set()
         self.pending_calls = {}
         self.timers = {}
+        self.presentation_start = {}
+        self.notification_ms = 6000
 
     def spawn(self, coroutine):
         task = asyncio.create_task(coroutine)
@@ -67,6 +68,7 @@ class Broker:
         self.emit(items=ordered, history=list(reversed(self.history.values())))
 
     def remove(self, key):
+        self.presentation_start.pop(key, None)
         self.live.pop(key, None)
         timer = self.timers.pop(key, None)
         if timer:
@@ -104,9 +106,16 @@ class Broker:
             while len(self.history) > 80:
                 self.history.pop(next(iter(self.history)))
         if kind in ("done", "notification"):
-            self.timers[key] = asyncio.get_running_loop().call_later(TRANSIENT, self.expire, key)
+            self.schedule_expiry(key)
         self.snapshot()
         return row
+
+    def schedule_expiry(self, key):
+        timer = self.timers.pop(key, None)
+        if timer:
+            timer.cancel()
+        remaining = self.presentation_start.get(key, self.live[key]["updated"]) + self.notification_ms - now()
+        self.timers[key] = asyncio.get_running_loop().call_later(max(0, remaining) / 1000, self.expire, key)
 
     async def producer(self, reader, writer):
         key = token = None
@@ -162,7 +171,16 @@ class Broker:
     async def control(self, msg):
         op, key = msg.get("op"), msg.get("id")
         row = self.live.get(key) or self.history.get(key)
-        if op == "local":
+        if op == "duration":
+            self.notification_ms = max(100, min(60000, int(msg["ms"])))
+            for pending in list(self.timers):
+                self.schedule_expiry(pending)
+        elif op == "presentation":
+            if key in self.timers and row and row["updated"] == msg.get("updated"):
+                # Keep the event live through contact, then start its reading time.
+                self.presentation_start[key] = now() + (0 if msg.get("finished") else 400)
+                self.schedule_expiry(key)
+        elif op == "local":
             self.put("local:" + uuid.uuid4().hex, "notification", msg["title"], msg.get("body"), clean_source(msg, 0))
         elif op == "clear":
             self.history.clear()

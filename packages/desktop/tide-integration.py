@@ -7,6 +7,47 @@ s=p.read_text();a=s.index('add_executable(tlp_password_tests');b=s.index('# Inst
 p=r/'backend/StyleTokensBackend.h';s=p.read_text().replace('#include <QObject>','#include <QObject>\n#include <QJsonObject>')
 # Color tokens become reactive; geometry and duration tokens remain constant.
 import re
+
+
+def manage_wayland_night_light(source):
+    toggle = '''    function toggleNightLight() {
+        if (nightLightBusy)
+            return;
+
+        nightLightBusy = true;'''
+    replacement = toggle + '''
+        if (!hyprlandNightLight) {
+            waylandNightLightProcess.running = !nightLightEnabled;
+            return;
+        }'''
+    anchor = '    Process {\n        id: nightLightEnableProcess'
+    if source.count(toggle) != 1 or source.count(anchor) != 1:
+        raise RuntimeError('upstream Night Light controls changed')
+    process = '''    Process {
+        id: waylandNightLightProcess
+        // Keep ownership of the Wayland gamma control until the user turns it off.
+        command: [
+            "gammastep", "-m", "wayland", "-P", "-r", "-l", "0:0", "-t",
+            controlCenter.nightLightTemperature + ":" + controlCenter.nightLightTemperature
+        ]
+        onStarted: {
+            controlCenter.nightLightBusy = false;
+            controlCenter.nightLightEnabled = true;
+            controlCenter.nightLightModeChanged(true);
+        }
+        onExited: function(exitCode) {
+            controlCenter.nightLightBusy = false;
+            controlCenter.nightLightEnabled = false;
+            controlCenter.nightLightModeChanged(false);
+            if (exitCode !== 0)
+                controlCenter.requestNotification("Night Light", "Night Light unavailable",
+                    "Could not control the display color temperature.");
+        }
+    }
+
+'''
+    return source.replace(toggle, replacement).replace(anchor, process + anchor)
+
 s=re.sub(r'(Q_PROPERTY\(QColor .*?) CONSTANT FINAL',r'\1 NOTIFY themeChanged FINAL',s)
 s=s.replace('public:\n','signals:\n    void themeChanged();\nprivate:\n    QJsonObject m_colors;\n    QByteArray m_themeBytes;\n    void reloadTheme();\npublic:\n',1);p.write_text(s)
 p=r/'backend/StyleTokensBackend.cpp';s=p.read_text().replace('#include <Qt>','#include <Qt>\n#include <QFile>\n#include <QJsonDocument>\n#include <QTimer>\n#include <QStandardPaths>')
@@ -87,7 +128,7 @@ for old,new in replacements.items():
     if old not in s:
         raise RuntimeError(f'upstream ControlCenterLayer changed: {old!r}')
     s=s.replace(old,new)
-p.write_text(s)
+p.write_text(manage_wayland_night_light(s))
 
 p=r/'DynamicIslandWindow.qml'
 s=p.read_text()

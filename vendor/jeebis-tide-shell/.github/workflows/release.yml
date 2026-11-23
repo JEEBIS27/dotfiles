@@ -1,0 +1,159 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "[0-9]*.[0-9]*.[0-9]*"
+      - "v[0-9]*.[0-9]*.[0-9]*"
+
+permissions:
+  contents: write
+
+jobs:
+  compatibility-build:
+    name: Build on ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Fedora 43
+            image: fedora:43
+            experimental: false
+            install: >-
+              dnf install -y gcc-c++ cmake ninja-build pkgconf-pkg-config git
+              tar dbus-daemon python3 nodejs qt6-qtbase-devel qt6-qtdeclarative-devel
+              qt6-qtwebsockets-devel qt6-qt5compat systemd-devel
+          - name: Debian 13
+            image: debian:trixie
+            experimental: false
+            install: >-
+              apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y
+              build-essential cmake ninja-build pkg-config git tar dbus python3 nodejs
+              qt6-base-dev qt6-declarative-dev qt6-websockets-dev libudev-dev
+              qml6-module-qt5compat-graphicaleffects
+          - name: openSUSE Tumbleweed
+            image: opensuse/tumbleweed
+            experimental: true
+            install: >-
+              zypper --non-interactive --gpg-auto-import-keys refresh &&
+              zypper --non-interactive install --no-recommends gcc-c++ cmake
+              ninja pkg-config git tar gzip dbus-1 python3 nodejs qt6-base-devel
+              qt6-declarative-devel qt6-websockets-devel qt6-qt5compat-imports systemd-devel
+    container:
+      image: ${{ matrix.image }}
+
+    steps:
+      - name: Install build dependencies
+        shell: bash
+        run: ${{ matrix.install }}
+
+      - name: Check out tagged source
+        uses: actions/checkout@v5
+
+      - name: Test installer branches
+        if: ${{ hashFiles('tests/installer_tests.sh') != '' }}
+        run: tests/installer_tests.sh
+
+      - name: Configure Tide Island
+        run: |
+          cmake -GNinja -S . -B build-release-ci \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr
+
+      - name: Build Tide Island
+        run: cmake --build build-release-ci --parallel 2
+
+      - name: Test Tide Island
+        run: |
+          ctest --test-dir build-release-ci --output-on-failure
+
+      - name: Validate installation layout
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          stage="$RUNNER_TEMP/tide-island-stage"
+          libdir="$(sed -n 's/^CMAKE_INSTALL_LIBDIR:PATH=//p' build-release-ci/CMakeCache.txt)"
+          test -n "$libdir"
+          DESTDIR="$stage" cmake --install build-release-ci
+          test -x "$stage/usr/bin/tide-island"
+          test -x "$stage/usr/bin/tide-island-config-app"
+          test -x "$stage/usr/bin/tide-island-spotify-setup"
+          test -f "$stage/usr/share/tide-island/spicetify/tide-island.js"
+          test -f "$stage/usr/share/tide-island/qml/island/FavoriteHeart.qml"
+          test -f "$stage/usr/share/tide-island/qml/island/assets/heart-filled.svg"
+          test -f "$stage/usr/share/tide-island/shell.qml"
+          test -f "$stage/usr/share/tide-island/qml/lockscreen/LockScreenController.qml"
+          test -f "$stage/usr/share/tide-island/qml/lockscreen/LockAuthentication.qml"
+          test -f "$stage/usr/$libdir/libIslandBackend.so"
+          test -f "$stage/usr/$libdir/qt6/qml/IslandBackend/libIslandBackendplugin.so"
+          test -f "$stage/usr/lib/systemd/user/tide-island.service"
+          test ! -e "$stage/usr/$libdir/qt6/qml/TideIsland/Document.qml"
+          test -z "$(find "$stage" -name '*qml_module_dir_map.qrc' -print -quit)"
+          grep -Fq "/$libdir/qt6/qml\"" "$stage/usr/bin/tide-island"
+          grep -Fq "prefer :/qt/qml/TideIsland/" "$stage/usr/$libdir/qt6/qml/TideIsland/qmldir"
+          QT_QPA_PLATFORM=offscreen "$stage/usr/bin/tide-island-config-app" --validate-qml
+          QT_QPA_PLATFORM=offscreen "$stage/usr/bin/tide-island-config-app" --lock-screen --validate-qml
+
+  source-release:
+    name: Publish source release
+    needs: compatibility-build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Validate release version
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          cmake_version="$(sed -nE 's/^project\(TideIsland VERSION ([0-9.]+).*/\1/p' CMakeLists.txt)"
+          pkgbuild_version="$(sed -nE 's/^pkgver=([0-9.]+)$/\1/p' PKGBUILD)"
+          test -n "$version"
+          test "$version" = "$cmake_version"
+          test "$version" = "$pkgbuild_version"
+
+      - name: Create reproducible source asset
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          git archive \
+            --format=tar \
+            --prefix="Tide-island-${version}/" \
+            "$GITHUB_SHA" \
+            | xz -9e > tide-island-source.tar.xz
+          sha256sum tide-island-source.tar.xz > SHA256SUMS
+          tar -tf tide-island-source.tar.xz \
+            "Tide-island-${version}/install.sh" >/dev/null
+          sha256sum --check SHA256SUMS
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          notes_file=".github/release-notes/${GITHUB_REF_NAME#v}.md"
+          notes_args=(--generate-notes)
+          if [[ -f "$notes_file" ]]; then
+            notes_args=(--notes-file "$notes_file")
+          fi
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" \
+              tide-island-source.tar.xz SHA256SUMS --clobber
+            if [[ -f "$notes_file" ]]; then
+              gh release edit "$GITHUB_REF_NAME" --notes-file "$notes_file"
+            fi
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              tide-island-source.tar.xz SHA256SUMS \
+              --verify-tag \
+              "${notes_args[@]}" \
+              --title "Tide Island ${GITHUB_REF_NAME#v}"
+          fi
