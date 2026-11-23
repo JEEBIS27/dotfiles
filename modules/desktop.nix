@@ -415,7 +415,8 @@ in
       jeebis-display-rotation = {
         Unit = {
           Description = "Automatic display rotation, including the locked session";
-          After = [ "wayland-session-waitenv.service" ];
+          # Niri imports NIRI_SOCKET before it reports readiness.
+          After = [ (if legacy then "wayland-session-waitenv.service" else "niri.service") ];
           PartOf = [ "graphical-session.target" ];
         };
         Service = {

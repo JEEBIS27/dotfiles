@@ -8,41 +8,64 @@ PanelWindow {
     required property bool leftEdge
     required property bool opened
     signal activated(bool wasOpen)
+    property bool revealed: false
+    property bool suppressed: false
+    visible: !opened
+    onOpenedChanged: {
+        revealed = false;
+        suppressed = opened;
+    }
     anchors.top: true
     anchors.left: leftEdge
     anchors.right: !leftEdge
-    margins.left: leftEdge ? 12 : 0
-    margins.right: leftEdge ? 0 : 12
-    implicitWidth: 56
+    implicitWidth: 68
     implicitHeight: 26
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: WlrLayer.Top
     WlrLayershell.namespace: leftEdge ? "tide-notification-handle" : "tide-control-handle"
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+    // Wayland hover requires an input region. Leave only a one-pixel trigger
+    // while hidden so the rest of this window passes input through.
+    mask: Region {
+        width: Math.ceil(pointer.width)
+        height: Math.ceil(pointer.height)
+    }
+    Timer {
+        id: dismiss
+        interval: 2000
+        running: handle.revealed && !pointer.pressed
+        onTriggered: handle.hideHandle()
+    }
+    function hideHandle() {
+        suppressed = true;
+        revealed = false;
+    }
     Rectangle {
-        anchors.fill: parent
-        anchors.topMargin: -8
-        radius: 12
-        color: pointer.containsMouse || pointer.pressed || handle.opened ? StyleTokens.module : StyleTokens.panel
-        border.color: StyleTokens.surfaceBorder
-        border.width: 1
-
-        Rectangle {
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.bottom: parent.bottom
-            anchors.bottomMargin: 11
-            width: 25
-            height: 3
-            radius: height / 2
-            color: pointer.containsMouse || handle.opened ? StyleTokens.textPrimary : StyleTokens.textTertiary
-        }
+        anchors.centerIn: parent
+        anchors.horizontalCenterOffset: handle.leftEdge ? 6 : -6
+        width: 25
+        height: 3
+        radius: height / 2
+        visible: handle.revealed
+        color: StyleTokens.textPrimary
     }
     MouseArea {
         id: pointer
-        anchors.fill: parent
+        anchors.top: parent.top
+        width: parent.width
+        height: handle.revealed ? parent.height : 1
         hoverEnabled: true
-        cursorShape: Qt.PointingHandCursor
+        cursorShape: handle.revealed ? Qt.PointingHandCursor : Qt.ArrowCursor
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        onEntered: {
+            if (!handle.suppressed)
+                handle.revealed = true;
+        }
+        onExited: {
+            handle.revealed = false;
+            handle.suppressed = false;
+        }
         preventStealing: true
         property real startX: 0
         property real startY: 0
@@ -53,6 +76,12 @@ PanelWindow {
             wasOpen = handle.opened
         }
         onReleased: mouse => {
+            if (mouse.button === Qt.RightButton) {
+                handle.hideHandle();
+                return;
+            }
+            if (!handle.revealed)
+                return;
             const dx = mouse.x - startX
             const dy = mouse.y - startY
             if (dy >= 14 || (Math.abs(dx) < 8 && Math.abs(dy) < 8))

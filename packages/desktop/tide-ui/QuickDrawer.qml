@@ -12,8 +12,17 @@ Item {
         ["capture","Capture","\uf125"], ["record","Record","\uf03d"], ["audio","Audio out","\uf028"], ["video","Display out","\uf108"]
     ]
     readonly property var choices: {
-        if (menu === "awake") return [{id:"0",label:"Off"}, {id:"30",label:"30 min"}, {id:"60",label:"1 hour"}, {id:"-1",label:"Until turned off"}]
-        if (menu === "capture") return [{id:"region",label:"Region"}, {id:"window",label:"Window"}, {id:"screen",label:"Screen"}]
+        if (menu === "awake") return [
+            {id:"0", label:"Off", icon:"\uf011"},
+            {id:"30", label:"30 min", icon:"\uf017"},
+            {id:"60", label:"1 hour", icon:"\uf252"},
+            {id:"-1", label:"Until turned off", icon:"\uf0c1"}
+        ]
+        if (menu === "capture") return [
+            {id:"region", label:"Region", icon:"\uf125"},
+            {id:"window", label:"Window", icon:"\uf2d0"},
+            {id:"screen", label:"Screen", icon:"\uf108"}
+        ]
         if (menu === "audio" || menu === "video") return hub && hub.outputKind === menu ? hub.outputs : []
         return []
     }
@@ -88,13 +97,57 @@ Item {
             }
         }
         ListView {
-            width: parent.width; height: drawer.height - 34; clip: true; spacing: 2
+            id: choiceList
+            width: parent.width
+            height: Math.max(0, drawer.height - y)
+            orientation: ListView.Horizontal
+            clip: true
+            spacing: 4
+            ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AsNeeded }
             model: drawer.choices
-            delegate: IslandButton {
+            delegate: AbstractButton {
+                id: choice
                 required property var modelData
-                width: ListView.view.width; height: 25
-                text: (modelData.selected ? "✓   " : "") + modelData.label
+                readonly property bool chosen: !!modelData.selected
+                width: Math.max(88, (choiceList.width - (Math.min(4, choiceList.count) - 1) * choiceList.spacing)
+                    / Math.max(1, Math.min(4, choiceList.count)))
+                height: Math.max(0, choiceList.height - 8)
+                text: modelData.label
+                Accessible.name: text
+                Accessible.selected: chosen
+                hoverEnabled: true
+                ToolTip.visible: hovered && label.truncated
+                ToolTip.text: text
                 onClicked: drawer.choose(modelData.id)
+                background: Rectangle {
+                    radius: 13
+                    color: choice.chosen ? StyleTokens.accent : choice.hovered ? StyleTokens.moduleHover : StyleTokens.module
+                    border.width: choice.visualFocus ? 1 : 0
+                    border.color: StyleTokens.textPrimary
+                }
+                contentItem: Column {
+                    spacing: 4
+                    topPadding: Math.max(0, (height - choiceGlyph.height - label.height - spacing) / 2)
+                    Text {
+                        id: choiceGlyph
+                        width: parent.width
+                        horizontalAlignment: Text.AlignHCenter
+                        text: choice.modelData.icon || (drawer.menu === "audio" ? "\uf028" : "\uf108")
+                        font.family: UserConfig.iconFontFamily
+                        font.pixelSize: 19
+                        color: choice.chosen ? "#15181c" : StyleTokens.textPrimary
+                    }
+                    Text {
+                        id: label
+                        width: parent.width
+                        horizontalAlignment: Text.AlignHCenter
+                        elide: Text.ElideRight
+                        text: choice.text
+                        font.family: UserConfig.textFontFamily
+                        font.pixelSize: 11
+                        color: choice.chosen ? "#15181c" : StyleTokens.textPrimary
+                    }
+                }
             }
             Text {
                 visible: !parent.count && !!drawer.menu

@@ -38,6 +38,12 @@ def focused_workspace():
     return next((w["id"] for w in query("Workspaces") if w.get("is_focused")), None)
 
 
+def workspace_up():
+    workspace = next((w for w in query("Workspaces") if w.get("is_focused")), None)
+    if workspace:
+        action("OpenOverview" if workspace["name"] == "1" else "FocusWorkspaceUp")
+
+
 def notify(message):
     print(message, file=sys.stderr)
     subprocess.run(["notify-send", "Niri launch", message], check=False)
@@ -252,6 +258,7 @@ def main():
     sub.add_parser("close-workspace")
     sub.add_parser("search-windows")
     sub.add_parser("toggle-maximize")
+    sub.add_parser("workspace-up")
     sub.add_parser("clipboard").add_argument("clipboard_operation", choices=["cut", "copy", "paste"])
     args = parser.parse_args()
     if args.operation == "clipboard":
@@ -260,6 +267,8 @@ def main():
         close_workspace()
     elif args.operation == "search-windows":
         search_windows(args.desktop)
+    elif args.operation == "workspace-up":
+        workspace_up()
     elif args.operation == "toggle-maximize":
         window = query("FocusedWindow")
         if window:

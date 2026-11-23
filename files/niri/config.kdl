@@ -1,6 +1,10 @@
 // Niri session. Machine-specific outputs are added by host modules.
 @machine@
 
+gestures {
+    hot-corners { off; }
+}
+
 layout {
     // Hyprland gaps_in=2 on each side, gaps_out=4.
     gaps 4
@@ -69,7 +73,6 @@ binds {
     Mod+N { spawn "@desktop@" "shell" "tide" "toggleNotificationCenter"; }
     Mod+@mod:I@ repeat=false { spawn "@desktop@" "shell" "island" "peek"; }
     Mod+Shift+@mod:I@ { spawn "@desktop@" "shell" "island" "toggle"; }
-    Mod+Alt+T { spawn "@desktop@" "theme" "cycle"; }
     Mod+W { close-window; }
     Mod+Shift+W { spawn "@actions@" "close-workspace"; }
     Mod+@mod:H@ { focus-column-left; }
@@ -105,17 +108,15 @@ binds {
     Mod+Ctrl+Right { swap-window-right; }
     Mod+Ctrl+Shift+Right { move-column-right; }
     Mod+Tab { focus-workspace-down; }
-    Mod+Shift+Tab { focus-workspace-up; }
-    Mod+Ctrl+Tab { focus-workspace-previous; }
+    Mod+Shift+Tab repeat=false hotkey-overlay-title="Previous workspace or Overview on Workspace 1" { spawn "@actions@" "workspace-up"; }
     Mod+Page_Down { focus-workspace-down; }
     Mod+Page_Up { focus-workspace-up; }
-    Mod+Shift+Page_Down { focus-monitor-next; }
-    Mod+Shift+Page_Up { focus-monitor-previous; }
+    Mod+Shift+Page_Down { focus-monitor-right; }
+    Mod+Shift+Page_Up { focus-monitor-left; }
     Mod+WheelScrollDown cooldown-ms=150 { focus-workspace-down; }
     Mod+WheelScrollUp cooldown-ms=150 { focus-workspace-up; }
     Mod+Ctrl+Page_Down { move-window-to-workspace-down; }
     Mod+Ctrl+Page_Up { move-window-to-workspace-up; }
-    Mod+R { switch-preset-column-width; }
     Mod+Shift+R { spawn "@actions@" "toggle-maximize"; }
     Mod+Ctrl+R { fullscreen-window; }
     Mod+T { switch-focus-between-floating-and-tiling; }
@@ -134,6 +135,6 @@ binds {
     XF86AudioRaiseVolume allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "0.05+"; }
     XF86AudioLowerVolume allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "0.05-"; }
     XF86AudioMute allow-when-locked=true { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"; }
-    XF86MonBrightnessUp { spawn "brightnessctl" "set" "5%+"; }
-    XF86MonBrightnessDown { spawn "brightnessctl" "set" "5%-"; }
+    XF86MonBrightnessUp allow-when-locked=true { spawn "brightnessctl" "-c" "backlight" "set" "5%+"; }
+    XF86MonBrightnessDown allow-when-locked=true { spawn "brightnessctl" "-c" "backlight" "set" "5%-"; }
 }

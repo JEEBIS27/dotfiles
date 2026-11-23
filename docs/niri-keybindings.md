@@ -28,9 +28,9 @@ Spotify, Obsidian, Nautilus, LocalSend, Zathura and btop are declared packages.
 | Super+W / Super+Shift+W | Close window / snapshot and close workspace windows |
 | Super+T / Super+Shift+T | Focus floating/tiling layer / toggle window floating |
 | Super+Shift+R / Super+Ctrl+R | Maximize/restore / fullscreen |
-| Super+Tab / Super+Shift+Tab / Super+Ctrl+Tab | Next / previous / formerly focused workspace |
+| Super+Tab / Super+Shift+Tab | Next / previous workspace. Super+Shift+Tab on Workspace 1 opens Overview |
 | Super+PageUp/PageDown or Super+wheel | Previous/next workspace |
-| Super+Shift+PageUp/PageDown | Previous/next monitor |
+| Super+Shift+PageUp/PageDown | Focus the monitor to the left/right |
 | Super+Ctrl+PageUp/PageDown | Move window to previous/next workspace |
 | Super+1..0 / Super+Shift+1..0 | Select / move window to named workspace 1..10 |
 | Super+O | Toggle Niri Overview (workspace/window overview) |
@@ -42,9 +42,7 @@ Spotify, Obsidian, Nautilus, LocalSend, Zathura and btop are declared packages.
 | Super+Ctrl+Space | Tide wallpaper picker |
 | Super+N | Tide notification center |
 | Super+H / Super+Shift+H | Temporarily reveal / toggle Tide Island |
-| Super+Alt+T | Cycle shared theme |
 | Super+Shift+F / Super+Ctrl+F | Search keybindings / search and focus open windows |
-| Super+R | Cycle preset column widths |
 | Super+X / Super+C / Super+V | Universal cut / copy / paste |
 | Super+comma / Super+period | Consume or expel a window left/right |
 | Super+Ctrl+T or Super+Alt+Shift+J | Toggle tabbed column display |

@@ -18,11 +18,15 @@ let
     hotkey-overlay { skip-at-startup; }
     animations { off; }
     prefer-no-csd
+    binds {
+      XF86MonBrightnessUp { spawn "${appPkgs.brightnessctl}/bin/brightnessctl" "-c" "backlight" "set" "5%+"; }
+      XF86MonBrightnessDown { spawn "${appPkgs.brightnessctl}/bin/brightnessctl" "-c" "backlight" "set" "5%-"; }
+    }
     window-rule {
       match app-id=r#"^sddm-greeter.*$"#
       open-fullscreen true
     }
-    spawn-at-startup "${rotation}/bin/jeebis-display-rotation" "greeter" "${greeterRotation}"
+    spawn-at-startup "${pkgs.systemd}/bin/systemd-cat" "--identifier=jeebis-greeter-rotation" "${rotation}/bin/jeebis-display-rotation" "greeter" "${greeterRotation}"
   '';
   helium = import ../packages/helium.nix { inherit pkgs; };
   loginTheme = import ../packages/jeebis-login-theme.nix { pkgs = appPkgs; };
