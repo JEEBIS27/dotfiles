@@ -1,5 +1,6 @@
 #pragma once
 
+#include <utility>
 #include <QByteArray>
 #include <QElapsedTimer>
 #include <QHash>
@@ -40,7 +41,7 @@ signals:
     void compositorChanged();
     void focusedOutputNameChanged();
     void revisionChanged();
-    void applicationActivity(const QString &outputName, const QString &appId, bool opened, const QStringList &before);
+    void applicationOrderChanged(const QString &outputName, const QStringList &before, const QStringList &after);
 
 private:
     struct NiriWorkspaceState {
@@ -56,6 +57,7 @@ private:
         quint64 workspace = 0;
         qint64 pid = 0;
         QString appId;
+        std::pair<int, int> position;
     };
 
     void detectCompositor();
@@ -73,7 +75,6 @@ private:
     void applyNiriWorkspaceActivated(const QJsonObject &event);
     void applyNiriWindow(const QJsonObject &window);
     QStringList workspaceApps(quint64 workspace) const;
-    void notifyApplicationActivity(const NiriWindowState &window, const QStringList &before, bool opened);
     void sampleWorkspaceCpu();
     bool hasNiriSocket() const;
 #endif
@@ -87,6 +88,7 @@ private:
     QHash<QString, int> m_niriActiveWorkspaceByOutput;
 
 #if TIDE_ISLAND_WITH_NIRI
+    bool m_haveWindowSnapshot = false;
     QString m_niriSocketPath;
     QLocalSocket *m_niriEventSocket = nullptr;
     QByteArray m_niriEventBuffer;

@@ -18,7 +18,7 @@ PanelWindow {
     readonly property var activityHub: shellRootController ? shellRootController.activityHub : null
     readonly property bool activityPresentationAllowed: !overviewVisible && !capsuleMouseArea.sideSwipeInteractive
         && ["normal","lyrics","custom"].includes(islandContainer.islandState)
-    readonly property bool activityLayerOpen: activities.wanted && activityPresentationAllowed
+    readonly property bool activityLayerOpen: (activities.detailed || !!handoff.main || !!root.activityHub?.errorText) && activityPresentationAllowed
     readonly property bool sourceActivityExpanded: activityLayerOpen && activities.detailed && !activities.listing
         && activities.activatedSourceId !== "" && activities.activatedSourceId === activities.selected
     readonly property bool sourcePlayerExpanded: islandContainer.expandedLayerVisible && activities.activatedSourceId === "media"
@@ -122,6 +122,9 @@ PanelWindow {
         return compositorIsNiri
             ? CompositorBackend.activeWorkspaceIndexForOutput(screenOutputName)
             : (hyprlandIntegration ? hyprlandIntegration.workspaceId : 1);
+    }
+    onCurrentMonitorWorkspaceIdChanged: {
+        if (islandContainer?.islandState === "app_queue") islandContainer.smartRestoreState()
     }
     readonly property bool screenRecordingActive: shellRootController
         && shellRootController.screenRecordingActive !== undefined
@@ -454,7 +457,7 @@ PanelWindow {
     readonly property bool autoHideRestingState: islandContainer.islandState === "normal"
         || islandContainer.islandState === "custom"
         || islandContainer.islandState === "lyrics"
-        || islandContainer.levelOsdVisible
+        || islandContainer.levelOsdVisible || islandContainer.islandState === "app_queue"
     readonly property bool autoHideCanHideNow: autoHideEnabled
         && !activities.wanted && activities.rows.length === 0
         && autoHideRestingState
@@ -467,7 +470,7 @@ PanelWindow {
         || root.anyConnectivityDetailMounted
     readonly property bool islandNormallyVisible: autoHideMustShow
         || (!autoHideForcedHidden && (!autoHideEnabled || autoHideVisible))
-    readonly property bool autoHideTargetVisible: islandNormallyVisible || islandPeekTimer.running || islandContainer.levelOsdVisible
+    readonly property bool autoHideTargetVisible: islandContainer.islandState === "app_queue" || islandNormallyVisible || islandPeekTimer.running || islandContainer.levelOsdVisible
     readonly property bool autoHideSuppressesTransientReveal: (autoHideEnabled || autoHideForcedHidden)
         && !autoHideTargetVisible
     property real autoHideProgress: autoHideTargetVisible ? 1 : 0
@@ -1469,9 +1472,9 @@ PanelWindow {
         }
         Connections {
             target: CompositorBackend
-            function onApplicationActivity(outputName, appId, opened, before) {
+            function onApplicationOrderChanged(outputName, before, after) {
                 if (outputName === root.compositorOutputName)
-                    islandContainer.showApplicationCapsule(appId, opened, before);
+                    islandContainer.showApplicationCapsule(before, after);
             }
         }
 
@@ -2229,9 +2232,9 @@ PanelWindow {
             restartAutoHideTimer();
         }
 
-        function showApplicationCapsule(appId, opened, before) {
+        function showApplicationCapsule(before, after) {
             if (root.overviewVisible || blocksTransientSplit || islandState === "notification_center"
-                    || root.sourceActivityExpanded || root.autoHideSuppressesTransientReveal)
+                    || activities.detailed || root.shellRootController?.sessionLocked)
                 return;
             if (islandState !== "app_queue") {
                 abortSideTransientMode();
@@ -2239,7 +2242,7 @@ PanelWindow {
                 stopAutoHideTimer();
                 islandState = "app_queue";
             }
-            appIconQueue.enqueue(appId, opened, before);
+            appIconQueue.enqueue(before, after);
         }
 
         Timer { id: autoHideTimer; interval: islandContainer.defaultAutoHideInterval; onTriggered: islandContainer.smartRestoreState() }
@@ -2943,7 +2946,7 @@ PanelWindow {
                 id: appIconQueue
                 anchors.fill: parent
                 active: islandContainer.islandState === "app_queue"
-                displayDuration: islandContainer.defaultAutoHideInterval
+                revealed: root.autoHideProgress >= 0.98
                 onDismissRequested: islandContainer.smartRestoreState()
             }
 
@@ -3054,7 +3057,20 @@ PanelWindow {
                 }
             }
 
+            ActivityHandoff {
+                id: handoff
+                foreground: activities.current
+                secondary: activities.chip
+                animate: root.activityPresentationAllowed && !activities.detailed && !root.overviewVisible
+                onMerging: (row, finished) => {
+                    if (row && ["done", "notification"].includes(row.kind) && root.activityHub?.send)
+                        root.activityHub.send({op:"presentation", id:row.id, updated:row.updated, finished})
+                }
+            }
             ActivityCapsule {
+                presented: handoff.main
+                opacity: handoff.mainOpacity
+                enabled: !handoff.moving
                 id: activities
                 anchors.fill: parent
                 z: 8
@@ -3345,7 +3361,7 @@ PanelWindow {
             // Phase grows toward detachment in both directions. The row and
             // body settle before the satellite reaches the end of its travel.
             readonly property real phase: app ? appIconQueue.separation : activityChips.progress
-            readonly property bool releasing: app ? !appIconQueue.opening : activityChips.wanted
+            readonly property bool releasing: app ? !appIconQueue.opening : (handoff.moving ? handoff.direction === "split" : activityChips.wanted)
             readonly property real separation: appIconQueue.smoothPhase(phase, 0, releasing ? 0.62 : 0.84)
             readonly property real rebound: releasing
                 ? Math.sin(Math.PI * appIconQueue.smoothPhase(phase, 0.45, 0.89)) : 0
@@ -3399,13 +3415,14 @@ PanelWindow {
             id: activityChips
             readonly property bool expandedMusic: islandContainer.expandedLayerVisible && activities.playing
             readonly property var others: expandedMusic ? activities.rows.filter(r => r.kind !== "music") : activities.secondary
-            readonly property var smallItem: expandedMusic ? others[0] || null : activities.chip
+            readonly property var smallItem: expandedMusic ? others[0] || null : handoff.chip
             spacing: 3 + root.chipFrameWidth * 2
             readonly property bool wanted: (root.activityPresentationAllowed || expandedMusic) && !!smallItem
             property var retained: null
             onSmallItemChanged: if (smallItem) retained = smallItem
-            property real progress: wanted ? 1 : 0
-            Behavior on progress { NumberAnimation { duration: activityChips.wanted ? 450 : 285; easing.type: Easing.Linear } }
+            readonly property real progress: handoff.moving ? handoff.separation : reveal
+            property real reveal: wanted && handoff.direction !== "merge" ? 1 : 0
+            Behavior on reveal { enabled: !handoff.moving; NumberAnimation { duration: activityChips.wanted ? 450 : 285; easing.type: Easing.Linear } }
             readonly property real gap: 5 + root.capsuleFrameWidth + root.chipFrameWidth
             readonly property real restX: mainCapsule.x + mainCapsule.width + gap + width <= parent.width
                 ? mainCapsule.x + mainCapsule.width + gap : Math.max(0, mainCapsule.x - gap - width)
@@ -3413,7 +3430,7 @@ PanelWindow {
             x: liquid.chip && !liquid.app && mainCapsule.roundedCapsule ? liquid.satelliteX - activityChip.width / 2 : restX
             z: 8; opacity: root.autoHideProgress
             visible: progress > 0 && opacity > 0.01 && (wanted || mainCapsule.roundedCapsule && !liquid.app)
-            enabled: wanted
+            enabled: wanted && !handoff.moving
             IslandButton {
                 id: activityChip
                 surfaceColor: root.materialColor

@@ -10,6 +10,7 @@
 #include <QSet>
 
 #include <algorithm>
+#include <limits>
 #include <unistd.h>
 
 namespace {
@@ -43,6 +44,15 @@ quint64 jsonU64(const QJsonValue &value)
     const double number = value.toDouble(-1.0);
     return number >= 0.0 ? static_cast<quint64>(number) : 0;
 }
+
+std::pair<int, int> layoutPosition(const QJsonObject &layout)
+{
+    const auto pos = layout.value("pos_in_scrolling_layout").toArray();
+    constexpr int last = std::numeric_limits<int>::max();
+    return pos.size() == 2 ? std::make_pair(pos[0].toInt(last), pos[1].toInt(last))
+                           : std::make_pair(last, last);
+}
+
 
 }
 
@@ -140,7 +150,17 @@ bool CompositorBackend::applyNiriEventJson(const QByteArray &line)
         applyNiriWorkspaceActivated(event.value(QStringLiteral("WorkspaceActivated")).toObject());
         return true;
     }
+    QHash<quint64, QStringList> previous;
+    auto remember = [&](quint64 ws) {
+        if (ws && !previous.contains(ws) && m_niriWorkspaces.value(ws).active)
+            previous.insert(ws, workspaceApps(ws));
+    };
     if (event.contains(QStringLiteral("WindowsChanged"))) {
+        if (m_haveWindowSnapshot) {
+            for (auto it = m_niriWorkspaces.cbegin(); it != m_niriWorkspaces.cend(); ++it)
+                remember(it.key());
+        }
+        m_haveWindowSnapshot = true;
         m_niriWindows.clear();
         const auto windows = event.value(QStringLiteral("WindowsChanged")).toObject()
                                  .value(QStringLiteral("windows")).toArray();
@@ -150,21 +170,33 @@ bool CompositorBackend::applyNiriEventJson(const QByteArray &line)
         const auto window = event.value(QStringLiteral("WindowOpenedOrChanged")).toObject()
                                 .value(QStringLiteral("window")).toObject();
         const auto id = jsonU64(window.value(QStringLiteral("id")));
-        const bool newlyIdentified = !m_niriWindows.contains(id) || m_niriWindows.value(id).appId.isEmpty();
-        const auto before = newlyIdentified ? workspaceApps(jsonU64(window.value(QStringLiteral("workspace_id"))))
-                                            : QStringList{};
+        remember(m_niriWindows.value(id).workspace);
+        remember(jsonU64(window.value("workspace_id")));
         applyNiriWindow(window);
-        if (newlyIdentified && id != 0)
-            notifyApplicationActivity(m_niriWindows.value(id), before, true);
-    } else if (event.contains(QStringLiteral("WindowClosed"))) {
-        const auto id = jsonU64(event.value(QStringLiteral("WindowClosed")).toObject()
-                                    .value(QStringLiteral("id")));
-        const auto before = workspaceApps(m_niriWindows.value(id).workspace);
-        notifyApplicationActivity(m_niriWindows.take(id), before, false);
+    } else if (event.contains("WindowClosed")) {
+        const auto id = jsonU64(event.value("WindowClosed").toObject().value("id"));
+        remember(m_niriWindows.value(id).workspace);
+        m_niriWindows.remove(id);
+    } else if (event.contains("WindowLayoutsChanged")) {
+        for (const auto change : event.value("WindowLayoutsChanged").toObject().value("changes").toArray()) {
+            const auto pair = change.toArray();
+            if (pair.size() != 2) continue;
+            auto window = m_niriWindows.find(jsonU64(pair[0]));
+            const auto pos = layoutPosition(pair[1].toObject());
+            if (window == m_niriWindows.end() || window->position == pos) continue;
+            remember(window->workspace);
+            window->position = pos;
+        }
+        if (previous.isEmpty()) return true;
     } else {
         return false;
     }
 
+    for (auto it = previous.cbegin(); it != previous.cend(); ++it) {
+        const auto order = workspaceApps(it.key());
+        if (order != it.value())
+            emit applicationOrderChanged(m_niriWorkspaces.value(it.key()).outputName, it.value(), order);
+    }
     bumpRevision();
     return true;
 #else
@@ -287,6 +319,7 @@ void CompositorBackend::connectNiriEventStream()
 
     m_niriEventSocket = new QLocalSocket(this);
     connect(m_niriEventSocket, &QLocalSocket::connected, this, [this]() {
+        m_haveWindowSnapshot = false;
         m_niriEventBuffer.clear();
         m_niriEventSocket->write("\"EventStream\"\n");
         m_niriEventSocket->flush();
@@ -411,13 +444,18 @@ void CompositorBackend::applyNiriWindow(const QJsonObject &window)
     if (id != 0)
         m_niriWindows.insert(id, {jsonU64(window.value(QStringLiteral("workspace_id"))),
                                   window.value(QStringLiteral("pid")).toInteger(),
-                                  window.value(QStringLiteral("app_id")).toString()});
+                                  window.value(QStringLiteral("app_id")).toString(),
+                                  layoutPosition(window.value("layout").toObject())});
 }
 
 QStringList CompositorBackend::workspaceApps(quint64 workspace) const
 {
     auto ids = m_niriWindows.keys();
-    std::sort(ids.begin(), ids.end());
+    std::sort(ids.begin(), ids.end(), [this](quint64 a, quint64 b) {
+        const auto first = m_niriWindows.value(a).position;
+        const auto second = m_niriWindows.value(b).position;
+        return first == second ? a < b : first < second;
+    });
     QStringList apps;
     for (const auto id : ids) {
         const auto &window = m_niriWindows.value(id);
@@ -425,21 +463,6 @@ QStringList CompositorBackend::workspaceApps(quint64 workspace) const
             apps.append(window.appId);
     }
     return apps;
-}
-
-void CompositorBackend::notifyApplicationActivity(const NiriWindowState &window, const QStringList &before, bool opened)
-{
-    if (window.appId.isEmpty())
-        return;
-    const auto workspace = m_niriWorkspaces.constFind(window.workspace);
-    if (workspace == m_niriWorkspaces.cend() || !workspace->active)
-        return;
-    const bool wasPresent = before.contains(window.appId);
-    const bool isPresent = std::any_of(m_niriWindows.cbegin(), m_niriWindows.cend(), [&](const auto &entry) {
-        return entry.workspace == window.workspace && entry.appId == window.appId;
-    });
-    if (wasPresent != isPresent)
-        emit applicationActivity(workspace->outputName, window.appId, opened, before);
 }
 
 void CompositorBackend::sampleWorkspaceCpu()

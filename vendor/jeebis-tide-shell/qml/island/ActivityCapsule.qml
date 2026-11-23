@@ -15,6 +15,7 @@ Item {
     signal openPlayer()
     signal openTimer()
     signal editingRequested()
+    property var presented: current
     property string selected: ""
     property string activatedSourceId: ""
     property bool listing: false
@@ -134,7 +135,7 @@ Item {
         anchors.fill: parent
         enabled: !view.detailed
         cursorShape: Qt.PointingHandCursor
-        onClicked: view.activate(view.current)
+        onClicked: view.activate(view.presented)
     }
     RowLayout {
         anchors.fill: parent
@@ -143,29 +144,29 @@ Item {
         spacing: 7
         visible: !view.detailed
         Image {
-            visible: view.current && view.current.kind === "music" && view.art !== ""
+            visible: view.presented && view.presented.kind === "music" && view.art !== ""
             source: visible ? view.art : ""
             Layout.preferredHeight: 23; Layout.preferredWidth: 23
             fillMode: Image.PreserveAspectCrop
         }
         Text {
-            visible: !view.current || view.current.kind !== "music" || !view.art
-            text: view.current ? view.glyph(view.current.kind) : "!"
-            color: view.current && view.current.kind === "needs" ? "#ffcb70" : StyleTokens.accent
+            visible: !view.presented || view.presented.kind !== "music" || !view.art
+            text: view.presented ? view.glyph(view.presented.kind) : "!"
+            color: view.presented && view.presented.kind === "needs" ? "#ffcb70" : StyleTokens.accent
             font.bold: true
         }
         Text {
             Layout.fillWidth: true
-            text: view.hub && view.hub.errorText || (view.current ? (view.current.title === "Needs you" && view.current.body || view.current.title) : "")
+            text: view.hub && view.hub.errorText || (view.presented ? (view.presented.title === "Needs you" && view.presented.body || view.presented.title) : "")
             textFormat: Text.PlainText; elide: Text.ElideRight
             font.family: UserConfig.textFontFamily; font.pixelSize: 13
             color: StyleTokens.textPrimary
         }
         Text {
-            text: view.suffix(view.current); visible: !!text && !(view.hub && view.hub.errorText)
+            text: view.suffix(view.presented); visible: !!text && !(view.hub && view.hub.errorText)
             color: StyleTokens.textSecondary; font.pixelSize: 11
         }
-        IslandButton { text: "⌄"; description: "Expand details"; implicitWidth: 26; implicitHeight: 23; onClicked: view.expand(view.current) }
+        IslandButton { text: "⌄"; description: "Expand details"; implicitWidth: 26; implicitHeight: 23; onClicked: view.expand(view.presented) }
     }
     ScrollView {
         id: scroll

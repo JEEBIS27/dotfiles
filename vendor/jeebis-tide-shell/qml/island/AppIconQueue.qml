@@ -5,7 +5,11 @@ import IslandBackend
 Item {
     id: queue
     required property bool active
-    required property int displayDuration
+    required property bool revealed
+    onRevealedChanged: if (revealed && pending.length && !busy) prepare()
+    readonly property bool busy: stage.running || travel.running || reorder.running
+    property var targetOrder: []
+    property real reorderProgress: 0
     signal dismissRequested()
 
     readonly property int slotWidth: 26
@@ -38,16 +42,38 @@ Item {
         travel.stop()
         movingApp = ""
         stage.stop()
-        dismiss.stop()
+        reorder.stop()
+        targetOrder = []
         pending = []
         icons.clear()
     }
 
-    function enqueue(appId, opened, before) {
-        dismiss.stop()
-        const first = !stage.running && !travel.running
-        pending.push({appId, opened, before: Array.from(before)})
-        if (first) prepare()
+    function enqueue(before, after) {
+        const order = Array.from(before)
+        const target = Array.from(after)
+        for (const appId of before) {
+            if (!target.includes(appId)) {
+                pending.push({appId, opened:false, before:order.slice()})
+                order.splice(order.indexOf(appId), 1)
+            }
+        }
+        for (const [index, appId] of target.entries()) {
+            if (!order.includes(appId)) {
+                pending.push({appId, opened:true, index, before:order.slice()})
+                order.splice(index, 0, appId)
+            }
+        }
+        if (order.some((id, i) => id !== target[i]))
+            pending.push({before:order, target})
+        if (revealed && !busy) prepare()
+    }
+
+    function arrange(order) {
+        for (const [to, id] of order.entries()) {
+            const from = indexOf(id)
+            if (from < 0) icons.insert(to, {appId:id})
+            else if (from !== to) icons.move(from, to, 1)
+        }
     }
 
     function indexOf(appId) {
@@ -59,8 +85,7 @@ Item {
 
     function prepare() {
         if (pending.length === 0) {
-            if (icons.count === 0) dismissRequested()
-            else dismiss.restart()
+            dismissRequested()
             return
         }
 
@@ -68,22 +93,29 @@ Item {
         for (let index = icons.count - 1; index >= 0; --index) {
             if (!before.includes(icons.get(index).appId)) icons.remove(index)
         }
-        for (const appId of before) {
-            if (indexOf(appId) < 0) icons.append({appId})
-        }
+        arrange(before)
         stage.interval = 100
         stage.restart()
     }
 
     function applyChange() {
-        const {appId, opened} = pending.shift()
+        const event = pending.shift()
+        if (event.target) {
+            const firstChange = event.before.findIndex((id, index) => id !== event.target[index])
+            row.requestedOffset = Math.max((firstChange + 1) * pitch - row.width, Math.min(firstChange * pitch, row.offset))
+            reorderProgress = 0
+            targetOrder = event.target
+            reorder.start()
+            return
+        }
+        const {appId, opened} = event
         opening = opened
         separation = opened ? 1 : 0
         movingApp = appId
         const index = indexOf(appId)
         if (opened && index < 0) {
-            icons.append({appId})
-            row.requestedOffset = Math.max(0, icons.count * pitch - row.width)
+            icons.insert(event.index, {appId})
+            row.requestedOffset = Math.max((event.index + 1) * pitch - row.width, Math.min(event.index * pitch, row.offset))
         } else if (!opened && index >= 0) {
             row.requestedOffset = Math.max((index + 1) * pitch - row.width, Math.min(index * pitch, row.offset))
         }
@@ -110,10 +142,17 @@ Item {
         id: stage
         onTriggered: queue.applyChange()
     }
-    Timer {
-        id: dismiss
-        interval: queue.displayDuration
-        onTriggered: queue.dismissRequested()
+    NumberAnimation {
+        id: reorder
+        target: queue
+        property: "reorderProgress"
+        from: 0; to: 1; duration: 340
+        easing.type: Easing.InOutCubic
+        onFinished: {
+            queue.arrange(queue.targetOrder)
+            queue.targetOrder = []
+            queue.prepare()
+        }
     }
 
     Item {
@@ -136,7 +175,9 @@ Item {
                 readonly property var entry: DesktopEntries.heuristicLookup(appId)
                 // Layout every neighbor from the same contact phase as the surface,
                 // including during removal of a slot in the middle of the row.
-                x: (index - (queue.movingIndex >= 0 && index > queue.movingIndex
+                readonly property real visualIndex: queue.targetOrder.length
+                    ? index + (queue.targetOrder.indexOf(appId) - index) * queue.reorderProgress : index
+                x: (visualIndex - (queue.movingIndex >= 0 && index > queue.movingIndex
                     ? 1 - queue.slotFraction : 0)) * queue.pitch - row.offset
                 width: queue.pitch * (index === queue.movingIndex ? queue.slotFraction : 1)
                 height: row.height

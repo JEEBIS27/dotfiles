@@ -46,6 +46,7 @@ class Broker:
         self.tasks = set()
         self.pending_calls = {}
         self.timers = {}
+        self.presentation_start = {}
         self.notification_ms = 6000
 
     def spawn(self, coroutine):
@@ -67,6 +68,7 @@ class Broker:
         self.emit(items=ordered, history=list(reversed(self.history.values())))
 
     def remove(self, key):
+        self.presentation_start.pop(key, None)
         self.live.pop(key, None)
         timer = self.timers.pop(key, None)
         if timer:
@@ -112,7 +114,7 @@ class Broker:
         timer = self.timers.pop(key, None)
         if timer:
             timer.cancel()
-        remaining = self.live[key]["updated"] + self.notification_ms - now()
+        remaining = self.presentation_start.get(key, self.live[key]["updated"]) + self.notification_ms - now()
         self.timers[key] = asyncio.get_running_loop().call_later(max(0, remaining) / 1000, self.expire, key)
 
     async def producer(self, reader, writer):
@@ -173,6 +175,11 @@ class Broker:
             self.notification_ms = max(100, min(60000, int(msg["ms"])))
             for pending in list(self.timers):
                 self.schedule_expiry(pending)
+        elif op == "presentation":
+            if key in self.timers and row and row["updated"] == msg.get("updated"):
+                # Keep the event live through contact, then start its reading time.
+                self.presentation_start[key] = now() + (0 if msg.get("finished") else 400)
+                self.schedule_expiry(key)
         elif op == "local":
             self.put("local:" + uuid.uuid4().hex, "notification", msg["title"], msg.get("body"), clean_source(msg, 0))
         elif op == "clear":
