@@ -1,18 +1,19 @@
 import QtQuick
 import IslandBackend
+import "../design"
 
 Item {
     id: root
 
-    property real radius: 20
+    property real radius: StyleTokens.radiusModule
     property bool hovered: false
     property bool pressed: false
-    Rectangle {
+    IslandSurface {
         anchors.fill: parent
-        radius: root.radius
+        radius: Math.min(root.radius, StyleTokens.radiusModule)
         color: root.pressed ? "#10000000" : root.hovered ? "#1fffffff" : "#13ffffff"
-        border.width: 1
-        border.color: root.hovered ? "#2affffff" : StyleTokens.surfaceHighlight
+        frameWidth: 1
+        frameColor: root.hovered ? "#2affffff" : StyleTokens.surfaceHighlight
 
         Behavior on color {
             ColorAnimation { duration: StyleTokens.durationFast }

@@ -120,7 +120,7 @@ Item {
         GlassSurface {
             materialOpacity: shell.materialOpacity
             anchors.fill: parent
-            radius: 28
+            radius: StyleTokens.radiusPanel
             clip: true
 
             Text {

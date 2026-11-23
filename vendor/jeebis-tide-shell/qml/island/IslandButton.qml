@@ -1,10 +1,15 @@
 import QtQuick
 import QtQuick.Controls
 import IslandBackend
+import "../design"
 
 Button {
     id: button
     property color surfaceColor: StyleTokens.module
+    readonly property real surfaceRadius: Math.min(outsideFrame ? height / 2 : 15, width / 2, height / 2)
+    property bool outsideFrame: false
+    property real capsuleFrameWidth: 4
+    property real pixelRatio: Screen.devicePixelRatio
     property bool marked: false
     property string description: text
     implicitHeight: 28
@@ -15,11 +20,13 @@ Button {
     Accessible.name: description
     ToolTip.visible: hovered && description !== text
     ToolTip.text: description
-    background: Rectangle {
-        radius: height / 2
+    background: IslandSurface {
+        radius: button.surfaceRadius
         color: button.marked ? StyleTokens.accent : button.down || button.hovered ? StyleTokens.moduleHover : button.surfaceColor
-        border.width: button.visualFocus ? 1 : 0
-        border.color: StyleTokens.textPrimary
+        outsideFrame: button.outsideFrame
+        pixelRatio: button.pixelRatio
+        frameWidth: button.outsideFrame ? button.capsuleFrameWidth : button.visualFocus ? 2 : 1
+        frameColor: button.visualFocus ? StyleTokens.accent : StyleTokens.surfaceBorder
     }
     contentItem: Text {
         id: label

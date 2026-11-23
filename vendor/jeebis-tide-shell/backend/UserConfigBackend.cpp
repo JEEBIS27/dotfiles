@@ -503,6 +503,8 @@ void UserConfigBackend::loadConfig()
     updateField(this, m_durations, DisplayDurations::normalized(configObject), &UserConfigBackend::durationsChanged);
     updateField(this, m_islandWidth, jsonInt(configObject, QLatin1String("islandWidth"), 140), &UserConfigBackend::islandWidthChanged);
     updateField(this, m_islandBackgroundOpacity, jsonBoundedInt(configObject, QLatin1String("islandBackgroundOpacity"), 60, 0, 100), &UserConfigBackend::islandBackgroundOpacityChanged);
+    updateField(this, m_islandFrameWidth, jsonBoundedInt(configObject, QLatin1String("islandFrameWidth"), 1, 0, 8), &UserConfigBackend::islandFrameWidthChanged);
+    updateField(this, m_islandExpandedFrameWidth, jsonBoundedInt(configObject, QLatin1String("islandExpandedFrameWidth"), 4, 0, 8), &UserConfigBackend::islandExpandedFrameWidthChanged);
     updateField(this, m_islandBlurEnabled, jsonBool(configObject, QLatin1String("islandBlurEnabled"), true), &UserConfigBackend::islandBlurEnabledChanged);
     updateField(this, m_islandHeight, jsonInt(configObject, QLatin1String("islandHeight"), 38), &UserConfigBackend::islandHeightChanged);
     updateField(this, m_islandExclusiveZone, jsonBoundedInt(configObject, QLatin1String("islandExclusiveZone"), 45, 0, 1000), &UserConfigBackend::islandExclusiveZoneChanged);

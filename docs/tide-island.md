@@ -57,6 +57,12 @@ The wallpaper picker invokes `jeebis-desktop wallpaper set`; mpvpaper owns rende
 The current shell source lives in `vendor/jeebis-tide-shell/`. It incorporates
 the existing changes to Tide Island 1.0.49 and builds directly from that tree.
 The existing Nix package, service and configuration names remain available.
+The central Island, edge centers, activity capsules, and lock/login cards share
+the same scale-aware surface and frame. Compact capsules keep fully rounded
+ends. Nested controls use a thinner frame. The lock-screen settings preview
+uses the same components. Set compact and expanded frame widths in **外観**.
+The defaults are 1 and 4 logical pixels respectively. The left and right
+centers use the Niri focus-ring width.
 When the workspace changes, the central Island briefly shows an accent pill
 for the active workspace and filled dots for other occupied workspaces. The
 capsule fits the visible indicators, and a spinner marks sustained CPU use by

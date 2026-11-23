@@ -1873,7 +1873,7 @@ Item {
                     }
                     width: (connectivityCardsRow.width - connectivityCardsRow.spacing) / 2
                     height: connectivityCardsRow.height
-                    radius: 20
+                    radius: StyleTokens.radiusModule
                     color: StyleTokens.clearBlack
                     clip: true
 
@@ -2004,7 +2004,7 @@ Item {
                     }
                     width: (connectivityCardsRow.width - connectivityCardsRow.spacing) / 2
                     height: connectivityCardsRow.height
-                    radius: 20
+                    radius: StyleTokens.radiusModule
                     color: StyleTokens.clearBlack
                     clip: true
 
@@ -2146,7 +2146,7 @@ Item {
                 y: (controlCenter.batteryDrawerProgress - 1) * controlCenter.batteryModeCardHeight
                 width: parent.width
                 height: controlCenter.profileCardHeight
-                radius: 20
+                radius: StyleTokens.radiusModule
                 color: StyleTokens.clearBlack
                 visible: controlCenter.profileCardHeight > 0
                 opacity: controlCenter.tlpControlsEnabled ? Math.min(1, controlCenter.batteryDrawerProgress * 1.35) : 0

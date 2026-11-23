@@ -62,6 +62,8 @@ class UserConfigBackend final : public QObject {
     Q_PROPERTY(int islandTopMargin READ islandTopMargin NOTIFY islandTopMarginChanged FINAL)
     Q_PROPERTY(int islandPositionX READ islandPositionX NOTIFY islandPositionXChanged FINAL)
     Q_PROPERTY(int islandBackgroundOpacity READ islandBackgroundOpacity NOTIFY islandBackgroundOpacityChanged FINAL)
+    Q_PROPERTY(int islandFrameWidth READ islandFrameWidth NOTIFY islandFrameWidthChanged FINAL)
+    Q_PROPERTY(int islandExpandedFrameWidth READ islandExpandedFrameWidth NOTIFY islandExpandedFrameWidthChanged FINAL)
     Q_PROPERTY(bool islandBlurEnabled READ islandBlurEnabled NOTIFY islandBlurEnabledChanged FINAL)
     Q_PROPERTY(int bodyFontSize READ bodyFontSize NOTIFY bodyFontSizeChanged FINAL)
     Q_PROPERTY(int titleFontSize READ titleFontSize NOTIFY titleFontSizeChanged FINAL)
@@ -121,6 +123,8 @@ public:
     int islandTopMargin() const;
     int islandPositionX() const;
     int islandBackgroundOpacity() const;
+    int islandFrameWidth() const { return m_islandFrameWidth; }
+    int islandExpandedFrameWidth() const { return m_islandExpandedFrameWidth; }
     bool islandBlurEnabled() const;
     int bodyFontSize() const;
     int titleFontSize() const;
@@ -182,6 +186,8 @@ signals:
     void islandTopMarginChanged();
     void islandPositionXChanged();
     void islandBackgroundOpacityChanged();
+    void islandFrameWidthChanged();
+    void islandExpandedFrameWidthChanged();
     void islandBlurEnabledChanged();
     void bodyFontSizeChanged();
     void titleFontSizeChanged();
@@ -239,6 +245,8 @@ private:
     QVariantMap m_durations;
     int m_islandWidth = 140;
     int m_islandBackgroundOpacity = 60;
+    int m_islandFrameWidth = 1;
+    int m_islandExpandedFrameWidth = 4;
     bool m_islandBlurEnabled = true;
     int m_islandHeight = 38;
     int m_islandExclusiveZone = 45;

@@ -20,6 +20,8 @@
   "iconFontFamily": "HackGen35 Console NF",
   "islandAutoHideDelayMs": 2000,
   "islandExclusiveZone": 0,
+  "islandExpandedFrameWidth": 4,
+  "islandFrameWidth": 1,
   "lockScreen": {
     "avatarPath": "",
     "blur": 48,
@@ -30,7 +32,7 @@
     "layout": "dashboard",
     "message": "",
     "positions": {},
-    "radius": 20,
+    "radius": 15,
     "showAlbumArt": true,
     "showAvatar": true,
     "showBattery": true,

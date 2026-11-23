@@ -100,9 +100,9 @@ STYLE_COLOR(workspaceOverlay, "#42070b10")
 STYLE_COLOR(workspaceOverlayHover, "#280d131a")
 STYLE_COLOR(workspaceActiveBorder, "#73d4ff")
 
-int StyleTokensBackend::radiusPanel() const { return 28; }
-int StyleTokensBackend::radiusModule() const { return 20; }
-int StyleTokensBackend::radiusPrompt() const { return 16; }
+int StyleTokensBackend::radiusPanel() const { return 15; }
+int StyleTokensBackend::radiusModule() const { return 15; }
+int StyleTokensBackend::radiusPrompt() const { return 15; }
 int StyleTokensBackend::radiusButton() const { return 12; }
 int StyleTokensBackend::durationFast() const { return 120; }
 int StyleTokensBackend::durationControl() const { return 130; }

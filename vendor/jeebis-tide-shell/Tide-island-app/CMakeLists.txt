@@ -49,7 +49,13 @@ set(LOCK_SCREEN_VIEW_FILES
 )
 foreach(lock_file IN LISTS LOCK_SCREEN_VIEW_FILES)
     get_filename_component(lock_name "${lock_file}" NAME)
-    set_source_files_properties("${lock_file}" PROPERTIES QT_RESOURCE_ALIAS "${lock_name}")
+    set_source_files_properties("${lock_file}" PROPERTIES QT_RESOURCE_ALIAS "lockscreen/${lock_name}")
+endforeach()
+
+set(DESIGN_FILES ../qml/design/IslandFrame.qml ../qml/design/IslandSurface.qml)
+foreach(design_file IN LISTS DESIGN_FILES)
+    get_filename_component(design_name "${design_file}" NAME)
+    set_source_files_properties("${design_file}" PROPERTIES QT_RESOURCE_ALIAS "design/${design_name}")
 endforeach()
 
 qt_add_qml_module(tide-island-config-app
@@ -75,6 +81,7 @@ qt_add_qml_module(tide-island-config-app
         FontSettings.qml
         LockScreenSettings.qml
         ${LOCK_SCREEN_VIEW_FILES}
+        ${DESIGN_FILES}
 )
 
 target_include_directories(tide-island-config-app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../backend)

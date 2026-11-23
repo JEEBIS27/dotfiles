@@ -125,6 +125,32 @@ PagePanel {
                     SplitLine { width: parent.width }
 
                     ConfigRow {
+                        title: "コンパクト表示の枠幅"
+                        description: "時計・一時表示・小さいカプセル（0＝枠なし）"
+                        keyName: "islandFrameWidth"
+                        fallbackText: "1"
+                        numeric: true
+                        minimumValue: 0
+                        maximumValue: 8
+                        width: parent.width
+                    }
+
+                    SplitLine { width: parent.width }
+
+                    ConfigRow {
+                        title: "詳細表示の枠幅"
+                        description: "展開したIslandの枠。初期値はNiriと同じ4（0＝枠なし）"
+                        keyName: "islandExpandedFrameWidth"
+                        fallbackText: "4"
+                        numeric: true
+                        minimumValue: 0
+                        maximumValue: 8
+                        width: parent.width
+                    }
+
+                    SplitLine { width: parent.width }
+
+                    ConfigRow {
                         title: "背景の不透明度"
                         description: "Islandの背景の濃さ（0＝透明、100＝不透明）"
                         keyName: "islandBackgroundOpacity"

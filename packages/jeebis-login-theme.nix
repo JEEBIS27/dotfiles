@@ -4,11 +4,13 @@
 }:
 let
   # Use the same display components as the desktop lock.
+  designComponents = ../vendor/jeebis-tide-shell/qml/design;
   lockComponents = ../vendor/jeebis-tide-shell/qml/lockscreen;
 in
 pkgs.runCommand "jeebis-login-theme" { } ''
     theme="$out/share/sddm/themes/jeebis-login-theme"
-    mkdir -p "$theme/TideLock"
+    mkdir -p "$theme/TideLock" "$theme/design"
+    cp "${designComponents}/IslandFrame.qml" "${designComponents}/IslandSurface.qml" "$theme/design/"
     for component in LockScreenView LockCard LockGlyph LockAction LockLayoutHandle; do
       cp "${lockComponents}/$component.qml" "$theme/TideLock/"
     done
@@ -34,7 +36,7 @@ pkgs.runCommand "jeebis-login-theme" { } ''
       accent=c['accent'], textPrimary=c['foreground'], textSecondary=c['muted'],
       textMuted=c['muted'], error=c['red'], buttonFill=c['foreground'],
       buttonFillHover=c['bright_foreground'], buttonFillPressed=c['light_foreground'],
-      surfaceBorder='#26ffffff', radiusPanel=28)
+      surfaceBorder='#26ffffff', radiusPanel=15)
   Path(sys.argv[1]).write_text('.pragma library\nvar tokens = ' + json.dumps(tokens) + ';\n')
   PYTHON
     touch "$theme/theme.conf"

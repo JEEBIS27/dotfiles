@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import "../design"
 
 Button {
     id: root
@@ -19,11 +20,11 @@ Button {
     hoverEnabled: true
     Accessible.name: text
     opacity: enabled ? 1 : 0.4
-    background: Rectangle {
+    background: IslandSurface {
         radius: 12
         color: root.prominent ? (root.down ? root.buttonFillPressed : root.hovered ? root.buttonFillHover : root.buttonFill) : root.down ? "#10ffffff" : root.hovered ? "#08ffffff" : "transparent"
-        border.width: root.activeFocus ? 1.5 : 0
-        border.color: root.accent
+        frameWidth: root.activeFocus ? 2 : 0
+        frameColor: root.accent
         antialiasing: true
         Behavior on scale {
             NumberAnimation {

@@ -17,7 +17,7 @@ inline QVariantMap normalized(const QJsonObject &input = {})
         {"customLayoutEnabled", false},
         {"displayName", ""}, {"avatarPath", ""}, {"wallpaperPath", ""},
         {"message", ""}, {"layout", "dashboard"},
-        {"blur", 48}, {"dim", 32}, {"cardOpacity", 82}, {"radius", 28}
+        {"blur", 48}, {"dim", 32}, {"cardOpacity", 82}, {"radius", 15}
     };
     for (auto it = values.begin(); it != values.end(); ++it) {
         const auto value = input.value(it.key());

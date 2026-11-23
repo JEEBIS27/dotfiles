@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Dialogs
 import QtQuick.Effects
 import TideIsland 1.0
+import "lockscreen"
 
 PagePanel {
     id: root

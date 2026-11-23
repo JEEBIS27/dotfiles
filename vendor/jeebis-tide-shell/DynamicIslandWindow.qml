@@ -1,10 +1,10 @@
 import QtQuick
-import QtQuick.Shapes
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Services.Mpris
 import IslandBackend
 import "qml/common"
+import "qml/design"
 import "qml/controlcenter"
 import "qml/connectivity"
 import "qml/island"
@@ -23,14 +23,15 @@ PanelWindow {
     readonly property bool centerOpen: islandContainer.controlCenterLayerVisible || islandContainer.notificationCenterLayerVisible
     // Niri snaps its layout gap and focus ring to the output's physical pixels.
     readonly property real centerInset: snapToOutputPixel(4)
-    readonly property real centerBorderWidth: snapToOutputPixel(4)
+    readonly property real capsuleFrameWidth: capsuleFrame.alignedWidth
+    readonly property real chipFrameWidth: activityChip.background?.alignedFrameWidth ?? 0
     readonly property real centerCornerRadius: 15
 
     function snapToOutputPixel(value) {
         const scale = devicePixelRatio > 0 ? devicePixelRatio : 1;
         return Math.round(value * scale) / scale;
     }
-    readonly property real capsuleTop: centerOpen ? centerInset : userConfig.islandTopMargin
+    readonly property real capsuleTop: centerOpen ? centerInset : Math.max(capsuleFrameWidth, snapToOutputPixel(userConfig.islandTopMargin))
     EdgeHandle {
         screen: root.screen
         leftEdge: true
@@ -155,40 +156,40 @@ PanelWindow {
         InsetBlurRegion {
             surface: activityChip
             active: activityChip.visible && activityChips.opacity > 0.01
-            surfaceRadius: activityChip.height / 2
+            surfaceRadius: activityChip.surfaceRadius
             transformDependencies: [activityChips.x, activityChips.y]
         }
         InsetBlurRegion {
             surface: moreActivityChip
             active: moreActivityChip.visible && activityChips.opacity > 0.01
-            surfaceRadius: moreActivityChip.height / 2
+            surfaceRadius: moreActivityChip.surfaceRadius
             transformDependencies: [activityChips.x, activityChips.y]
         }
         InsetBlurRegion {
             surface: wifiConnectivityDetailShell.surfaceItem
             active: wifiConnectivityDetailShell.visible && wifiConnectivityDetailShell.opacity > 0.01
-            surfaceRadius: 28
+            surfaceRadius: root.centerCornerRadius
             transformDependencies: [wifiConnectivityDetailShell.x, wifiConnectivityDetailShell.y,
                 wifiConnectivityDetailShell.panelScale, mainCapsule.height]
         }
         InsetBlurRegion {
             surface: bluetoothConnectivityDetailShell.surfaceItem
             active: bluetoothConnectivityDetailShell.visible && bluetoothConnectivityDetailShell.opacity > 0.01
-            surfaceRadius: 28
+            surfaceRadius: root.centerCornerRadius
             transformDependencies: [bluetoothConnectivityDetailShell.x, bluetoothConnectivityDetailShell.y,
                 bluetoothConnectivityDetailShell.panelScale, mainCapsule.height]
         }
         InsetBlurRegion {
             surface: powerConnectivityDetailShell.surfaceItem
             active: powerConnectivityDetailShell.visible && powerConnectivityDetailShell.opacity > 0.01
-            surfaceRadius: 28
+            surfaceRadius: root.centerCornerRadius
             transformDependencies: [powerConnectivityDetailShell.x, powerConnectivityDetailShell.y,
                 powerConnectivityDetailShell.panelScale, mainCapsule.height]
         }
         InsetBlurRegion {
             surface: calendarNoteShell.surfaceItem
             active: calendarNoteShell.visible && calendarNoteShell.opacity > 0.01
-            surfaceRadius: 28
+            surfaceRadius: root.centerCornerRadius
             transformDependencies: [calendarNoteShell.x, calendarNoteShell.y, calendarNoteShell.panelScale]
         }
         // Keep the blur bounds within the layer surface as panels resize.
@@ -202,9 +203,12 @@ PanelWindow {
     mask: Region {
         Region {
             intersection: Intersection.Combine
-            x: Math.floor(activityChips.x); y: Math.floor(activityChips.y)
-            width: activityChips.visible ? Math.ceil(activityChips.width) : 0
-            height: activityChips.visible ? Math.ceil(activityChips.height) : 0
+            x: Math.floor(activityChips.x - root.chipFrameWidth)
+            y: Math.floor(activityChips.y - root.chipFrameWidth)
+            width: activityChips.visible
+                ? Math.ceil(activityChips.x + activityChips.width + root.chipFrameWidth) - x : 0
+            height: activityChips.visible
+                ? Math.ceil(activityChips.y + activityChips.height + root.chipFrameWidth) - y : 0
         }
         // Input is the union of the island's visible surfaces plus a compact top
         // gesture strip. The gesture strip must not grow with expanded content.
@@ -217,21 +221,23 @@ PanelWindow {
 
         Region {
             intersection: Intersection.Combine
-            x: Math.floor(mainCapsule.x + mainCapsule.width * (1 - mainCapsule.revealWidthScale) / 2)
-            y: Math.floor(mainCapsule.y)
-            width: root.autoHideProgress > 0.01 ? Math.ceil(mainCapsule.width * mainCapsule.revealWidthScale) : 0
-            height: root.autoHideProgress > 0.01 ? Math.ceil(mainCapsule.height * mainCapsule.revealHeightScale) : 0
+            x: Math.floor(capsuleFrame.x + capsuleFrame.width * (1 - mainCapsule.revealWidthScale) / 2)
+            y: Math.floor(capsuleFrame.y)
+            width: root.autoHideProgress > 0.01
+                ? Math.ceil(capsuleFrame.x + capsuleFrame.width * (1 + mainCapsule.revealWidthScale) / 2) - x : 0
+            height: root.autoHideProgress > 0.01
+                ? Math.ceil(mainCapsule.y + (mainCapsule.height + capsuleFrame.extension) * mainCapsule.revealHeightScale) - y : 0
         }
 
         // Keep the corner gutter on the same input surface as the open panel.
         // A click on that gutter would otherwise focus the window underneath.
         Region {
             intersection: Intersection.Combine
-            x: islandContainer.controlCenterLayerVisible ? Math.floor(centerFrame.x) : 0
+            x: islandContainer.controlCenterLayerVisible ? Math.floor(capsuleFrame.x) : 0
             y: 0
             width: !root.centerOpen ? 0 : islandContainer.controlCenterLayerVisible
-                ? Math.ceil(root.width) - x : Math.ceil(centerFrame.x + centerFrame.width)
-            height: root.centerOpen ? Math.ceil(centerFrame.y + centerFrame.height) : 0
+                ? Math.ceil(root.width) - x : Math.ceil(capsuleFrame.x + capsuleFrame.width)
+            height: root.centerOpen ? Math.ceil(capsuleFrame.y + capsuleFrame.height) : 0
         }
 
         Region {
@@ -444,9 +450,6 @@ PanelWindow {
         : 0
     readonly property real overviewCapsuleWidth: islandContainer.overviewView ? islandContainer.overviewView.width : 760
     readonly property real overviewCapsuleHeight: islandContainer.overviewView ? islandContainer.overviewView.height : 308
-    readonly property real overviewCapsuleRadius: islandContainer.overviewView
-        ? islandContainer.overviewView.largeWorkspaceRadius + islandContainer.overviewView.outerPadding
-        : 44
     readonly property color overviewCapsuleColor: islandContainer.overviewView
         ? islandContainer.overviewView.cardColor
         : StyleTokens.overviewCard
@@ -2286,39 +2289,32 @@ PanelWindow {
         }
 
         // --- UI 渲染：灵动岛主干 ---
-        Shape {
-            id: centerFrame
-            readonly property real frameWidth: root.centerBorderWidth
-            visible: root.centerOpen
+        IslandFrame {
+            id: capsuleFrame
+            pixelRatio: root.devicePixelRatio
+            strokeWidth: root.centerOpen ? 4 : mainCapsule.roundedCapsule
+                ? userConfig.islandFrameWidth : userConfig.islandExpandedFrameWidth
+            surfaceRadius: mainCapsule.radius
+            strokeColor: mainCapsule.outlineColor
+            outset: true
             opacity: mainCapsule.opacity
-            x: mainCapsule.x - frameWidth
-            y: mainCapsule.y - frameWidth
-            width: mainCapsule.width + frameWidth * 2
-            height: mainCapsule.height + frameWidth * 2
+            x: mainCapsule.x - extension
+            y: mainCapsule.y - extension
+            width: mainCapsule.width + extension * 2
+            height: mainCapsule.height + extension * 2
             z: mainCapsule.z + 1
-            preferredRendererType: Shape.CurveRenderer
             transform: Scale {
-                origin.x: centerFrame.width / 2
-                origin.y: centerFrame.frameWidth
+                origin.x: capsuleFrame.width / 2
+                origin.y: capsuleFrame.extension
                 xScale: mainCapsule.revealWidthScale
                 yScale: mainCapsule.revealHeightScale
             }
-            ShapePath {
-                fillColor: "transparent"
-                strokeColor: mainCapsule.outlineColor
-                strokeWidth: centerFrame.frameWidth
-                PathRectangle {
-                    x: centerFrame.frameWidth / 2
-                    y: centerFrame.frameWidth / 2
-                    width: centerFrame.width - centerFrame.frameWidth
-                    height: centerFrame.height - centerFrame.frameWidth
-                    radius: mainCapsule.radius + centerFrame.frameWidth / 2
-                }
-            }
         }
 
-        Rectangle {
+        IslandSurface {
             id: mainCapsule
+            frameWidth: 0
+            pixelRatio: root.devicePixelRatio
 
             Shortcut {
                 sequence: "Escape"
@@ -2342,7 +2338,6 @@ PanelWindow {
             z: 5
             property int morphDuration: 280
             readonly property bool notificationHistorySurface: islandContainer.islandState === "notification_center"
-            property real outlineWidth: 1
             property color outlineColor: root.overviewContentVisible
                 ? root.overviewCapsuleBorderColor
                 : StyleTokens.surfaceBorder
@@ -2435,30 +2430,12 @@ PanelWindow {
                     return userConfig.islandHeight;
                 }
             }
-            readonly property real targetRadius: {
-                if (root.overviewVisible) return root.overviewCapsuleRadius;
-                if (root.activityLayerOpen && activities.detailed) return 26;
-
-                switch (islandContainer.islandState) {
-                case "control_center":
-                case "notification_center":
-                    return root.centerCornerRadius;
-                case "wallpaper_picker":
-                case "application_launcher":
-                case "file_shelf":
-                case "clipboard":
-                case "weather":
-                case "calendar":
-                    return 28;
-                case "expanded":
-                case "bluetooth_expanded":
-                    return 32;
-                case "notification":
-                    return islandContainer.notificationExpanded ? 28 : mainCapsule.targetHeight / 2;
-                default:
-                    return userConfig.islandHeight / 2;
-                }
-            }
+            readonly property bool roundedCapsule: !root.overviewVisible
+                && !(root.activityLayerOpen && activities.detailed)
+                && (["normal", "custom", "lyrics", "split", "long_capsule", "app_queue"].includes(islandContainer.islandState)
+                    || (islandContainer.notificationLayerVisible && !islandContainer.notificationExpanded))
+            readonly property real targetRadius: Math.min(
+                roundedCapsule ? targetHeight / 2 : root.centerCornerRadius, displayedWidth / 2, targetHeight / 2)
             function sideSwipeWidthForProgress(progressValue) {
                 if (progressValue < 0)
                     return userConfig.islandWidth + (islandContainer.customCapsuleWidth - userConfig.islandWidth)
@@ -2471,9 +2448,8 @@ PanelWindow {
             readonly property real sideSwipePreviewWidth: mainCapsule.sideSwipeWidthForProgress(
                 islandContainer.swipeTransitionProgress
             )
-            color: root.overviewContentVisible
-                ? Qt.alpha(root.overviewCapsuleColor, root.materialOpacity)
-                : root.materialColor
+            tint: root.overviewContentVisible ? root.overviewCapsuleColor : StyleTokens.panel
+            materialOpacity: root.materialOpacity
             // Keep the top edge fixed and grow out from a small capsule.
             readonly property real revealWidthScale: 1 - (1 - Math.min(1, 34 / Math.max(1, width)))
                 * (1 - root.autoHideProgress)
@@ -2484,8 +2460,8 @@ PanelWindow {
                 : islandContainer.notificationCenterLayerVisible ? root.centerInset
                 : parent.width * userConfig.islandPositionX / 100 - width / 2
             clip: true
-            width: root.centerOpen ? root.snapToOutputPixel(displayedWidth) : displayedWidth
-            height: root.centerOpen ? root.snapToOutputPixel(targetHeight) : targetHeight
+            width: root.snapToOutputPixel(displayedWidth)
+            height: root.snapToOutputPixel(targetHeight)
             radius: targetRadius
             opacity: root.autoHideProgress
             transform: Scale {
@@ -2518,24 +2494,9 @@ PanelWindow {
             }
             Behavior on radius { NumberAnimation { duration: mainCapsule.morphDuration; easing.type: Easing.OutQuint } }
             Behavior on color { ColorAnimation { duration: 280; easing.type: Easing.InOutQuad } }
-            Behavior on outlineWidth { NumberAnimation { duration: 260; easing.type: Easing.InOutQuad } }
             Behavior on outlineColor { ColorAnimation { duration: 260; easing.type: Easing.InOutQuad } }
-            border.width: root.centerOpen ? 0 : outlineWidth
-            border.color: outlineColor
 
             antialiasing: true
-
-            Rectangle {
-                anchors.fill: parent
-                anchors.margins: 1
-                radius: Math.max(mainCapsule.radius - 1, 0)
-                color: StyleTokens.transparent
-                visible: !root.centerOpen
-                border.width: 1
-                border.color: StyleTokens.overviewInnerBorder
-                antialiasing: true
-            }
-
 
             MouseArea {
                 id: capsuleMouseArea
@@ -3336,14 +3297,18 @@ PanelWindow {
             readonly property bool expandedMusic: islandContainer.expandedLayerVisible && activities.playing
             readonly property var others: expandedMusic ? activities.rows.filter(r => r.kind !== "music") : activities.secondary
             readonly property var smallItem: expandedMusic ? others[0] || null : activities.chip
-            spacing: 3
-            x: Math.min(parent.width - width, mainCapsule.x + mainCapsule.width + 5)
+            spacing: 3 + root.chipFrameWidth * 2
+            x: Math.min(parent.width - width - root.chipFrameWidth,
+                mainCapsule.x + mainCapsule.width + 5 + root.capsuleFrameWidth + root.chipFrameWidth)
             y: mainCapsule.y + (userConfig.islandHeight - height) / 2
             z: 8; opacity: root.autoHideProgress
             visible: (root.activityPresentationAllowed || expandedMusic) && !!smallItem && opacity > 0.01
             IslandButton {
                 id: activityChip
                 surfaceColor: root.materialColor
+                outsideFrame: true
+                capsuleFrameWidth: userConfig.islandFrameWidth
+                pixelRatio: root.devicePixelRatio
                 visible: !!activityChips.smallItem
                 text: activityChips.smallItem ? activities.glyph(activityChips.smallItem.kind) : ""
                 description: activityChips.smallItem ? activityChips.smallItem.title : ""
@@ -3356,6 +3321,9 @@ PanelWindow {
             IslandButton {
                 id: moreActivityChip
                 surfaceColor: root.materialColor
+                outsideFrame: true
+                capsuleFrameWidth: userConfig.islandFrameWidth
+                pixelRatio: root.devicePixelRatio
                 visible: activityChips.others.length > 1
                 text: "+" + Math.max(0, activityChips.others.length - 1); description: "All activities"
                 onClicked: {
@@ -3371,7 +3339,7 @@ PanelWindow {
 
             width: bubbleSize
             height: bubbleSize
-            x: mainCapsule.x - width - 8
+            x: mainCapsule.x - width - Math.max(8, root.capsuleFrameWidth + 4)
             y: mainCapsule.y + mainCapsule.height / 2 - height / 2
             z: 6
             visible: islandContainer.fileShelfBubbleWanted
@@ -3383,14 +3351,14 @@ PanelWindow {
                 NumberAnimation { duration: StyleTokens.durationFast }
             }
 
-            Rectangle {
+            IslandSurface {
                 anchors.fill: parent
+                tint: StyleTokens.panel
+                materialOpacity: root.materialOpacity
+                frameColor: StyleTokens.surfaceBorder
+                frameWidth: userConfig.islandFrameWidth
+                pixelRatio: root.devicePixelRatio
                 radius: width / 2
-                color: root.materialColor
-                border.width: 1
-                border.color: StyleTokens.surfaceBorder
-
-                antialiasing: true
                 Text {
                     anchors.centerIn: parent
                     anchors.horizontalCenterOffset: -1
@@ -3444,7 +3412,7 @@ PanelWindow {
             property real reveal: islandContainer.timerBubbleWanted ? 1 : 0
             readonly property int bubbleSize: 34
             readonly property real hiddenX: mainCapsule.x + mainCapsule.width - width * 0.62
-            readonly property real shownX: mainCapsule.x + mainCapsule.width + 8
+            readonly property real shownX: mainCapsule.x + mainCapsule.width + Math.max(8, root.capsuleFrameWidth + 4)
             readonly property real centerY: mainCapsule.y + mainCapsule.height / 2 - height / 2
 
             width: bubbleSize
@@ -3584,10 +3552,14 @@ PanelWindow {
                 }
             }
 
-            Rectangle {
+            IslandSurface {
                 anchors.fill: parent
+                tint: StyleTokens.panel
+                materialOpacity: root.materialOpacity
+                frameColor: StyleTokens.surfaceBorder
+                frameWidth: userConfig.islandFrameWidth
+                pixelRatio: root.devicePixelRatio
                 radius: width / 2
-                color: root.materialColor
             }
 
             Canvas {

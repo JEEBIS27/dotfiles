@@ -70,7 +70,7 @@ Item {
     readonly property color errorColor: styleValue("error", "#ff7c72")
     readonly property bool dashboard: width / Math.max(1, height) > 1.2 && (option("showMusic", true) || option("showWeather", true))
     readonly property real cardAlpha: option("cardOpacity", 82) / 100
-    readonly property real corner: option("radius", styleValue("radiusPanel", 28))
+    readonly property real corner: option("radius", styleValue("radiusPanel", 15))
     readonly property string displayName: option("displayName", "").trim() || userName
     readonly property real sceneScale: Math.min(1, (width - 48) / body.width, (height - 140) / Math.max(1, body.height))
     readonly property real profileHeight: option("showAvatar", true) || option("showName", true) || (hasBattery && option("showBattery", true)) ? 88 : 0

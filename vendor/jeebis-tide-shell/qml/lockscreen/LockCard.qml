@@ -1,6 +1,7 @@
 import QtQuick
+import "../design"
 
-Rectangle {
+IslandSurface {
     id: root
     property var styleTokens: null
     property real surfaceOpacity: 0.82
@@ -19,31 +20,8 @@ Rectangle {
     transform: Translate {
         y: (1 - root.reveal) * 26 - root.dismiss * 16
     }
-    radius: styleTokens ? styleTokens.radiusPanel : 28
-    color: Qt.rgba(surfaceColor.r, surfaceColor.g, surfaceColor.b, surfaceOpacity)
-    border.width: surfaceOpacity > 0 ? 1 : 0
-    border.color: outlineColor
-    antialiasing: true
-
-    // Match GlassSurface's restrained highlight without blurring the content.
-    Rectangle {
-        anchors.fill: parent
-        anchors.margins: 1
-        radius: Math.max(0, root.radius - 1)
-        visible: root.surfaceOpacity > 0
-        gradient: Gradient {
-            GradientStop {
-                position: 0
-                color: "#0cffffff"
-            }
-            GradientStop {
-                position: 0.45
-                color: "#02ffffff"
-            }
-            GradientStop {
-                position: 1
-                color: "#04000000"
-            }
-        }
-    }
+    tint: surfaceColor
+    materialOpacity: surfaceOpacity
+    frameColor: outlineColor
+    outsideFrame: true
 }
