@@ -72,7 +72,8 @@ PanelWindow {
         leftEdge: true
         opened: islandContainer.notificationCenterLayerVisible
         onActivated: wasOpen => {
-            if (wasOpen) islandContainer.smartRestoreState();
+            if (wasOpen && !centerExit.running) islandContainer.smartRestoreState();
+            else if (wasOpen) islandContainer.showNotificationCenter();
             else if (!opened) root.toggleNotificationCenterWindow();
         }
     }
@@ -81,7 +82,8 @@ PanelWindow {
         leftEdge: false
         opened: islandContainer.controlCenterLayerVisible
         onActivated: wasOpen => {
-            if (wasOpen) islandContainer.smartRestoreState();
+            if (wasOpen && !centerExit.running) islandContainer.smartRestoreState();
+            else if (wasOpen) islandContainer.showControlCenter();
             else if (!opened) root.toggleControlCenterWindow();
         }
     }
@@ -188,11 +190,13 @@ PanelWindow {
         }
         InsetBlurRegion {
             surface: fileShelfBubble
+            transformDependencies: [clickMerge.phase]
             active: fileShelfBubble.visible && fileShelfBubble.opacity > 0.01
             surfaceRadius: fileShelfBubble.width / 2
         }
         InsetBlurRegion {
             surface: timerBubble
+            transformDependencies: [clickMerge.phase]
             active: timerBubble.visible && timerBubble.opacity > 0.01
             surfaceRadius: timerBubble.width / 2
         }
@@ -200,13 +204,13 @@ PanelWindow {
             surface: activityChip
             active: activityChip.visible && activityChips.opacity > 0.01
             surfaceRadius: activityChip.surfaceRadius
-            transformDependencies: [activityChips.x, activityChips.y]
+            transformDependencies: [activityChips.x, activityChips.y, clickMerge.phase]
         }
         InsetBlurRegion {
             surface: moreActivityChip
             active: moreActivityChip.visible && activityChips.opacity > 0.01
             surfaceRadius: moreActivityChip.surfaceRadius
-            transformDependencies: [activityChips.x, activityChips.y]
+            transformDependencies: [activityChips.x, activityChips.y, clickMerge.phase]
         }
         InsetBlurRegion {
             surface: wifiConnectivityDetailShell.surfaceItem
@@ -291,6 +295,14 @@ PanelWindow {
             height: fileShelfBubble.visible ? Math.ceil(fileShelfBubble.height) : 0
         }
         
+        Region {
+            intersection: Intersection.Combine
+            x: Math.floor(timerBubble.x)
+            y: Math.floor(timerBubble.y)
+            width: timerBubble.visible ? Math.ceil(timerBubble.width) : 0
+            height: timerBubble.visible ? Math.ceil(timerBubble.height) : 0
+        }
+
         // Add existing detail shells
         Region {
             intersection: Intersection.Combine
@@ -892,7 +904,7 @@ PanelWindow {
     }
 
     function toggleControlCenterWindow() {
-        if (islandContainer.islandState === "control_center")
+        if (islandContainer.islandState === "control_center" && !centerExit.running)
             islandContainer.smartRestoreState();
         else {
             islandContainer.showControlCenter();
@@ -915,7 +927,7 @@ PanelWindow {
     }
 
     function toggleNotificationCenterWindow() {
-        if (islandContainer.islandState === "notification_center")
+        if (islandContainer.islandState === "notification_center" && !centerExit.running)
             islandContainer.smartRestoreState();
         else
             islandContainer.showNotificationCenter();
@@ -1221,6 +1233,20 @@ PanelWindow {
             || (root.monitorFocused && (root.overviewVisible || root.connectivityPromptActive))
 
         property string islandState: "normal"
+        onIslandStateChanged: {
+            centerExit.stop()
+            centerExitProgress = 0
+            clickMerge.cancel()
+        }
+        property real centerExitProgress: 0
+        NumberAnimation {
+            id: centerExit
+            target: islandContainer
+            property: "centerExitProgress"
+            from: 0; to: 1; duration: 170
+            easing.type: Easing.InCubic
+            onFinished: islandContainer.restoreRestingCapsule()
+        }
         property string splitIcon: root.defaultSplitIcon
         property real osdProgress: -1.0
         property string levelOsdKind: ""
@@ -2077,6 +2103,11 @@ PanelWindow {
 
         function smartRestoreState() {
             activities.closeDetails();
+            if (root.centerOpen) {
+                root.closeAllConnectivityDetails()
+                if (!centerExit.running) centerExit.start()
+                return
+            }
             restoreRestingCapsule();
         }
 
@@ -2112,24 +2143,19 @@ PanelWindow {
             restartAutoHideTimer(bluetoothExpandedAutoHideInterval);
         }
 
-        function showControlCenter() {
-            cancelSideSwipeSettle();
-            abortSideTransientMode();
-            clearTransientCapsule();
-            islandState = "control_center";
-            mainCapsule.displayedWidth = mainCapsule.baseTargetWidth;
-            stopAutoHideTimer();
+        function showCenter(state) {
+            centerExit.stop()
+            centerExitProgress = 0
+            cancelSideSwipeSettle()
+            abortSideTransientMode()
+            clearTransientCapsule()
+            islandState = state
+            mainCapsule.displayedWidth = sideSwipeRestWidthForProgress(restingStateProgress(restingState))
+            stopAutoHideTimer()
         }
 
-        function showNotificationCenter() {
-            cancelSideSwipeSettle();
-            abortSideTransientMode();
-            clearTransientCapsule();
-            islandState = "notification_center";
-            mainCapsule.displayedWidth = mainCapsule.baseTargetWidth;
-            stopAutoHideTimer();
-        }
-
+        function showControlCenter() { showCenter("control_center") }
+        function showNotificationCenter() { showCenter("notification_center") }
 
         function showWallpaperPicker() {
             cancelSideSwipeSettle();
@@ -2234,7 +2260,7 @@ PanelWindow {
 
         function showApplicationCapsule(before, after) {
             if (root.overviewVisible || blocksTransientSplit || islandState === "notification_center"
-                    || activities.detailed || root.shellRootController?.sessionLocked)
+                    || activities.detailed || clickMerge.source || root.shellRootController?.sessionLocked)
                 return;
             if (islandState !== "app_queue") {
                 abortSideTransientMode();
@@ -2388,7 +2414,7 @@ PanelWindow {
             property color outlineColor: root.overviewContentVisible
                 ? root.overviewCapsuleBorderColor
                 : roundedCapsule ? Qt.alpha(StyleTokens.surfaceBorder, StyleTokens.surfaceBorder.a * root.compactKeyline) : StyleTokens.surfaceBorder
-            property real displayedWidth: baseTargetWidth
+            property real displayedWidth: root.centerOpen ? userConfig.islandWidth : baseTargetWidth
             readonly property real baseTargetWidth: {
                 if (root.overviewVisible) return root.overviewCapsuleWidth;
                 if (root.activityLayerOpen) return Math.min(root.width - 24, activities.detailed ? 392 : 246);
@@ -2502,17 +2528,25 @@ PanelWindow {
                 * (1 - root.autoHideProgress)
             readonly property real revealHeightScale: 1 - (1 - Math.min(1, 16 / Math.max(1, height)))
                 * (1 - root.autoHideProgress)
-            y: root.capsuleTop
+            y: root.capsuleTop - (root.centerOpen ? 12 * islandContainer.centerExitProgress : 0)
             x: !parent ? 0 : islandContainer.controlCenterLayerVisible ? Math.max(0, parent.width - width - root.centerInset)
                 : islandContainer.notificationCenterLayerVisible ? root.centerInset
                 : parent.width * userConfig.islandPositionX / 100 - width / 2
             clip: true
-            width: root.snapToOutputPixel(displayedWidth)
-            readonly property bool liquidContact: roundedCapsule && (liquid.app || liquid.chip)
-            height: root.snapToOutputPixel(targetHeight
-                + (liquidContact ? Math.min(3, targetHeight * 0.08) * liquid.contact : 0))
+            width: root.snapToOutputPixel(root.centerOpen ? baseTargetWidth : displayedWidth)
+            readonly property bool liquidContact: roundedCapsule && (liquid.clicked || liquid.app || liquid.chip)
+            // Central geometry stays independent while this surface is docked at an edge.
+            property real centralHeight: root.centerOpen ? userConfig.islandHeight : targetHeight
+                + (liquidContact ? Math.min(3, targetHeight * 0.08) * liquid.contact : 0)
+            property real panelHeight: root.centerOpen ? targetHeight : 0
+            Behavior on panelHeight {
+                enabled: root.centerOpen && mainCapsule.panelHeight > 0 && !(controlCenterLoader.item?.batteryDrawerMoving)
+                NumberAnimation { duration: mainCapsule.morphDuration; easing.type: Easing.OutQuint }
+            }
+            height: root.snapToOutputPixel(root.centerOpen ? panelHeight : centralHeight)
             radius: targetRadius
-            opacity: root.autoHideProgress
+            opacity: root.autoHideProgress * (root.centerOpen ? 1 - islandContainer.centerExitProgress : 1)
+            enabled: !centerExit.running
             transform: Scale {
                 origin.x: mainCapsule.width / 2
                 origin.y: 0
@@ -2521,19 +2555,19 @@ PanelWindow {
             }
 
             onBaseTargetWidthChanged: {
-                if (!capsuleMouseArea.sideSwipeInteractive && !islandContainer.sideSwipeSettling)
+                if (!root.centerOpen && !capsuleMouseArea.sideSwipeInteractive && !islandContainer.sideSwipeSettling)
                     displayedWidth = baseTargetWidth;
             }
 
             Behavior on displayedWidth  {
                 NumberAnimation {
                     id: capsuleWidthAnimation
-                    duration: capsuleMouseArea.sideSwipeInteractive || liquid.app ? 0 : mainCapsule.morphDuration
+                    duration: root.centerOpen || capsuleMouseArea.sideSwipeInteractive || liquid.app ? 0 : mainCapsule.morphDuration
                     easing.type: Easing.OutQuint
                 }
             }
-            Behavior on height {
-                enabled: !mainCapsule.liquidContact && !(controlCenterLoader.item && controlCenterLoader.item.batteryDrawerMoving)
+            Behavior on centralHeight {
+                enabled: !root.centerOpen && !mainCapsule.liquidContact && !(controlCenterLoader.item && controlCenterLoader.item.batteryDrawerMoving)
 
                 NumberAnimation {
                     id: capsuleHeightAnimation
@@ -3353,36 +3387,71 @@ PanelWindow {
 
         }
 
+        QtObject {
+            id: clickMerge
+            property Item source: null
+            property point origin
+            property real phase: 1
+            property var action: null
+            function open(item, callback) {
+                if (source || !item.visible) return
+                origin = item.mapToItem(islandContainer, item.width / 2, item.height / 2)
+                phase = 1
+                action = callback
+                source = item
+                motion.start()
+            }
+            function cancel() {
+                motion.stop()
+                source = null
+                action = null
+            }
+            readonly property NumberAnimation motion: NumberAnimation {
+                target: clickMerge
+                property: "phase"
+                from: 1; to: 0; duration: 300
+                easing.type: Easing.Linear
+                onFinished: {
+                    const callback = clickMerge.action
+                    if (callback && clickMerge.source?.visible && !root.overviewVisible) callback()
+                    clickMerge.cancel()
+                }
+            }
+        }
+
         LiquidCapsule {
             id: liquid
             main: mainCapsule
-            readonly property bool app: appIconQueue.active && appIconQueue.movingApp !== ""
+            readonly property bool clicked: !!clickMerge.source
+            readonly property bool app: !clicked && appIconQueue.active && appIconQueue.movingApp !== ""
             readonly property bool chip: activityChips.progress > 0 && activityChips.progress < 1
             // Phase grows toward detachment in both directions. The row and
             // body settle before the satellite reaches the end of its travel.
-            readonly property real phase: app ? appIconQueue.separation : activityChips.progress
-            readonly property bool releasing: app ? !appIconQueue.opening : (handoff.moving ? handoff.direction === "split" : activityChips.wanted)
+            readonly property real phase: clicked ? clickMerge.phase : app ? appIconQueue.separation : activityChips.progress
+            readonly property bool releasing: clicked ? false : app ? !appIconQueue.opening : (handoff.moving ? handoff.direction === "split" : activityChips.wanted)
             readonly property real separation: appIconQueue.smoothPhase(phase, 0, releasing ? 0.62 : 0.84)
             readonly property real rebound: releasing
                 ? Math.sin(Math.PI * appIconQueue.smoothPhase(phase, 0.45, 0.89)) : 0
             readonly property real emerge: app ? 1 - appIconQueue.smoothPhase(phase, 0.86, 1) : 1
             readonly property real contact: Math.sin(Math.PI * separation)
-            readonly property int side: app ? (userConfig.islandPositionX <= 50 ? 1 : -1)
+            readonly property int side: clicked ? (clickMerge.origin.x < mainCapsule.x + mainCapsule.width / 2 ? -1 : 1) : app ? (userConfig.islandPositionX <= 50 ? 1 : -1)
                 : (activityChips.restX + activityChip.width / 2 >= mainCapsule.x + mainCapsule.width / 2 ? 1 : -1)
             readonly property real edge: mainCapsule.x + (side > 0 ? mainCapsule.width : 0)
             readonly property real diameter: Math.min(32, mainCapsule.height)
             readonly property real dock: app ? mainCapsule.x + appIconQueue.slotX
                 : edge - side * Math.min(mainCapsule.width / 2, diameter / 2)
-            readonly property real detached: app ? edge + side * (diameter / 2 + 10 + root.capsuleFrameWidth)
+            readonly property real detached: clicked ? clickMerge.origin.x : app ? edge + side * (diameter / 2 + 10 + root.capsuleFrameWidth)
                 : activityChips.restX + activityChip.width / 2
             satelliteX: dock + (detached - dock) * separation + side * rebound * diameter * 0.36
-            satelliteWidth: (app ? diameter : activityChip.width) * (1 + 0.085 * contact - 0.12 * rebound) * emerge
-            satelliteHeight: (app ? diameter : activityChip.height) * (1 + 0.085 * contact + 0.10 * rebound) * emerge
+            satelliteY: clicked ? clickMerge.origin.y
+                : mainCapsule.y + mainCapsule.height / 2
+            satelliteWidth: (clicked ? clickMerge.source.width : app ? diameter : activityChip.width) * (1 + 0.085 * contact - 0.12 * rebound) * emerge
+            satelliteHeight: (clicked ? clickMerge.source.height : app ? diameter : activityChip.height) * (1 + 0.085 * contact + 0.10 * rebound) * emerge
             stroke: root.capsuleFrameWidth
             fillTint: root.materialColor
             edgeTint: mainCapsule.outlineColor
             z: mainCapsule.z - 0.1
-            visible: (app || chip) && mainCapsule.roundedCapsule && root.autoHideProgress > 0.98
+            visible: (clicked || (app || chip) && mainCapsule.roundedCapsule) && root.autoHideProgress > 0.98
                 && GraphicsInfo.api !== GraphicsInfo.Software
             opacity: mainCapsule.opacity
         }
@@ -3417,56 +3486,69 @@ PanelWindow {
             readonly property var others: expandedMusic ? activities.rows.filter(r => r.kind !== "music") : activities.secondary
             readonly property var smallItem: expandedMusic ? others[0] || null : handoff.chip
             spacing: 3 + root.chipFrameWidth * 2
-            readonly property bool wanted: (root.activityPresentationAllowed || expandedMusic) && !!smallItem
+            readonly property bool wanted: (root.activityPresentationAllowed || expandedMusic) && !!smallItem && !activities.listing
             property var retained: null
             onSmallItemChanged: if (smallItem) retained = smallItem
             readonly property real progress: handoff.moving ? handoff.separation : reveal
             property real reveal: wanted && handoff.direction !== "merge" ? 1 : 0
-            Behavior on reveal { enabled: !handoff.moving; NumberAnimation { duration: activityChips.wanted ? 450 : 285; easing.type: Easing.Linear } }
+            Behavior on reveal { enabled: !clickMerge.source && !handoff.moving; NumberAnimation { duration: activityChips.wanted ? 450 : 285; easing.type: Easing.Linear } }
             readonly property real gap: 5 + root.capsuleFrameWidth + root.chipFrameWidth
             readonly property real restX: mainCapsule.x + mainCapsule.width + gap + width <= parent.width
                 ? mainCapsule.x + mainCapsule.width + gap : Math.max(0, mainCapsule.x - gap - width)
             y: mainCapsule.y + ((mainCapsule.roundedCapsule ? mainCapsule.height : userConfig.islandHeight) - height) / 2
-            x: liquid.chip && !liquid.app && mainCapsule.roundedCapsule ? liquid.satelliteX - activityChip.width / 2 : restX
+            x: liquid.chip && !liquid.clicked && !liquid.app && mainCapsule.roundedCapsule ? liquid.satelliteX - activityChip.width / 2 : restX
             z: 8; opacity: root.autoHideProgress
             visible: progress > 0 && opacity > 0.01 && (wanted || mainCapsule.roundedCapsule && !liquid.app)
-            enabled: wanted && !handoff.moving
+            enabled: wanted && !handoff.moving && !clickMerge.source
             IslandButton {
                 id: activityChip
+                transform: Translate { x: clickMerge.source === activityChip ? liquid.satelliteX - clickMerge.origin.x : 0 }
                 surfaceColor: root.materialColor
+                opacity: clickMerge.source === activityChip ? liquid.separation : 1
                 outsideFrame: true
                 capsuleFrameWidth: userConfig.islandFrameWidth
                 outlineColor: mainCapsule.outlineColor
                 pixelRatio: root.devicePixelRatio
                 visible: !!(activityChips.smallItem || activityChips.retained)
-                surfaceOpacity: liquid.visible && !liquid.app ? 0 : 1
+                surfaceOpacity: liquid.visible && !liquid.app && (!liquid.clicked || clickMerge.source === activityChip) ? 0 : 1
                 labelOpacity: activityChips.progress
                 labelBlur: liquid.chip && !liquid.app ? liquid.contact : 0
                 text: activities.glyph((activityChips.smallItem || activityChips.retained)?.kind || "")
                 description: activityChips.smallItem ? activityChips.smallItem.title : ""
                 onClicked: {
-                    const row = activityChips.smallItem;
-                    if (activityChips.expandedMusic) islandContainer.smartRestoreState();
-                    activities.expand(row);
+                    const id = activityChips.smallItem?.id
+                    clickMerge.open(activityChip, () => {
+                        const row = activities.rows.find(item => item.id === id)
+                        if (!row) return
+                        if (activityChips.expandedMusic) islandContainer.smartRestoreState()
+                        activities.expand(row)
+                    })
                 }
             }
             IslandButton {
                 id: moreActivityChip
+                transform: Translate { x: clickMerge.source === moreActivityChip ? liquid.satelliteX - clickMerge.origin.x : 0 }
                 surfaceColor: root.materialColor
+                opacity: clickMerge.source === moreActivityChip ? liquid.separation : 1
                 outsideFrame: true
                 capsuleFrameWidth: userConfig.islandFrameWidth
                 outlineColor: mainCapsule.outlineColor
                 pixelRatio: root.devicePixelRatio
+                surfaceOpacity: liquid.visible && clickMerge.source === moreActivityChip ? 0 : 1
                 visible: activityChips.others.length > 1
                 text: "+" + Math.max(0, activityChips.others.length - 1); description: "All activities"
                 onClicked: {
-                    if (activityChips.expandedMusic) islandContainer.smartRestoreState();
-                    activities.closeDetails(); activities.listing = true;
+                    clickMerge.open(moreActivityChip, () => {
+                        if (activityChips.expandedMusic) islandContainer.smartRestoreState()
+                        activities.closeDetails()
+                        activities.listing = true
+                    })
                 }
             }
         }
         Item {
             id: fileShelfBubble
+            transform: Translate { x: clickMerge.source === fileShelfBubble ? liquid.satelliteX - clickMerge.origin.x : 0 }
 
             readonly property int bubbleSize: 36
 
@@ -3476,7 +3558,7 @@ PanelWindow {
             y: mainCapsule.y + mainCapsule.height / 2 - height / 2
             z: 6
             visible: islandContainer.fileShelfBubbleWanted
-            opacity: root.autoHideProgress
+            opacity: root.autoHideProgress * (clickMerge.source === fileShelfBubble ? liquid.separation : 1)
             scale: 0.96 + root.autoHideProgress * 0.04
             transformOrigin: Item.Center
 
@@ -3487,9 +3569,9 @@ PanelWindow {
             IslandSurface {
                 anchors.fill: parent
                 tint: StyleTokens.panel
-                materialOpacity: root.materialOpacity
+                materialOpacity: liquid.visible && clickMerge.source === fileShelfBubble ? 0 : root.materialOpacity
                 frameColor: Qt.alpha(StyleTokens.surfaceBorder, StyleTokens.surfaceBorder.a * root.compactKeyline)
-                frameWidth: userConfig.islandFrameWidth
+                frameWidth: liquid.visible && clickMerge.source === fileShelfBubble ? 0 : userConfig.islandFrameWidth
                 pixelRatio: root.devicePixelRatio
                 radius: width / 2
                 Text {
@@ -3532,14 +3614,17 @@ PanelWindow {
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
-                    islandContainer.showFileShelf(true);
-                    root.showAutoHiddenIsland("state");
+                    clickMerge.open(fileShelfBubble, () => {
+                        islandContainer.showFileShelf(true)
+                        root.showAutoHiddenIsland("state")
+                    })
                 }
             }
         }
 
         Item {
             id: timerBubble
+            transform: Translate { x: clickMerge.source === timerBubble ? liquid.satelliteX - clickMerge.origin.x : 0 }
 
             property bool mounted: islandContainer.timerBubbleWanted
             property real reveal: islandContainer.timerBubbleWanted ? 1 : 0
@@ -3554,7 +3639,7 @@ PanelWindow {
             y: centerY + (1 - reveal) * 10
             z: 6
             visible: mounted
-            opacity: reveal * root.autoHideProgress
+            opacity: reveal * root.autoHideProgress * (clickMerge.source === timerBubble ? liquid.separation : 1)
             scale: (0.55 + reveal * 0.45) * (0.96 + root.autoHideProgress * 0.04) * (1 + islandContainer.timerCompletionPulse * 0.12)
             transformOrigin: Item.Center
 
@@ -3688,9 +3773,9 @@ PanelWindow {
             IslandSurface {
                 anchors.fill: parent
                 tint: StyleTokens.panel
-                materialOpacity: root.materialOpacity
+                materialOpacity: liquid.visible && clickMerge.source === timerBubble ? 0 : root.materialOpacity
                 frameColor: Qt.alpha(StyleTokens.surfaceBorder, StyleTokens.surfaceBorder.a * root.compactKeyline)
-                frameWidth: userConfig.islandFrameWidth
+                frameWidth: liquid.visible && clickMerge.source === timerBubble ? 0 : userConfig.islandFrameWidth
                 pixelRatio: root.devicePixelRatio
                 radius: width / 2
             }
@@ -3779,7 +3864,12 @@ PanelWindow {
                         root.scheduleAutoHide();
                     }
                 }
-                onClicked: islandContainer.showExpandedTimerPage()
+                onClicked: clickMerge.open(timerBubble, () => {
+                    islandContainer.showExpandedTimerPage()
+                    timerBubbleHideAnimation.stop()
+                    timerBubble.reveal = 0
+                    timerBubble.mounted = false
+                })
             }
         }
 
