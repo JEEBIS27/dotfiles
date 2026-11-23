@@ -19,7 +19,7 @@ PanelWindow {
     anchors.left: leftEdge
     anchors.right: !leftEdge
     implicitWidth: 68
-    implicitHeight: 26
+    implicitHeight: 14
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: WlrLayer.Top
@@ -43,7 +43,6 @@ PanelWindow {
     }
     Rectangle {
         anchors.centerIn: parent
-        anchors.horizontalCenterOffset: handle.leftEdge ? 6 : -6
         width: 25
         height: 3
         radius: height / 2

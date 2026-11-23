@@ -20,7 +20,11 @@ PanelWindow {
         && activities.activatedSourceId !== "" && activities.activatedSourceId === activities.selected
     readonly property bool sourcePlayerExpanded: islandContainer.expandedLayerVisible && activities.activatedSourceId === "media"
     readonly property bool centerOpen: islandContainer.controlCenterLayerVisible || islandContainer.notificationCenterLayerVisible
-    readonly property real capsuleTop: centerOpen ? 6 : userConfig.islandTopMargin
+    // Match the Niri layout gap and its default focus ring.
+    readonly property int centerInset: 4
+    readonly property int centerBorderWidth: 4
+    readonly property int centerCornerRadius: 15 + centerBorderWidth
+    readonly property real capsuleTop: centerOpen ? centerInset : userConfig.islandTopMargin
     EdgeHandle {
         screen: root.screen
         leftEdge: true
@@ -211,6 +215,17 @@ PanelWindow {
             y: Math.floor(mainCapsule.y)
             width: root.autoHideProgress > 0.01 ? Math.ceil(mainCapsule.width * mainCapsule.revealWidthScale) : 0
             height: root.autoHideProgress > 0.01 ? Math.ceil(mainCapsule.height * mainCapsule.revealHeightScale) : 0
+        }
+
+        // Keep the corner gutter on the same input surface as the open panel.
+        // A click on that gutter would otherwise focus the window underneath.
+        Region {
+            intersection: Intersection.Combine
+            x: islandContainer.controlCenterLayerVisible ? Math.floor(mainCapsule.x) : 0
+            y: 0
+            width: !root.centerOpen ? 0 : islandContainer.controlCenterLayerVisible
+                ? Math.ceil(root.width) - x : Math.ceil(mainCapsule.x + mainCapsule.width)
+            height: root.centerOpen ? Math.ceil(mainCapsule.y + mainCapsule.height) : 0
         }
 
         Region {
@@ -2290,7 +2305,7 @@ PanelWindow {
             z: 5
             property int morphDuration: 280
             readonly property bool notificationHistorySurface: islandContainer.islandState === "notification_center"
-            property real outlineWidth: 1
+            property real outlineWidth: root.centerOpen ? root.centerBorderWidth : 1
             property color outlineColor: root.overviewContentVisible
                 ? root.overviewCapsuleBorderColor
                 : StyleTokens.surfaceBorder
@@ -2326,9 +2341,9 @@ PanelWindow {
                 case "lyrics":
                     return islandContainer.lyricsCapsuleWidth;
                 case "control_center":
-                    return 420;
+                    return Math.min(420, root.width - root.centerInset * 2);
                 case "notification_center":
-                    return 410;
+                    return Math.min(410, root.width - root.centerInset * 2);
                 case "wallpaper_picker":
                 case "application_launcher":
                 case "file_shelf":
@@ -2389,9 +2404,8 @@ PanelWindow {
 
                 switch (islandContainer.islandState) {
                 case "control_center":
-                    return 28;
                 case "notification_center":
-                    return 28;
+                    return root.centerCornerRadius;
                 case "wallpaper_picker":
                 case "application_launcher":
                 case "file_shelf":
@@ -2429,8 +2443,8 @@ PanelWindow {
             readonly property real revealHeightScale: 1 - (1 - Math.min(1, 16 / Math.max(1, height)))
                 * (1 - root.autoHideProgress)
             y: root.capsuleTop
-            x: !parent ? 0 : islandContainer.controlCenterLayerVisible ? Math.max(0, parent.width - width - 12)
-                : islandContainer.notificationCenterLayerVisible ? 12
+            x: !parent ? 0 : islandContainer.controlCenterLayerVisible ? Math.max(0, parent.width - width - root.centerInset)
+                : islandContainer.notificationCenterLayerVisible ? root.centerInset
                 : parent.width * userConfig.islandPositionX / 100 - width / 2
             clip: true
             width: displayedWidth
@@ -2479,6 +2493,7 @@ PanelWindow {
                 anchors.margins: 1
                 radius: Math.max(mainCapsule.radius - 1, 0)
                 color: StyleTokens.transparent
+                visible: !root.centerOpen
                 border.width: 1
                 border.color: StyleTokens.overviewInnerBorder
                 antialiasing: true
