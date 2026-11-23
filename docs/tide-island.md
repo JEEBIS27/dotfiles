@@ -58,8 +58,8 @@ The current shell source lives in `vendor/jeebis-tide-shell/`. It incorporates
 the existing changes to Tide Island 1.0.49 and builds directly from that tree.
 The existing Nix package, service and configuration names remain available.
 When the workspace changes, the central Island briefly shows an accent pill
-for the active workspace, filled dots for occupied workspaces, and outlined dots
-for empty ones. A pulse indicates sustained CPU use by window processes.
+for the active workspace and filled dots for other occupied workspaces. A pulse
+indicates sustained CPU use by window processes.
 The first or last window of a Niri application briefly shows that application's
 icon in the same Island.
 

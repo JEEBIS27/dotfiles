@@ -8,7 +8,8 @@ Item {
 
     readonly property var workspaces: {
         CompositorBackend.revision;
-        return CompositorBackend.workspaceIndicators(outputName);
+        return Array.from(CompositorBackend.workspaceIndicators(outputName))
+            .filter(workspace => workspace.active || workspace.occupied);
     }
     Row {
         id: dots
@@ -17,11 +18,11 @@ Item {
         readonly property real scaleToFit: Math.min(1, status.width / Math.max(1, 12 * status.workspaces.length + 11))
         spacing: 5 * scaleToFit
         Repeater {
-            model: ScriptModel { values: Array.from(status.workspaces, ws => ws.id) }
+            model: ScriptModel { values: status.workspaces.map(ws => ws.id) }
             delegate: Item {
                 id: indicator
                 required property string modelData
-                readonly property var workspace: Array.from(status.workspaces).find(ws => ws.id === modelData) || {}
+                readonly property var workspace: status.workspaces.find(ws => ws.id === modelData) || {}
                 width: (workspace.active ? 18 : 7) * dots.scaleToFit
                 height: dots.height
                 Behavior on width { NumberAnimation { duration: StyleTokens.durationFast } }
@@ -31,10 +32,7 @@ Item {
                     width: parent.width
                     height: 7
                     radius: height / 2
-                    color: indicator.workspace.active ? StyleTokens.accent
-                        : indicator.workspace.occupied ? StyleTokens.textSecondary : "transparent"
-                    border.width: indicator.workspace.active || indicator.workspace.occupied ? 0 : 1
-                    border.color: StyleTokens.textSecondary
+                    color: indicator.workspace.active ? StyleTokens.accent : StyleTokens.textSecondary
                 }
                 Rectangle {
                     anchors.horizontalCenter: parent.horizontalCenter

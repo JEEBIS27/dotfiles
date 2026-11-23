@@ -118,7 +118,8 @@ PanelWindow {
     anchors { top: true; left: true; right: true }
     // Blur only the visible material, never the full-width layer surface or
     // the invisible gesture strip. The input mask remains independent.
-    BackgroundEffect.blurRegion: root.userConfig.islandBlurEnabled ? nativeBlurRegion : null
+    BackgroundEffect.blurRegion: root.userConfig.islandBlurEnabled && root.autoHideTargetVisible
+        ? nativeBlurRegion : null
 
     readonly property Region nativeBlurRegions: Region {
         id: nativeBlurRegion
@@ -161,10 +162,7 @@ PanelWindow {
             surfaceRadius: 28
             transformDependencies: [calendarNoteShell.x, calendarNoteShell.y, calendarNoteShell.panelScale]
         }
-        // Clip the completed union before sending it to the compositor. During
-        // auto-hide the capsule leaves the window before its opacity reaches
-        // zero. Hyprland can treat a nonempty, wholly offscreen blur region as
-        // unrestricted blur after clipping it, flashing the full layer surface.
+        // Keep the blur bounds within the layer surface as panels resize.
         Region {
             intersection: Intersection.Intersect
             width: root.width
