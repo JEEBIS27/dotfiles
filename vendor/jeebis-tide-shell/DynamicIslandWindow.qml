@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Shapes
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Services.Mpris
@@ -20,10 +21,15 @@ PanelWindow {
         && activities.activatedSourceId !== "" && activities.activatedSourceId === activities.selected
     readonly property bool sourcePlayerExpanded: islandContainer.expandedLayerVisible && activities.activatedSourceId === "media"
     readonly property bool centerOpen: islandContainer.controlCenterLayerVisible || islandContainer.notificationCenterLayerVisible
-    // Match the Niri layout gap and its default focus ring.
-    readonly property int centerInset: 4
-    readonly property int centerBorderWidth: 4
-    readonly property int centerCornerRadius: 15 + centerBorderWidth
+    // Niri snaps its layout gap and focus ring to the output's physical pixels.
+    readonly property real centerInset: snapToOutputPixel(4)
+    readonly property real centerBorderWidth: snapToOutputPixel(4)
+    readonly property real centerCornerRadius: 15
+
+    function snapToOutputPixel(value) {
+        const scale = devicePixelRatio > 0 ? devicePixelRatio : 1;
+        return Math.round(value * scale) / scale;
+    }
     readonly property real capsuleTop: centerOpen ? centerInset : userConfig.islandTopMargin
     EdgeHandle {
         screen: root.screen
@@ -221,11 +227,11 @@ PanelWindow {
         // A click on that gutter would otherwise focus the window underneath.
         Region {
             intersection: Intersection.Combine
-            x: islandContainer.controlCenterLayerVisible ? Math.floor(mainCapsule.x) : 0
+            x: islandContainer.controlCenterLayerVisible ? Math.floor(centerFrame.x) : 0
             y: 0
             width: !root.centerOpen ? 0 : islandContainer.controlCenterLayerVisible
-                ? Math.ceil(root.width) - x : Math.ceil(mainCapsule.x + mainCapsule.width)
-            height: root.centerOpen ? Math.ceil(mainCapsule.y + mainCapsule.height) : 0
+                ? Math.ceil(root.width) - x : Math.ceil(centerFrame.x + centerFrame.width)
+            height: root.centerOpen ? Math.ceil(centerFrame.y + centerFrame.height) : 0
         }
 
         Region {
@@ -2280,6 +2286,37 @@ PanelWindow {
         }
 
         // --- UI 渲染：灵动岛主干 ---
+        Shape {
+            id: centerFrame
+            readonly property real frameWidth: root.centerBorderWidth
+            visible: root.centerOpen
+            opacity: mainCapsule.opacity
+            x: mainCapsule.x - frameWidth
+            y: mainCapsule.y - frameWidth
+            width: mainCapsule.width + frameWidth * 2
+            height: mainCapsule.height + frameWidth * 2
+            z: mainCapsule.z + 1
+            preferredRendererType: Shape.CurveRenderer
+            transform: Scale {
+                origin.x: centerFrame.width / 2
+                origin.y: centerFrame.frameWidth
+                xScale: mainCapsule.revealWidthScale
+                yScale: mainCapsule.revealHeightScale
+            }
+            ShapePath {
+                fillColor: "transparent"
+                strokeColor: mainCapsule.outlineColor
+                strokeWidth: centerFrame.frameWidth
+                PathRectangle {
+                    x: centerFrame.frameWidth / 2
+                    y: centerFrame.frameWidth / 2
+                    width: centerFrame.width - centerFrame.frameWidth
+                    height: centerFrame.height - centerFrame.frameWidth
+                    radius: mainCapsule.radius + centerFrame.frameWidth / 2
+                }
+            }
+        }
+
         Rectangle {
             id: mainCapsule
 
@@ -2305,7 +2342,7 @@ PanelWindow {
             z: 5
             property int morphDuration: 280
             readonly property bool notificationHistorySurface: islandContainer.islandState === "notification_center"
-            property real outlineWidth: root.centerOpen ? root.centerBorderWidth : 1
+            property real outlineWidth: 1
             property color outlineColor: root.overviewContentVisible
                 ? root.overviewCapsuleBorderColor
                 : StyleTokens.surfaceBorder
@@ -2447,8 +2484,8 @@ PanelWindow {
                 : islandContainer.notificationCenterLayerVisible ? root.centerInset
                 : parent.width * userConfig.islandPositionX / 100 - width / 2
             clip: true
-            width: displayedWidth
-            height: targetHeight
+            width: root.centerOpen ? root.snapToOutputPixel(displayedWidth) : displayedWidth
+            height: root.centerOpen ? root.snapToOutputPixel(targetHeight) : targetHeight
             radius: targetRadius
             opacity: root.autoHideProgress
             transform: Scale {
@@ -2483,7 +2520,7 @@ PanelWindow {
             Behavior on color { ColorAnimation { duration: 280; easing.type: Easing.InOutQuad } }
             Behavior on outlineWidth { NumberAnimation { duration: 260; easing.type: Easing.InOutQuad } }
             Behavior on outlineColor { ColorAnimation { duration: 260; easing.type: Easing.InOutQuad } }
-            border.width: outlineWidth
+            border.width: root.centerOpen ? 0 : outlineWidth
             border.color: outlineColor
 
             antialiasing: true

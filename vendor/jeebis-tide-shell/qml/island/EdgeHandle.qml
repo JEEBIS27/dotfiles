@@ -42,9 +42,11 @@ PanelWindow {
         revealed = false;
     }
     Rectangle {
-        anchors.centerIn: parent
-        width: 25
-        height: 3
+        readonly property real scaleFactor: handle.devicePixelRatio > 0 ? handle.devicePixelRatio : 1
+        width: Math.round(25 * scaleFactor) / scaleFactor
+        height: Math.round(3 * scaleFactor) / scaleFactor
+        x: Math.round((parent.width - width) * scaleFactor / 2) / scaleFactor
+        y: Math.round((parent.height - height) * scaleFactor / 2) / scaleFactor
         radius: height / 2
         visible: handle.revealed
         color: StyleTokens.textPrimary
