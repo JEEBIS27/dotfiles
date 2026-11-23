@@ -31,6 +31,10 @@ Item {
             ? Math.max(0, Math.min(1, -transitionProgress))
             : 0)
     readonly property real revealProgress: slideDirection === "none" ? 1 : (1 - clampedProgress)
+    readonly property bool showsWorkspaceDots: outputName !== "" && appId === ""
+    readonly property real preferredWidth: showsWorkspaceDots && workspaceStatus.naturalWidth > 0
+        ? workspaceStatus.naturalWidth + horizontalPadding * 2 : 220
+
     readonly property real textWidth: Math.max(0, width - horizontalPadding * 2)
     readonly property real centeredX: horizontalPadding
     readonly property real hiddenLeftX: -textWidth - hiddenLeftPadding
@@ -72,7 +76,8 @@ Item {
     }
 
     WorkspaceStatus {
-        visible: root.outputName !== "" && root.appId === ""
+        id: workspaceStatus
+        visible: root.showsWorkspaceDots
         outputName: root.outputName
         x: root.labelX
         width: root.textWidth

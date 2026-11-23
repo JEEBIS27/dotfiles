@@ -3,7 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import IslandBackend
 
-Rectangle {
+Item {
     id: view
     required property var hub
     required property var player
@@ -129,8 +129,6 @@ Rectangle {
         if (row.kind === "timer") return duration(timerSeconds * 1000)
         return ""
     }
-    color: StyleTokens.panel
-    radius: detailed ? 26 : height / 2
     clip: true
     MouseArea {
         anchors.fill: parent

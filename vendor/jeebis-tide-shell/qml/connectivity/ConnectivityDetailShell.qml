@@ -7,6 +7,7 @@ Item {
     property bool mounted: false
     property bool rightSide: false
     property string panelKind: "wifi"
+    required property real materialOpacity
     property var provider: null
     property var mainCapsule: null
     property real availableWidth: 0
@@ -88,6 +89,7 @@ Item {
 
             sourceComponent: Component {
                 ConnectivityDetailPanel {
+                    materialOpacity: shell.materialOpacity
                     provider: shell.provider
                     panelKind: shell.panelKind
                     iconFontFamily: shell.iconFontFamily

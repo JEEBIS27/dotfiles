@@ -7,6 +7,7 @@ Item {
 
     property bool open: false
     property bool mounted: false
+    required property real materialOpacity
     property var provider: null
     property var mainCapsule: null
     property real availableWidth: 0
@@ -117,6 +118,7 @@ Item {
         }
 
         GlassSurface {
+            materialOpacity: shell.materialOpacity
             anchors.fill: parent
             radius: 28
             clip: true

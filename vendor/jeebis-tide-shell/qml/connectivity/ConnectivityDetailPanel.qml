@@ -5,6 +5,7 @@ import "../common"
 Item {
     id: root
 
+    required property real materialOpacity
     property var provider: null
     property string panelKind: "wifi"
     property string iconFontFamily: ""
@@ -104,6 +105,7 @@ Item {
     }
 
     GlassSurface {
+        materialOpacity: root.materialOpacity
         anchors.fill: parent
     }
 

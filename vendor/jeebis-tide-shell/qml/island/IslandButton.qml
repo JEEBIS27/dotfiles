@@ -4,6 +4,7 @@ import IslandBackend
 
 Button {
     id: button
+    property color surfaceColor: StyleTokens.module
     property bool marked: false
     property string description: text
     implicitHeight: 28
@@ -16,7 +17,7 @@ Button {
     ToolTip.text: description
     background: Rectangle {
         radius: height / 2
-        color: button.marked ? StyleTokens.accent : button.down || button.hovered ? StyleTokens.moduleHover : StyleTokens.module
+        color: button.marked ? StyleTokens.accent : button.down || button.hovered ? StyleTokens.moduleHover : button.surfaceColor
         border.width: button.visualFocus ? 1 : 0
         border.color: StyleTokens.textPrimary
     }

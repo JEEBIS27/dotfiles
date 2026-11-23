@@ -118,7 +118,10 @@ PanelWindow {
     anchors { top: true; left: true; right: true }
     // Blur only the visible material, never the full-width layer surface or
     // the invisible gesture strip. The input mask remains independent.
+    readonly property real materialOpacity: userConfig.islandBackgroundOpacity / 100
+    readonly property color materialColor: Qt.alpha(StyleTokens.panel, materialOpacity)
     BackgroundEffect.blurRegion: root.userConfig.islandBlurEnabled && root.autoHideTargetVisible
+        && root.materialOpacity < 1
         ? nativeBlurRegion : null
 
     readonly property Region nativeBlurRegions: Region {
@@ -126,14 +129,30 @@ PanelWindow {
 
         InsetBlurRegion {
             surface: mainCapsule
-            active: mainCapsule.opacity > 0.01 && root.userConfig.islandBackgroundOpacity > 0
-                && root.userConfig.islandBackgroundOpacity < 100
+            active: mainCapsule.opacity > 0.01
             surfaceRadius: mainCapsule.radius
         }
         InsetBlurRegion {
             surface: fileShelfBubble
             active: fileShelfBubble.visible && fileShelfBubble.opacity > 0.01
             surfaceRadius: fileShelfBubble.width / 2
+        }
+        InsetBlurRegion {
+            surface: timerBubble
+            active: timerBubble.visible && timerBubble.opacity > 0.01
+            surfaceRadius: timerBubble.width / 2
+        }
+        InsetBlurRegion {
+            surface: activityChip
+            active: activityChip.visible && activityChips.opacity > 0.01
+            surfaceRadius: activityChip.height / 2
+            transformDependencies: [activityChips.x, activityChips.y]
+        }
+        InsetBlurRegion {
+            surface: moreActivityChip
+            active: moreActivityChip.visible && activityChips.opacity > 0.01
+            surfaceRadius: moreActivityChip.height / 2
+            transformDependencies: [activityChips.x, activityChips.y]
         }
         InsetBlurRegion {
             surface: wifiConnectivityDetailShell.surfaceItem
@@ -2279,6 +2298,8 @@ PanelWindow {
             readonly property real baseTargetWidth: {
                 if (root.overviewVisible) return root.overviewCapsuleWidth;
                 if (root.activityLayerOpen) return Math.min(root.width - 24, activities.detailed ? 392 : 246);
+                if (workspaceLayerLoader.item?.showsWorkspaceDots)
+                    return Math.min(root.width, workspaceLayerLoader.item.preferredWidth);
                 if (sideTransientRestoreTimer.running) {
                     if (islandContainer.restingState === "lyrics"
                             && ((islandContainer.islandState === "split" && islandContainer.splitOriginSide === "right")
@@ -2398,9 +2419,8 @@ PanelWindow {
                 islandContainer.swipeTransitionProgress
             )
             color: root.overviewContentVisible
-                ? root.overviewCapsuleColor
-                : Qt.rgba(StyleTokens.panel.r, StyleTokens.panel.g, StyleTokens.panel.b,
-                    userConfig.islandBackgroundOpacity / 100.0)
+                ? Qt.alpha(root.overviewCapsuleColor, root.materialOpacity)
+                : root.materialColor
             // Keep the top edge fixed and grow out from a small capsule.
             readonly property real revealWidthScale: 1 - (1 - Math.min(1, 34 / Math.max(1, width)))
                 * (1 - root.autoHideProgress)
@@ -2737,7 +2757,7 @@ PanelWindow {
                 anchors.fill: parent
                 active: islandContainer.customSwipeVisible
                 asynchronous: false
-                visible: active
+                visible: active && !root.activityLayerOpen
 
                 onLoaded: islandContainer.syncCustomCapsuleWidth()
 
@@ -2768,7 +2788,7 @@ PanelWindow {
                 anchors.fill: parent
                 active: islandContainer.lyricsSwipeVisible
                 asynchronous: false
-                visible: active
+                visible: active && !root.activityLayerOpen
 
                 onLoaded: islandContainer.syncLyricsCapsuleWidth()
 
@@ -3262,6 +3282,8 @@ PanelWindow {
             z: 8; opacity: root.autoHideProgress
             visible: (root.activityPresentationAllowed || expandedMusic) && !!smallItem && opacity > 0.01
             IslandButton {
+                id: activityChip
+                surfaceColor: root.materialColor
                 visible: !!activityChips.smallItem
                 text: activityChips.smallItem ? activities.glyph(activityChips.smallItem.kind) : ""
                 description: activityChips.smallItem ? activityChips.smallItem.title : ""
@@ -3272,6 +3294,8 @@ PanelWindow {
                 }
             }
             IslandButton {
+                id: moreActivityChip
+                surfaceColor: root.materialColor
                 visible: activityChips.others.length > 1
                 text: "+" + Math.max(0, activityChips.others.length - 1); description: "All activities"
                 onClicked: {
@@ -3302,7 +3326,7 @@ PanelWindow {
             Rectangle {
                 anchors.fill: parent
                 radius: width / 2
-                color: Qt.rgba(StyleTokens.panel.r, StyleTokens.panel.g, StyleTokens.panel.b, 0.86)
+                color: root.materialColor
                 border.width: 1
                 border.color: StyleTokens.surfaceBorder
 
@@ -3502,9 +3526,8 @@ PanelWindow {
 
             Rectangle {
                 anchors.fill: parent
-                anchors.margins: 2
                 radius: width / 2
-                color: StyleTokens.black
+                color: root.materialColor
             }
 
             Canvas {
@@ -3597,6 +3620,7 @@ PanelWindow {
 
         ConnectivityDetailShell {
             id: wifiConnectivityDetailShell
+            materialOpacity: root.materialOpacity
 
             open: root.wifiConnectivityDetailOpen
             mounted: root.wifiConnectivityDetailMounted
@@ -3615,6 +3639,7 @@ PanelWindow {
 
         ConnectivityDetailShell {
             id: bluetoothConnectivityDetailShell
+            materialOpacity: root.materialOpacity
 
             open: root.bluetoothConnectivityDetailOpen
             mounted: root.bluetoothConnectivityDetailMounted
@@ -3633,6 +3658,7 @@ PanelWindow {
 
         ConnectivityDetailShell {
             id: powerConnectivityDetailShell
+            materialOpacity: root.materialOpacity
 
             open: root.powerConnectivityDetailOpen
             mounted: root.powerConnectivityDetailMounted
@@ -3651,6 +3677,7 @@ PanelWindow {
 
         CalendarNoteShell {
             id: calendarNoteShell
+            materialOpacity: root.materialOpacity
 
             open: islandContainer.calendarLayerVisible
                 && calendarLoader.item !== null
