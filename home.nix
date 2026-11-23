@@ -8,6 +8,7 @@
     ./modules/terminal.nix
     ./modules/herdr.nix
     ./modules/chatgpt.nix
+    ./modules/codex-design.nix
     ./modules/niri.nix
     ./modules/editor.nix
     ./modules/app-files.nix
