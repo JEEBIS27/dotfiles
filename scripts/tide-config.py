@@ -34,6 +34,7 @@ def main():
     parser.add_argument('action', choices=['import', 'apply'])
     parser.add_argument('declaration', type=Path)
     parser.add_argument('--config', type=Path, default=Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config'))) / 'tide-island/userconfig.json')
+    parser.add_argument('--managed', type=Path, help='integration settings enforced by the desktop')
     args = parser.parse_args()
     declaration = read(args.declaration)
     local = read(args.config) if args.config.exists() else {}
@@ -48,16 +49,26 @@ def main():
                     for key, value in schema.items()}
         write(args.declaration, select(declaration, local))
     else:
-        # Retain local-only fields, including credentials and unknown settings.
-        def merge(base, override):
-            result = dict(base)
-            for key, value in override.items():
-                result[key] = merge(result[key], value) if isinstance(value, dict) and isinstance(result.get(key), dict) else value
+        baseline = args.config.with_name('userconfig.defaults.json')
+        previous = read(baseline) if baseline.exists() else {}
+
+        def apply_defaults(local, old, new):
+            result = dict(local)
+            for key, value in new.items():
+                if key not in local or (key in old and local[key] == old[key]):
+                    result[key] = value
+                elif key != 'positions' and isinstance(value, dict) and isinstance(local[key], dict):
+                    old_child = old.get(key)
+                    result[key] = apply_defaults(local[key], old_child if isinstance(old_child, dict) else {}, value)
             return result
-        if args.config.exists() and local != merge(local, declaration):
-            backup = args.config.with_name('userconfig.before-home-manager.json')
-            write(backup, local)
-        write(args.config, merge(local, declaration))
+
+        result = apply_defaults(local, previous, declaration)
+        if args.managed:
+            result.update(read(args.managed))
+        if args.config.exists() and local != result:
+            write(args.config.with_name('userconfig.before-home-manager.json'), local)
+        write(args.config, result)
+        write(baseline, declaration)
 
 
 if __name__ == '__main__':

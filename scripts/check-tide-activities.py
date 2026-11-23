@@ -113,6 +113,9 @@ async def check(binary, directory):
         await cli("hook", "--app", "Codex", data=b'{"hook_event_name":"Stop","session_id":"sample"}')
         final = await state(lambda m: any(r["kind"] == "done" for r in m.get("items", [])))
         assert final["history"][0]["source"]["app"] == "Codex"
+        await send(op="duration", ms=125)
+        expired = await state(lambda m: "items" in m and not any(r["kind"] == "done" for r in m["items"]))
+        assert any(row["kind"] == "done" for row in expired["history"])
         print("PASS priority, progress, source identity, free text, choices with notes, skip, isolation, cancellation, MCP, Codex lifecycle")
     finally:
         server.stdin.close()

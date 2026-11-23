@@ -4,9 +4,20 @@
 }:
 let
   directionBindings = import ./direction-bindings.nix { inherit (pkgs) lib; };
-  keyboard = pkgs.writeText "tide-keyboard.py" (
-    directionBindings.render (builtins.readFile ./desktop/tide-keyboard.py)
-  );
+  shellSource = ../vendor/jeebis-tide-shell;
+  directionFiles = [
+    "qml/controlcenter/ControlCenterLayer.qml"
+    "qml/island/HorizontalSelection.js"
+  ];
+  renderedDirections = pkgs.lib.concatMapStringsSep "\n" (
+    file:
+    let
+      rendered = pkgs.writeText (builtins.baseNameOf file) (
+        directionBindings.render (builtins.readFile (shellSource + "/${file}"))
+      );
+    in
+    ''cp "${rendered}" "${file}"''
+  ) directionFiles;
   quickshell = import ./quickshell.nix { inherit pkgs; };
   wifi = import ./tide-wifi.nix { inherit pkgs; };
   deps =
@@ -55,10 +66,7 @@ in
 pkgs.stdenv.mkDerivation rec {
   pname = "tide-island";
   version = "1.0.49";
-  src = pkgs.fetchurl {
-    url = "https://github.com/enhaoswen/Tide-island/releases/download/${version}/tide-island-source.tar.xz";
-    sha256 = "d6a9828834b52248db1f820bbfa3d8960563c1d166c7381946c366038e77d24f";
-  };
+  src = shellSource;
   nativeBuildInputs = [
     pkgs.cmake
     pkgs.pkg-config
@@ -77,20 +85,8 @@ pkgs.stdenv.mkDerivation rec {
     qt6.qtsvg
     qt6.qtmultimedia
   ];
-  patches = [ ./desktop/tide-wifi.patch ./desktop/tide-hardware.patch ];
   cmakeFlags = [ "-DTIDE_ISLAND_WITH_NIRI=${if withNiri then "ON" else "OFF"}" ];
-  # No upstream installer, writes to /usr, or bundled test targets.
-  postPatch = ''
-    rm -rf tests Tide-island-app/tests
-    ${pkgs.python3}/bin/python3 ${./desktop/tide-integration.py} .
-    ${pkgs.python3}/bin/python3 ${keyboard} .
-    ${pkgs.python3}/bin/python3 ${./desktop/tide-search.py} .
-    cp ${./desktop/LevelStatusIcon.qml} qml/common/LevelStatusIcon.qml
-    ${pkgs.python3}/bin/python3 ${./desktop/tide-level-osd.py} .
-    ${pkgs.python3}/bin/python3 ${./desktop/tide-motion.py} .
-    cp ${./desktop/tide-ui}/*.qml qml/island/
-    ${pkgs.python3}/bin/python3 ${./desktop/tide-activities-ui.py} .
-  '';
+  postPatch = renderedDirections;
   doCheck = false;
   dontWrapQtApps = true;
   postInstall = ''
@@ -110,7 +106,7 @@ pkgs.stdenv.mkDerivation rec {
     wrapQtApp "$out/bin/tide-island-config-app" --prefix PATH : ${pkgs.lib.makeBinPath deps}
   '';
   meta = {
-    description = "Tide Island Quickshell desktop shell";
+    description = "Jeebis desktop shell, based on Tide Island";
     homepage = "https://github.com/enhaoswen/Tide-island";
     license = pkgs.lib.licenses.gpl3Only;
     platforms = pkgs.lib.platforms.linux;

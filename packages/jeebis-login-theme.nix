@@ -3,20 +3,17 @@
   palette ? "catppuccin",
 }:
 let
-  # Use exactly the same pinned display components as the desktop lock.
-  tide = import ./tide-island.nix { inherit pkgs; };
+  # Use the same display components as the desktop lock.
+  lockComponents = ../vendor/jeebis-tide-shell/qml/lockscreen;
 in
 pkgs.runCommand "jeebis-login-theme" { } ''
     theme="$out/share/sddm/themes/jeebis-login-theme"
-    mkdir -p "$theme/TideLock" source
-    tar -xf ${tide.src} -C source --strip-components=1
-    lock=$(find source -path '*/qml/lockscreen/LockScreenView.qml' -print -quit)
-    test -n "$lock"
+    mkdir -p "$theme/TideLock"
     for component in LockScreenView LockCard LockGlyph LockAction LockLayoutHandle; do
-      cp "$(dirname "$lock")/$component.qml" "$theme/TideLock/"
+      cp "${lockComponents}/$component.qml" "$theme/TideLock/"
     done
     cp ${../files/desktop/login/Main.qml} "$theme/Main.qml"
-    find source -maxdepth 2 -iname 'LICENSE*' -exec cp {} "$theme/" \;
+    cp ${../vendor/jeebis-tide-shell/LICENSE} "$theme/LICENSE"
     cat > "$theme/metadata.desktop" <<'META'
   [SddmGreeterTheme]
   Name=Jeebis Tide Login
