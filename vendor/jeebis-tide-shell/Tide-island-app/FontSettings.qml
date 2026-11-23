@@ -64,7 +64,7 @@ PagePanel {
             Text {
                 id: title
                 font.family: Theme.titleFontFamily
-                text: "Font"
+                text: "フォント"
                 color: Theme.textColor
                 font.pixelSize: 30
                 x: 60
@@ -73,7 +73,7 @@ PagePanel {
 
             Text {
                 id: fontTitle
-                text: "Font settings"
+                text: "フォント設定"
                 anchors.top: title.bottom
                 anchors.topMargin: 40
                 anchors.left: parent.left
@@ -111,8 +111,8 @@ PagePanel {
                     spacing: 15
 
                     ConfigRow {
-                        title: "Icon Font Family"
-                        description: "Font used for island icon glyphs"
+                        title: "アイコンのフォント"
+                        description: "Islandのアイコンに使うフォント"
                         keyName: "iconFontFamily"
                         fallbackText: "JetBrainsMono Nerd Font"
                         width: parent.width
@@ -121,8 +121,8 @@ PagePanel {
                     SplitLine { width: parent.width }
 
                     ConfigRow {
-                        title: "Text Font Family"
-                        description: "Body and paragraph text font"
+                        title: "本文のフォント"
+                        description: "本文や説明文に使うフォント"
                         keyName: "textFontFamily"
                         fallbackText: "Sans Serif"
                         width: parent.width
@@ -131,8 +131,8 @@ PagePanel {
                     SplitLine { width: parent.width }
 
                     ConfigRow {
-                        title: "Hero Font Family"
-                        description: "Heading and hero text font"
+                        title: "見出しのフォント"
+                        description: "見出しや強調表示に使うフォント"
                         keyName: "heroFontFamily"
                         fallbackText: "Sans Serif"
                         width: parent.width
@@ -141,8 +141,8 @@ PagePanel {
                     SplitLine { width: parent.width }
 
                     ConfigRow {
-                        title: "Time Font Family"
-                        description: "Clock and time display font"
+                        title: "時計のフォント"
+                        description: "時刻表示に使うフォント"
                         keyName: "timeFontFamily"
                         fallbackText: "Sans Serif"
                         width: parent.width
@@ -151,8 +151,8 @@ PagePanel {
                     SplitLine { width: parent.width }
 
                     ConfigRow {
-                        title: "Body Font Size"
-                        description: "Base pixel size for body text"
+                        title: "本文の文字サイズ"
+                        description: "本文の基準サイズ（ピクセル）"
                         keyName: "bodyFontSize"
                         fallbackText: "16"
                         numeric: true
@@ -163,8 +163,8 @@ PagePanel {
                     SplitLine { width: parent.width }
 
                     ConfigRow {
-                        title: "Title Font Size"
-                        description: "Base pixel size for headings and hero text"
+                        title: "見出しの文字サイズ"
+                        description: "見出しの基準サイズ（ピクセル）"
                         keyName: "titleFontSize"
                         fallbackText: "20"
                         numeric: true
@@ -175,8 +175,8 @@ PagePanel {
                     SplitLine { width: parent.width }
 
                     ConfigRow {
-                        title: "Icon Font Size"
-                        description: "Base pixel size for icon glyphs"
+                        title: "アイコンのサイズ"
+                        description: "アイコンの基準サイズ（ピクセル）"
                         keyName: "iconFontSize"
                         fallbackText: "18"
                         numeric: true

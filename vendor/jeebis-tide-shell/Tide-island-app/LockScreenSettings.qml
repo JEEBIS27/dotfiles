@@ -63,8 +63,10 @@ PagePanel {
     FileDialog {
         id: imageDialog
         property string settingKey: "wallpaperPath"
-        title: settingKey === "avatarPath" ? "Choose an avatar" : "Choose a lock screen wallpaper"
-        nameFilters: ["Images (*.png *.jpg *.jpeg *.webp *.bmp)"]
+        title: settingKey === "avatarPath" ? "アバター画像を選択" : "ロック画面の壁紙を選択"
+        acceptLabel: "選択"
+        rejectLabel: "キャンセル"
+        nameFilters: ["画像 (*.png *.jpg *.jpeg *.webp *.bmp)"]
         onAccepted: root.update(settingKey, selectedFile.toString())
     }
 
@@ -103,7 +105,7 @@ PagePanel {
                 Text {
                     id: pageTitle
                     x: 30
-                    text: "Lock screen"
+                    text: "ロック画面"
                     color: Theme.textColor
                     font.family: Theme.titleFontFamily
                     font.pixelSize: 30
@@ -112,7 +114,7 @@ PagePanel {
                     anchors.right: parent.right
                     width: 114
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "Lock now"
+                    text: "今すぐロック"
                     primary: true
                     font.family: Theme.textFontFamily
                     onClicked: {
@@ -123,11 +125,11 @@ PagePanel {
             }
 
             Section {
-                title: "Layout"
+                title: "配置"
                 width: parent.width
                 ToggleRow {
-                    title: "Custom positions"
-                    hint: "Drag cards in the preview or enter their positions below. Changes save automatically."
+                    title: "カードの位置を変更"
+                    hint: "プレビューでカードをドラッグするか、下で座標を入力します。変更は自動保存されます。"
                     settingKey: "customLayoutEnabled"
                 }
 
@@ -171,7 +173,7 @@ PagePanel {
                         departure: layoutEditing ? 0 : previewTransition.departure
                         unlocking: !layoutEditing && previewTransition.exiting
                         onPositionEdited: (key, x, y) => root.savePosition(key, x, y)
-                        userName: "Your name"
+                        userName: "ユーザー名"
                         wallpaperPath: backend.themeLockWallpaper
                         textFont: String(ConfigStore.value("textFontFamily", "Sans Serif"))
                         timeFont: String(ConfigStore.value("timeFontFamily", "Sans Serif"))
@@ -183,13 +185,14 @@ PagePanel {
                         canNext: true
                         canFavorite: true
                         favorite: true
+                        favoriteHint: "お気に入り（Spotify接続時に利用可能）"
                         progress: 0.38
                         elapsed: "1:24"
                         duration: "3:42"
                         weatherReady: true
                         temperature: "23°"
-                        weatherCondition: "Partly cloudy"
-                        weatherLocation: "Local weather"
+                        weatherCondition: "晴れ時々曇り"
+                        weatherLocation: "現在地の天気"
                         weatherType: "cloudy"
                         feelsLike: "24°"
                         humidity: "64%"
@@ -208,7 +211,7 @@ PagePanel {
                         anchors.right: previewActions.left
                         anchors.rightMargin: 28
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "Music and weather use example data."
+                        text: "音楽と天気はサンプルです。"
                         wrapMode: Text.Wrap
                         color: Theme.subtleTextColor
                         font.family: Theme.textFontFamily
@@ -222,12 +225,12 @@ PagePanel {
                         spacing: 8
 
                         SettingButton {
-                            text: "Reset positions"
+                            text: "位置をリセット"
                             enabled: Object.keys(root.values.positions).length > 0
                             onClicked: root.update("positions", {})
                         }
                         SettingButton {
-                            text: "Replay"
+                            text: "動きを再生"
                             enabled: !root.values.customLayoutEnabled && !previewTransition.exiting
                             onClicked: previewTransition.beginExit()
                         }
@@ -236,13 +239,13 @@ PagePanel {
             }
 
             Section {
-                title: "Widget positions"
+                title: "カードの位置"
                 width: parent.width
                 visible: root.values.customLayoutEnabled
 
                 Text {
                     width: parent.width
-                    text: "X and Y set each card's center as a percentage of the screen. Cards stay within the screen edges."
+                    text: "XとYは画面に対するカード中心の位置（%）です。カードは画面内に収まります。"
                     wrapMode: Text.Wrap
                     color: Theme.subtleTextColor
                     font.family: Theme.textFontFamily
@@ -251,11 +254,11 @@ PagePanel {
 
                 Repeater {
                     model: [
-                        {key: "profile", label: "User information"},
-                        {key: "clock", label: "Time and date"},
-                        {key: "password", label: "Password"},
-                        {key: "weather", label: "Weather"},
-                        {key: "music", label: "Music player"}
+                        {key: "profile", label: "ユーザー情報"},
+                        {key: "clock", label: "時刻と日付"},
+                        {key: "password", label: "パスワード"},
+                        {key: "weather", label: "天気"},
+                        {key: "music", label: "音楽プレーヤー"}
                     ]
 
                     PositionRow {
@@ -267,22 +270,22 @@ PagePanel {
             }
 
             Section {
-                title: "Appearance"
+                title: "外観"
                 width: parent.width
 
                 SettingRow {
-                    title: "Wallpaper"
-                    hint: root.values.wallpaperPath || "Use the current desktop theme’s lock wallpaper"
+                    title: "壁紙"
+                    hint: root.values.wallpaperPath || "現在のデスクトップテーマのロック画面用壁紙を使う"
                     elideHint: true
                     SettingButton {
-                        text: "Choose image"
+                        text: "画像を選択"
                         onClicked: {
                             imageDialog.settingKey = "wallpaperPath";
                             imageDialog.open();
                         }
                     }
                     SettingButton {
-                        text: "Reset"
+                        text: "リセット"
                         enabled: root.values.wallpaperPath !== ""
                         onClicked: root.update("wallpaperPath", "")
                     }
@@ -293,8 +296,8 @@ PagePanel {
                 }
 
                 NumberRow {
-                    title: "Background blur"
-                    hint: "Blur the lock screen wallpaper (0–100%)"
+                    title: "背景のぼかし"
+                    hint: "ロック画面の壁紙のぼかし（0〜100%）"
                     settingKey: "blur"
                 }
 
@@ -303,8 +306,8 @@ PagePanel {
                 }
 
                 NumberRow {
-                    title: "Background dimming"
-                    hint: "Darken the wallpaper behind the cards (0–100%)"
+                    title: "背景の暗さ"
+                    hint: "カードの背後の壁紙を暗くする度合い（0〜100%）"
                     settingKey: "dim"
                 }
 
@@ -313,8 +316,8 @@ PagePanel {
                 }
 
                 NumberRow {
-                    title: "Card opacity"
-                    hint: "Background opacity of lock screen cards (0–100%)"
+                    title: "カードの不透明度"
+                    hint: "ロック画面のカード背景の濃さ（0〜100%）"
                     settingKey: "cardOpacity"
                 }
 
@@ -323,8 +326,8 @@ PagePanel {
                 }
 
                 NumberRow {
-                    title: "Corner radius"
-                    hint: "Corner radius of lock screen cards (12–40 px)"
+                    title: "角の丸み"
+                    hint: "ロック画面のカードの角丸半径（12〜40 px）"
                     settingKey: "radius"
                     minimum: 12
                     maximum: 40
@@ -332,11 +335,11 @@ PagePanel {
             }
 
             Section {
-                title: "User information"
+                title: "ユーザー情報"
                 width: parent.width
                 ToggleRow {
-                    title: "Avatar"
-                    hint: "Show your profile image on the lock screen"
+                    title: "アバター"
+                    hint: "ロック画面にプロフィール画像を表示"
                     settingKey: "showAvatar"
                 }
 
@@ -346,19 +349,19 @@ PagePanel {
                 }
 
                 SettingRow {
-                    title: "Avatar image"
-                    hint: root.values.avatarPath || "Use your system profile image"
+                    title: "アバター画像"
+                    hint: root.values.avatarPath || "システムのプロフィール画像を使う"
                     elideHint: true
                     visible: root.values.showAvatar
                     SettingButton {
-                        text: "Choose avatar"
+                        text: "アバターを選択"
                         onClicked: {
                             imageDialog.settingKey = "avatarPath";
                             imageDialog.open();
                         }
                     }
                     SettingButton {
-                        text: "Reset"
+                        text: "リセット"
                         enabled: root.values.avatarPath !== ""
                         onClicked: root.update("avatarPath", "")
                     }
@@ -369,8 +372,8 @@ PagePanel {
                 }
 
                 ToggleRow {
-                    title: "Display name"
-                    hint: "Show your name on the lock screen"
+                    title: "名前を表示"
+                    hint: "ロック画面にユーザー名を表示"
                     settingKey: "showName"
                 }
 
@@ -380,10 +383,10 @@ PagePanel {
                 }
 
                 TextRow {
-                    title: "Name"
-                    hint: "Leave empty to use your system username"
+                    title: "表示名"
+                    hint: "空欄の場合はシステムのユーザー名を使います。"
                     settingKey: "displayName"
-                    placeholderText: "System username"
+                    placeholderText: "システムのユーザー名"
                     maximumLength: 80
                     visible: root.values.showName
                 }
@@ -393,20 +396,20 @@ PagePanel {
                 }
 
                 TextRow {
-                    title: "Lock screen message"
-                    hint: "A short message displayed below the clock"
+                    title: "ロック画面のメッセージ"
+                    hint: "時計の下に短いメッセージを表示"
                     settingKey: "message"
-                    placeholderText: "Leave empty to hide"
+                    placeholderText: "空欄で非表示"
                     maximumLength: 180
                 }
             }
 
             Section {
-                title: "Time and date"
+                title: "時刻と日付"
                 width: parent.width
                 ToggleRow {
-                    title: "Clock"
-                    hint: "Display the current time on the lock screen"
+                    title: "時計"
+                    hint: "ロック画面に現在の時刻を表示"
                     settingKey: "showClock"
                 }
 
@@ -415,8 +418,8 @@ PagePanel {
                 }
 
                 ToggleRow {
-                    title: "Date & weekday"
-                    hint: "Display the current date and day of the week"
+                    title: "日付と曜日"
+                    hint: "現在の日付と曜日を表示"
                     settingKey: "showDate"
                 }
 
@@ -425,8 +428,8 @@ PagePanel {
                 }
 
                 ToggleRow {
-                    title: "24-hour time"
-                    hint: "Use 24-hour time instead of AM / PM"
+                    title: "24時間表示"
+                    hint: "時刻を24時間形式で表示"
                     settingKey: "use24Hour"
                 }
 
@@ -435,18 +438,18 @@ PagePanel {
                 }
 
                 ToggleRow {
-                    title: "Show seconds"
-                    hint: "Include seconds in the clock"
+                    title: "秒を表示"
+                    hint: "時計に秒を表示"
                     settingKey: "showSeconds"
                 }
             }
 
             Section {
-                title: "Widgets"
+                title: "ウィジェット"
                 width: parent.width
                 ToggleRow {
-                    title: "Music player"
-                    hint: "Playback controls for the Island player"
+                    title: "音楽プレーヤー"
+                    hint: "Islandのプレーヤーを操作するボタンを表示"
                     settingKey: "showMusic"
                 }
 
@@ -456,8 +459,8 @@ PagePanel {
                 }
 
                 ToggleRow {
-                    title: "Track title & artist"
-                    hint: "Show the current track's title and artist"
+                    title: "曲名とアーティスト"
+                    hint: "再生中の曲名とアーティスト名を表示"
                     settingKey: "showTrackInfo"
                     visible: root.values.showMusic
                 }
@@ -468,8 +471,8 @@ PagePanel {
                 }
 
                 ToggleRow {
-                    title: "Album artwork"
-                    hint: "Show the current track's album cover"
+                    title: "アルバムアート"
+                    hint: "再生中の曲のアルバムアートを表示"
                     settingKey: "showAlbumArt"
                     visible: root.values.showMusic
                 }
@@ -479,8 +482,8 @@ PagePanel {
                 }
 
                 ToggleRow {
-                    title: "Current weather"
-                    hint: "Uses the location and units in General → Weather"
+                    title: "現在の天気"
+                    hint: "「外観 → 天気」で選んだ地域と単位を使用"
                     settingKey: "showWeather"
                 }
 
@@ -489,15 +492,15 @@ PagePanel {
                 }
 
                 ToggleRow {
-                    title: "Battery & charging"
-                    hint: "Show battery level and power status in the profile card"
+                    title: "バッテリーと充電"
+                    hint: "ユーザー情報カードにバッテリー残量と充電状態を表示"
                     settingKey: "showBattery"
                 }
             }
 
             Text {
                 width: parent.width
-                text: "Open the session lock from the power menu or with Super+Esc."
+                text: "電源メニューまたはSuper+Escで画面をロックできます。"
                 wrapMode: Text.Wrap
                 color: Theme.secondaryTextColor
                 font.family: Theme.textFontFamily
@@ -717,7 +720,7 @@ PagePanel {
         CoordinateField {
             objectName: positionRow.widgetKey + "PositionX"
             currentValue: positionRow.currentPosition.x * 100
-            field.Accessible.name: positionRow.title + " horizontal position (%)"
+            field.Accessible.name: positionRow.title + "の横位置（%）"
             onCommitted: value => root.saveCoordinate(positionRow.widgetKey, "x", value)
         }
         Text {
@@ -730,13 +733,13 @@ PagePanel {
         CoordinateField {
             objectName: positionRow.widgetKey + "PositionY"
             currentValue: positionRow.currentPosition.y * 100
-            field.Accessible.name: positionRow.title + " vertical position (%)"
+            field.Accessible.name: positionRow.title + "の縦位置（%）"
             onCommitted: value => root.saveCoordinate(positionRow.widgetKey, "y", value)
         }
         SettingButton {
             objectName: positionRow.widgetKey + "PositionReset"
-            text: "Reset"
-            Accessible.name: "Reset " + positionRow.title + " position"
+            text: "リセット"
+            Accessible.name: positionRow.title + "の位置をリセット"
             enabled: root.values.positions[positionRow.widgetKey] !== undefined
             onClicked: root.resetPosition(positionRow.widgetKey)
         }

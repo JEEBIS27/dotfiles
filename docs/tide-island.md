@@ -13,7 +13,7 @@ UWSM starts the graphical session services. Do not add another `exec-once` launc
 
 ## Managed settings
 
-Open **Jeebis Island Settings** from the Control Center gear or with **Super+Shift+Esc**. **Timing and behavior** edits the two edge handles (2 s), Island auto-hide and peek (2 s), workspace/app/level feedback (1.25 s), notifications and completions (6 s), foreground work (6 s), track changes (5 s), and Bluetooth details (2.5 s). Values are in seconds and take effect in the running shell.
+Open **Jeebis Island 設定** from the Control Center gear or with **Super+Shift+Esc**. **表示時間と操作** edits the two edge handles (2 s), Island auto-hide and peek (2 s), workspace/app/level feedback (1.25 s), notifications and completions (6 s), foreground work (6 s), track changes (5 s), and Bluetooth details (2.5 s). Values are in seconds and take effect in the running shell.
 
 Home Manager seeds missing preferences from `files/desktop/tide-preferences.json`. Later activations update untouched defaults and retain local edits. Wallpaper integration commands and paths are always supplied by the desktop. Use `just tide-import` to share reviewed preferences through Git.
 
@@ -61,8 +61,8 @@ When the workspace changes, the central Island briefly shows an accent pill
 for the active workspace and filled dots for other occupied workspaces. The
 capsule fits the visible indicators, and a spinner marks sustained CPU use by
 window processes.
-The first or last window of a Niri application briefly shows that application's
-icon in the same Island.
+The first or last window of an application on the active Niri workspace briefly
+shows its app icon queue. The icon joins or leaves the row with an animation.
 
 The previous Hyprland shell is archived in [JEEBIS27/jeebis-shell](https://github.com/JEEBIS27/jeebis-shell).
 Compatibility command adapters and Hyprland defaults do not require an

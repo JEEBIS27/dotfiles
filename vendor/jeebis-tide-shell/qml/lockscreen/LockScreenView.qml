@@ -479,7 +479,8 @@ Item {
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         visible: root.option("showDate", true)
-                        text: Qt.formatDate(root.now, "dddd, d MMMM")
+                        text: root.preview ? root.now.toLocaleDateString(Qt.locale("ja_JP"), "M月d日（ddd）")
+                            : Qt.formatDate(root.now, "dddd, d MMMM")
                         color: root.foreground
                         font.family: root.textFont
                         font.pixelSize: 16
@@ -546,7 +547,7 @@ Item {
                 echoMode: root.responseVisible ? TextInput.Normal : TextInput.Password
                 passwordCharacter: "●"
                 passwordMaskDelay: 0
-                placeholderText: root.preview ? "Enter your password" : root.prompt
+                placeholderText: root.preview ? "パスワードを入力" : root.prompt
                 placeholderTextColor: root.muted
                 color: root.foreground
                 font.family: root.textFont
@@ -569,7 +570,7 @@ Item {
                 height: 40
                 prominent: true
                 glyph: root.unlocking ? "check" : "arrow"
-                text: "Unlock"
+                text: root.preview ? "ロック解除" : "Unlock"
                 enabled: root.interactive && !root.unlocking && !root.preview && !root.busy && !root.retryBlocked && password.text.length > 0
                 onClicked: root.submit()
             }
@@ -662,7 +663,8 @@ Item {
                 x: 24
                 y: 140
                 width: parent.width - 48
-                text: root.weatherReady ? "Feels like " + root.feelsLike + "   ·   " + root.humidity + " humidity" : "No weather data"
+                text: root.preview ? "体感 " + root.feelsLike + "   ·   湿度 " + root.humidity
+                    : root.weatherReady ? "Feels like " + root.feelsLike + "   ·   " + root.humidity + " humidity" : "No weather data"
                 elide: Text.ElideRight
                 color: root.muted
                 font.family: root.textFont
@@ -797,14 +799,14 @@ Item {
                     styleTokens: root.styleTokens
                     glyph: "previous"
                     transport: true
-                    text: "Previous track"
+                    text: root.preview ? "前の曲" : "Previous track"
                     enabled: root.canPrevious && (root.interactive || root.preview)
                     onClicked: root.previousRequested()
                 }
                 LockAction {
                     styleTokens: root.styleTokens
                     glyph: root.playing ? "pause" : "play"
-                    text: root.playing ? "Pause" : "Play"
+                    text: root.playing ? (root.preview ? "一時停止" : "Pause") : (root.preview ? "再生" : "Play")
                     transport: true
                     enabled: root.canPlay && (root.interactive || root.preview)
                     onClicked: root.playPauseRequested()
@@ -813,7 +815,7 @@ Item {
                     styleTokens: root.styleTokens
                     glyph: "next"
                     transport: true
-                    text: "Next track"
+                    text: root.preview ? "次の曲" : "Next track"
                     enabled: root.canNext && (root.interactive || root.preview)
                     onClicked: root.nextRequested()
                 }

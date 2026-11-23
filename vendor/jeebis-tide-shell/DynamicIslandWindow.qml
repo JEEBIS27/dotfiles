@@ -467,6 +467,7 @@ PanelWindow {
     readonly property bool escapeTargetVisible: dismissibleMenu || overviewVisible
         || connectivityPromptActive || islandContainer.expandedLayerVisible
         || islandContainer.islandState === "split" || islandContainer.islandState === "long_capsule"
+        || islandContainer.islandState === "app_queue"
         || islandContainer.notificationLayerVisible || islandPeekTimer.running
     readonly property string escapePresentation: [
         islandContainer.islandState, root.overviewPhase,
@@ -1200,8 +1201,6 @@ PanelWindow {
         property real timerCompletionFlash: 0
         property bool fileShelfOpenedManually: false
         readonly property int defaultAutoHideInterval: userConfig.durations.transientCapsuleDurationMs
-        property string activityAppId: ""
-        property bool activityAppOpened: false
         readonly property int notificationAutoHideInterval: 4200
         readonly property int bluetoothExpandedAutoHideInterval: userConfig.durations.bluetoothDetailDurationMs
         readonly property int swipeAnimationDuration: 220
@@ -1406,9 +1405,9 @@ PanelWindow {
         }
         Connections {
             target: CompositorBackend
-            function onApplicationActivity(outputName, appId, opened) {
+            function onApplicationActivity(outputName, appId, opened, before) {
                 if (outputName === root.compositorOutputName)
-                    islandContainer.showApplicationCapsule(appId, opened);
+                    islandContainer.showApplicationCapsule(appId, opened, before);
             }
         }
 
@@ -1693,7 +1692,6 @@ PanelWindow {
         }
 
         function clearTransientCapsule() {
-            activityAppId = "";
             levelOsdKind = "";
             setOsdProgress(-1.0, false);
             osdCustomText = "";
@@ -2153,29 +2151,31 @@ PanelWindow {
 
         function showWorkspaceCapsule(wsId) {
             currentWs = wsId;
-            showLongCapsule("", false);
-        }
 
-        function showApplicationCapsule(appId, opened) {
-            if (root.overviewVisible || blocksTransientSplit || islandState === "notification_center")
-                return;
-            showLongCapsule(appId, opened);
-        }
-
-        function showLongCapsule(appId, opened) {
             if (root.sourceActivityExpanded || root.sourcePlayerExpanded) return;
             if (root.autoHideSuppressesTransientReveal) return;
             if (islandState === "control_center" || islandState === "notification") return;
             const animateFromSide = currentTransientOriginSide();
             clearTransientCapsule();
-            activityAppOpened = opened;
-            activityAppId = appId;
             sideTransientRestoreTimer.stop();
             workspaceOriginSide = animateFromSide;
             splitOriginSide = "none";
             islandState = "long_capsule";
             swipeTransitionProgress = 0;
             restartAutoHideTimer();
+        }
+
+        function showApplicationCapsule(appId, opened, before) {
+            if (root.overviewVisible || blocksTransientSplit || islandState === "notification_center"
+                    || root.sourceActivityExpanded || root.autoHideSuppressesTransientReveal)
+                return;
+            if (islandState !== "app_queue") {
+                abortSideTransientMode();
+                clearTransientCapsule();
+                stopAutoHideTimer();
+                islandState = "app_queue";
+            }
+            appIconQueue.enqueue(appId, opened, before);
         }
 
         Timer { id: autoHideTimer; interval: islandContainer.defaultAutoHideInterval; onTriggered: islandContainer.smartRestoreState() }
@@ -2319,6 +2319,8 @@ PanelWindow {
                     return islandContainer.splitCapsuleWidth;
                 case "long_capsule":
                     return 220;
+                case "app_queue":
+                    return Math.min(root.width, appIconQueue.preferredWidth);
                 case "custom":
                     return islandContainer.customCapsuleWidth;
                 case "lyrics":
@@ -2869,8 +2871,6 @@ PanelWindow {
                         workspaceId: islandContainer.currentWs
                         displayText: "Workspace " + islandContainer.currentWs
                         outputName: root.compositorIsNiri ? root.screenOutputName : ""
-                        appId: islandContainer.activityAppId
-                        appOpened: islandContainer.activityAppOpened
                         textFontFamily: root.textFontFamily
                         textPixelSize: root.bodyFontSize
                         animateVisibility: islandContainer.restingState === "normal"
@@ -2879,6 +2879,14 @@ PanelWindow {
                         slideDirection: islandContainer.workspaceOriginSide
                     }
                 }
+            }
+
+            AppIconQueue {
+                id: appIconQueue
+                anchors.fill: parent
+                active: islandContainer.islandState === "app_queue"
+                displayDuration: islandContainer.defaultAutoHideInterval
+                onDismissRequested: islandContainer.smartRestoreState()
             }
 
             Loader {

@@ -7,13 +7,13 @@ ApplicationWindow {
     id: window
     property bool showLockSettings: false
     property int section: showLockSettings ? 3 : 0
-    readonly property var sections: ["Timing and behavior", "Appearance", "Fonts", "Lock screen"]
+    readonly property var sections: ["表示時間と操作", "外観", "フォント", "ロック画面"]
     visible: true
     width: 920
     height: 700
     minimumWidth: 580
     minimumHeight: 400
-    title: "Jeebis Island Settings"
+    title: "Jeebis Island 設定"
     color: Theme.totalBgColor
     font.family: Theme.textFontFamily
     palette.window: Theme.totalBgColor

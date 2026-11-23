@@ -48,14 +48,14 @@ Rectangle {
                 spacing: 4
 
                 Text {
-                    text: "Enable Weather"
+                    text: "天気を表示"
                     font.family: Theme.textFontFamily
                     font.pixelSize: 18
                     color: Theme.textColor
                 }
 
                 Text {
-                    text: "Display real-time weather and 3-day forecast in Island and Control Center"
+                    text: "Islandとコントロールセンターに現在の天気と3日間の予報を表示"
                     font.family: Theme.textFontFamily
                     font.pixelSize: 14
                     color: Theme.subtleTextColor
@@ -89,14 +89,14 @@ Rectangle {
                 spacing: 4
 
                 Text {
-                    text: "Location"
+                    text: "地域"
                     font.family: Theme.textFontFamily
                     font.pixelSize: 18
                     color: Theme.textColor
                 }
 
                 Text {
-                    text: "City or region name. Leave empty for automatic IP-based location"
+                    text: "都市名や地域名を入力。空欄の場合はIPアドレスから推定します。"
                     font.family: Theme.textFontFamily
                     font.pixelSize: 14
                     color: Theme.subtleTextColor
@@ -109,7 +109,7 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 240
                 height: 36
-                placeholderText: "Auto-detect (IP location)"
+                placeholderText: "自動検出（IPアドレス）"
                 text: root.textValue("weatherLocation", "")
 
                 onAccepted: commit()
@@ -139,14 +139,14 @@ Rectangle {
                 spacing: 4
 
                 Text {
-                    text: "Temperature Units"
+                    text: "温度の単位"
                     font.family: Theme.textFontFamily
                     font.pixelSize: 18
                     color: Theme.textColor
                 }
 
                 Text {
-                    text: "Choose Celsius (°C, km/h) or Fahrenheit (°F, mph)"
+                    text: "摂氏（°C、km/h）または華氏（°F、mph）"
                     font.family: Theme.textFontFamily
                     font.pixelSize: 14
                     color: Theme.subtleTextColor
@@ -160,8 +160,8 @@ Rectangle {
 
                 Repeater {
                     model: [
-                        { "label": "Metric (°C)", "value": "metric" },
-                        { "label": "Imperial (°F)", "value": "imperial" }
+                        { "label": "摂氏（°C）", "value": "metric" },
+                        { "label": "華氏（°F）", "value": "imperial" }
                     ]
 
                     Rectangle {
@@ -222,14 +222,14 @@ Rectangle {
                 spacing: 4
 
                 Text {
-                    text: "Refresh Interval"
+                    text: "更新間隔"
                     font.family: Theme.textFontFamily
                     font.pixelSize: 18
                     color: Theme.textColor
                 }
 
                 Text {
-                    text: "How often to check for weather updates from wttr.in"
+                    text: "wttr.inから天気を取得する間隔"
                     font.family: Theme.textFontFamily
                     font.pixelSize: 14
                     color: Theme.subtleTextColor
@@ -243,10 +243,10 @@ Rectangle {
 
                 Repeater {
                     model: [
-                        { "label": "15 min", "value": 900000 },
-                        { "label": "30 min", "value": 1800000 },
-                        { "label": "1 hour", "value": 3600000 },
-                        { "label": "2 hours", "value": 7200000 }
+                        { "label": "15分", "value": 900000 },
+                        { "label": "30分", "value": 1800000 },
+                        { "label": "1時間", "value": 3600000 },
+                        { "label": "2時間", "value": 7200000 }
                     ]
 
                     Rectangle {

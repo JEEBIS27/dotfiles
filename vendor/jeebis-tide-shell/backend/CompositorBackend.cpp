@@ -151,13 +151,16 @@ bool CompositorBackend::applyNiriEventJson(const QByteArray &line)
                                 .value(QStringLiteral("window")).toObject();
         const auto id = jsonU64(window.value(QStringLiteral("id")));
         const bool newlyIdentified = !m_niriWindows.contains(id) || m_niriWindows.value(id).appId.isEmpty();
+        const auto before = newlyIdentified ? workspaceApps(jsonU64(window.value(QStringLiteral("workspace_id"))))
+                                            : QStringList{};
         applyNiriWindow(window);
         if (newlyIdentified && id != 0)
-            notifyApplicationActivity(m_niriWindows.value(id), true);
+            notifyApplicationActivity(m_niriWindows.value(id), before, true);
     } else if (event.contains(QStringLiteral("WindowClosed"))) {
         const auto id = jsonU64(event.value(QStringLiteral("WindowClosed")).toObject()
                                     .value(QStringLiteral("id")));
-        notifyApplicationActivity(m_niriWindows.take(id), false);
+        const auto before = workspaceApps(m_niriWindows.value(id).workspace);
+        notifyApplicationActivity(m_niriWindows.take(id), before, false);
     } else {
         return false;
     }
@@ -411,17 +414,32 @@ void CompositorBackend::applyNiriWindow(const QJsonObject &window)
                                   window.value(QStringLiteral("app_id")).toString()});
 }
 
-void CompositorBackend::notifyApplicationActivity(const NiriWindowState &window, bool opened)
+QStringList CompositorBackend::workspaceApps(quint64 workspace) const
+{
+    auto ids = m_niriWindows.keys();
+    std::sort(ids.begin(), ids.end());
+    QStringList apps;
+    for (const auto id : ids) {
+        const auto &window = m_niriWindows.value(id);
+        if (window.workspace == workspace && !window.appId.isEmpty() && !apps.contains(window.appId))
+            apps.append(window.appId);
+    }
+    return apps;
+}
+
+void CompositorBackend::notifyApplicationActivity(const NiriWindowState &window, const QStringList &before, bool opened)
 {
     if (window.appId.isEmpty())
         return;
     const auto workspace = m_niriWorkspaces.constFind(window.workspace);
-    if (workspace == m_niriWorkspaces.cend())
+    if (workspace == m_niriWorkspaces.cend() || !workspace->active)
         return;
-    const auto count = std::count_if(m_niriWindows.cbegin(), m_niriWindows.cend(),
-                                     [&](const auto &entry) { return entry.appId == window.appId; });
-    if (count == (opened ? 1 : 0))
-        emit applicationActivity(workspace->outputName, window.appId, opened);
+    const bool wasPresent = before.contains(window.appId);
+    const bool isPresent = std::any_of(m_niriWindows.cbegin(), m_niriWindows.cend(), [&](const auto &entry) {
+        return entry.workspace == window.workspace && entry.appId == window.appId;
+    });
+    if (wasPresent != isPresent)
+        emit applicationActivity(workspace->outputName, window.appId, opened, before);
 }
 
 void CompositorBackend::sampleWorkspaceCpu()

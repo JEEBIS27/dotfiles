@@ -15,18 +15,18 @@ Rectangle {
     readonly property string iconFontFamily: String(ConfigStore.value("iconFontFamily", "JetBrainsMono Nerd Font"))
     readonly property int selectedSpacing: 8
     readonly property var componentDefinitions: [
-        { itemId: "time", displayName: "Time", previewText: "12:34", previewIcon: "", previewKind: "text", previewWidth: 76 },
-        { itemId: "date", displayName: "Date", previewText: "Fri, Jul 03", previewIcon: "", previewKind: "text", previewWidth: 112 },
-        { itemId: "battery", displayName: "Battery", previewText: "76%", previewIcon: "", previewKind: "battery", previewWidth: 92 },
-        { itemId: "volume", displayName: "Volume", previewText: "42%", previewIcon: "\u{F057E}", previewKind: "iconText", previewWidth: 82 },
-        { itemId: "brightness", displayName: "Brightness", previewText: "68%", previewIcon: "\u{F00E0}", previewKind: "iconText", previewWidth: 82 },
-        { itemId: "workspace", displayName: "Workspace", previewText: "Workspace 2", previewIcon: "", previewKind: "text", previewWidth: 118 },
+        { itemId: "time", displayName: "時刻", previewText: "12:34", previewIcon: "", previewKind: "text", previewWidth: 76 },
+        { itemId: "date", displayName: "日付", previewText: "7月3日（金）", previewIcon: "", previewKind: "text", previewWidth: 112 },
+        { itemId: "battery", displayName: "バッテリー", previewText: "76%", previewIcon: "", previewKind: "battery", previewWidth: 92 },
+        { itemId: "volume", displayName: "音量", previewText: "42%", previewIcon: "\u{F057E}", previewKind: "iconText", previewWidth: 82 },
+        { itemId: "brightness", displayName: "明るさ", previewText: "68%", previewIcon: "\u{F00E0}", previewKind: "iconText", previewWidth: 82 },
+        { itemId: "workspace", displayName: "ワークスペース", previewText: "ワークスペース2", previewIcon: "", previewKind: "text", previewWidth: 118 },
         { itemId: "cpu", displayName: "CPU", previewText: "CPU 38%", previewIcon: "\u{F035B}", previewKind: "iconText", previewWidth: 96 },
-        { itemId: "ram", displayName: "RAM", previewText: "RAM 61%", previewIcon: "\u{F061A}", previewKind: "iconText", previewWidth: 96 },
+        { itemId: "ram", displayName: "メモリ", previewText: "RAM 61%", previewIcon: "\u{F061A}", previewKind: "iconText", previewWidth: 96 },
         { itemId: "cava", displayName: "Cava", previewText: "", previewIcon: "", previewKind: "cava", previewWidth: 76 },
-        { itemId: "albumcover", displayName: "Album cover", previewText: "", previewIcon: "", previewKind: "albumArt", previewWidth: 48 },
-        { itemId: "trackname", displayName: "Song name", previewText: "Song title", previewIcon: "", previewKind: "text", previewWidth: 100 },
-        { itemId: "weather", displayName: "Weather", previewText: "21°C", previewIcon: "\ue30d", previewKind: "iconText", previewWidth: 84 }
+        { itemId: "albumcover", displayName: "アルバムアート", previewText: "", previewIcon: "", previewKind: "albumArt", previewWidth: 48 },
+        { itemId: "trackname", displayName: "曲名", previewText: "曲名", previewIcon: "", previewKind: "text", previewWidth: 100 },
+        { itemId: "weather", displayName: "天気", previewText: "21°C", previewIcon: "\ue30d", previewKind: "iconText", previewWidth: 84 }
     ]
 
     property bool dragActive: false

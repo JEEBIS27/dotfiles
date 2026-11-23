@@ -10,10 +10,10 @@ ScrollView {
     ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
 
     readonly property var clickActions: [
-        {name: "Do nothing", id: "none"}, {name: "Music player", id: "toggleExpandedPlayer"},
-        {name: "Control center", id: "toggleControlCenter"}, {name: "Calendar", id: "toggleCalendar"},
-        {name: "Clipboard", id: "toggleClipboard"}, {name: "Weather", id: "toggleWeather"},
-        {name: "Notifications", id: "toggleNotificationCenter"}
+        {name: "何もしない", id: "none"}, {name: "音楽プレーヤー", id: "toggleExpandedPlayer"},
+        {name: "コントロールセンター", id: "toggleControlCenter"}, {name: "カレンダー", id: "toggleCalendar"},
+        {name: "クリップボード", id: "toggleClipboard"}, {name: "天気", id: "toggleWeather"},
+        {name: "通知センター", id: "toggleNotificationCenter"}
     ]
 
     function change(key, value) {
@@ -25,20 +25,20 @@ ScrollView {
         width: page.availableWidth
         spacing: 0
         Label {
-            text: "Display durations"
+            text: "表示時間"
             font.pixelSize: 26
             font.bold: true
             Layout.margins: 24
         }
         Repeater {
             model: [
-                {key: "edgeHandleDurationMs", title: "Edge handles", hint: "While hovering over the notification or control center handle."},
-                {key: "islandAutoHideDelayMs", title: "Island auto-hide & peek", hint: "After the pointer leaves, or when the temporary reveal shortcut is used."},
-                {key: "transientCapsuleDurationMs", title: "Workspace, app & level changes", hint: "Workspace dots, app opening or closing, and volume or brightness feedback."},
-                {key: "notificationDurationMs", title: "Notifications & completions", hint: "Time in the main Island before moving to notification history."},
-                {key: "workingForegroundDurationMs", title: "Work in progress", hint: "Time in the main Island before a running task moves to the small capsule."},
-                {key: "trackChangeDurationMs", title: "Track changes", hint: "How long a new song takes priority over other background activities."},
-                {key: "bluetoothDetailDurationMs", title: "Bluetooth device details", hint: "Time before the device detail capsule closes automatically."}
+                {key: "edgeHandleDurationMs", title: "画面上端のハンドル", hint: "通知・コントロールセンターのハンドルにマウスを重ねたときの表示時間。"},
+                {key: "islandAutoHideDelayMs", title: "Islandの自動非表示・一時表示", hint: "マウスが離れた後、または一時表示のショートカットを使ったときの表示時間。"},
+                {key: "transientCapsuleDurationMs", title: "ワークスペース・アプリ・音量など", hint: "ワークスペースのドット、アプリアイコン列、音量や明るさの一時表示。"},
+                {key: "notificationDurationMs", title: "通知・完了", hint: "通知履歴に移るまでの表示時間。"},
+                {key: "workingForegroundDurationMs", title: "作業中", hint: "実行中のタスクが小さいカプセルへ移るまでの時間。"},
+                {key: "trackChangeDurationMs", title: "曲の切り替え", hint: "曲の切り替えを優先して表示する時間。"},
+                {key: "bluetoothDetailDurationMs", title: "Bluetooth機器の詳細", hint: "機器の詳細を自動で閉じるまでの時間。"}
             ]
             ColumnLayout {
                 id: setting
@@ -66,7 +66,7 @@ ScrollView {
                     SpinBox {
                         id: duration
                         objectName: setting.modelData.key
-                        Accessible.name: setting.modelData.title + " in seconds"
+                        Accessible.name: setting.modelData.title + "（秒）"
                         from: backend.minimumDuration
                         to: backend.durationLimits[setting.modelData.key]
                         value: backend.durations[setting.modelData.key]
@@ -83,22 +83,22 @@ ScrollView {
                         valueFromText: (input, locale) => Math.round(Number.fromLocaleString(locale, input) * 1000)
                         onValueModified: page.change(setting.modelData.key, value)
                     }
-                    Label { text: "s" }
+                    Label { text: "秒" }
                 }
                 Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.splitLineColor }
             }
         }
         Label {
-            text: "Behavior"
+            text: "操作"
             font.pixelSize: 22
             font.bold: true
             Layout.margins: 24
         }
         Repeater {
             model: [
-                {key: "islandAutoHideEnabled", title: "Auto-hide the idle Island", initial: true},
-                {key: "islandShowWorkspaceOnAutoHide", title: "Reveal the Island on workspace changes", initial: true},
-                {key: "disableAutoExpandOnTrackChange", title: "Highlight track changes", initial: false, inverted: true}
+                {key: "islandAutoHideEnabled", title: "待機中のIslandを自動で隠す", initial: true},
+                {key: "islandShowWorkspaceOnAutoHide", title: "ワークスペース切替時にIslandを表示する", initial: true},
+                {key: "disableAutoExpandOnTrackChange", title: "曲の切り替えを強調する", initial: false, inverted: true}
             ]
             SwitchDelegate {
                 required property var modelData
@@ -113,10 +113,10 @@ ScrollView {
         RowLayout {
             Layout.fillWidth: true
             Layout.margins: 24
-            Label { Layout.fillWidth: true; text: "On Island hover" }
+            Label { Layout.fillWidth: true; text: "Islandにマウスを重ねたとき" }
             ComboBox {
-                model: ["Do nothing", "Open music player", "Open control center"]
-                Accessible.name: "On Island hover"
+                model: ["何もしない", "音楽プレーヤーを開く", "コントロールセンターを開く"]
+                Accessible.name: "Islandにマウスを重ねたとき"
                 currentIndex: ConfigStore.value("hoverExpandAction", 1)
                 onActivated: index => page.change("hoverExpandAction", index)
             }
@@ -144,7 +144,7 @@ ScrollView {
                 Label {
                     id: clickLabel
                     Layout.fillWidth: true
-                    text: button === 1 ? "Left click outside clock mode" : button === 2 ? "Middle click" : "Right click"
+                    text: button === 1 ? "時計表示以外で左クリック" : button === 2 ? "中央クリック" : "右クリック"
                 }
                 ComboBox {
                     model: page.clickActions
@@ -152,7 +152,7 @@ ScrollView {
                     valueRole: "id"
                     Accessible.name: clickLabel.text
                     currentIndex: page.clickActions.findIndex(option => option.id === action)
-                    displayText: currentIndex < 0 ? action : currentText
+                    displayText: currentIndex < 0 ? "カスタム" : currentText
                     onActivated: page.change(prefix + "Action", currentValue)
                 }
             }

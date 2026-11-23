@@ -1,4 +1,5 @@
 #include <QGuiApplication>
+#include <QLocale>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 
@@ -7,7 +8,8 @@
 int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
-    app.setApplicationDisplayName(QStringLiteral("Jeebis Island Settings"));
+    app.setApplicationDisplayName(QString::fromUtf8("Jeebis Island 設定"));
+    QLocale::setDefault(QLocale(QLocale::Japanese, QLocale::Japan));
     Backend backend;
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);

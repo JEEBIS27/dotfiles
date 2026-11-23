@@ -6,6 +6,7 @@
 #include <QLocalSocket>
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QTimer>
 #include <QVariantList>
 #include <QtQml/qqml.h>
@@ -39,7 +40,7 @@ signals:
     void compositorChanged();
     void focusedOutputNameChanged();
     void revisionChanged();
-    void applicationActivity(const QString &outputName, const QString &appId, bool opened);
+    void applicationActivity(const QString &outputName, const QString &appId, bool opened, const QStringList &before);
 
 private:
     struct NiriWorkspaceState {
@@ -71,7 +72,8 @@ private:
     void applyNiriWorkspacesChanged(const QJsonArray &workspaces);
     void applyNiriWorkspaceActivated(const QJsonObject &event);
     void applyNiriWindow(const QJsonObject &window);
-    void notifyApplicationActivity(const NiriWindowState &window, bool opened);
+    QStringList workspaceApps(quint64 workspace) const;
+    void notifyApplicationActivity(const NiriWindowState &window, const QStringList &before, bool opened);
     void sampleWorkspaceCpu();
     bool hasNiriSocket() const;
 #endif

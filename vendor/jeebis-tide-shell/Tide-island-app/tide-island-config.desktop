@@ -1,6 +1,6 @@
 [Desktop Entry]
-Name=Jeebis Island Settings
-Comment=Configure Jeebis Island
+Name=Jeebis Island 設定
+Comment=Jeebis Islandの表示と操作を設定
 Exec=@CMAKE_INSTALL_FULL_BINDIR@/tide-island-config-app
 Icon=preferences-system
 Terminal=false

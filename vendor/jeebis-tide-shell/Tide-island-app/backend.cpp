@@ -41,7 +41,7 @@ QVariantMap Backend::lockScreenSettings() const
 void Backend::lockScreen()
 {
     if (!QProcess::startDetached(QStringLiteral("jeebis-desktop"), {QStringLiteral("lock")}))
-        error(tr("Could not start the desktop lock command."));
+        error(tr("ロック画面を起動できませんでした。"));
 }
 
 void Backend::error(const QString &message)
@@ -57,13 +57,13 @@ bool Backend::read(QVariantMap &result)
     QFile file(m_path);
     if (!file.exists()) return true;
     if (!file.open(QIODevice::ReadOnly)) {
-        error(file.errorString());
+        error(tr("設定ファイルを読み込めませんでした（%1）").arg(file.errorString()));
         return false;
     }
     QJsonParseError parse;
     const auto doc = QJsonDocument::fromJson(JsonComments::strip(file.readAll()), &parse);
     if (!doc.isObject()) {
-        error(tr("Could not read settings from %1 (%2)").arg(m_path, parse.errorString()));
+        error(tr("設定ファイル %1 を読み込めませんでした（%2）").arg(m_path, parse.errorString()));
         return false;
     }
     result = doc.object().toVariantMap();
@@ -73,12 +73,12 @@ bool Backend::read(QVariantMap &result)
 bool Backend::save(const QVariantMap &changes, const QVariantMap &lockChanges)
 {
     if (!QDir().mkpath(QFileInfo(m_path).absolutePath())) {
-        error(tr("Could not create the settings directory."));
+        error(tr("設定ディレクトリを作成できませんでした。"));
         return false;
     }
     QLockFile lock(m_path + ".lock");
     if (!lock.tryLock(500)) {
-        error(tr("Another settings window is saving. Try again."));
+        error(tr("別の設定画面で保存中です。もう一度お試しください。"));
         return false;
     }
     QVariantMap latest;
@@ -92,7 +92,7 @@ bool Backend::save(const QVariantMap &changes, const QVariantMap &lockChanges)
     QSaveFile file(m_path);
     const auto bytes = QJsonDocument(QJsonObject::fromVariantMap(latest)).toJson();
     if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size() || !file.commit()) {
-        error(file.errorString());
+        error(tr("設定を保存できませんでした（%1）").arg(file.errorString()));
         return false;
     }
     m_config = latest;

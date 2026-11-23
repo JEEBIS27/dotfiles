@@ -55,7 +55,7 @@ PagePanel {
             Text {
                 id: title
                 font.family: Theme.titleFontFamily
-                text: "Appearance & weather"
+                text: "外観と天気"
                 color: Theme.textColor
                 font.pixelSize: 30
                 x: 60
@@ -64,7 +64,7 @@ PagePanel {
 
             Text {
                 id: apperanceTitle
-                text: "Island appearance"
+                text: "Islandの外観"
                 anchors.top: title.bottom
                 anchors.topMargin: 34
                 anchors.left: parent.left
@@ -103,8 +103,8 @@ PagePanel {
                     spacing: 16
 
                     ConfigRow {
-                        title: "Island Width"
-                        description: "Width of island in clock mode"
+                        title: "Islandの幅"
+                        description: "時計を表示するときの幅"
                         keyName: "islandWidth"
                         fallbackText: "140"
                         numeric: true
@@ -114,8 +114,8 @@ PagePanel {
                     SplitLine { width: parent.width }
 
                     ConfigRow {
-                        title: "Island Height"
-                        description: "Height of island in clock mode"
+                        title: "Islandの高さ"
+                        description: "時計を表示するときの高さ"
                         keyName: "islandHeight"
                         fallbackText: "38"
                         numeric: true
@@ -125,8 +125,8 @@ PagePanel {
                     SplitLine { width: parent.width }
 
                     ConfigRow {
-                        title: "Background opacity"
-                        description: "Opacity of the island background (0 = fully transparent, 100 = solid)"
+                        title: "背景の不透明度"
+                        description: "Islandの背景の濃さ（0＝透明、100＝不透明）"
                         keyName: "islandBackgroundOpacity"
                         fallbackText: "60"
                         numeric: true
@@ -150,14 +150,14 @@ PagePanel {
                             spacing: 5
 
                             Text {
-                                text: "Background Blur"
+                                text: "背景のぼかし"
                                 font.family: Theme.textFontFamily
                                 font.pixelSize: 18
                                 color: Theme.textColor
                             }
                             Text {
                                 width: parent.width
-                                text: "Blur behind the island and all detail panels"
+                                text: "Islandと詳細パネルの背後をぼかす"
                                 font.family: Theme.textFontFamily
                                 font.pixelSize: 14
                                 color: Theme.subtleTextColor
@@ -176,7 +176,7 @@ PagePanel {
                                 const value = ConfigStore.value("islandBlurEnabled", true)
                                 return typeof value === "boolean" ? value : true
                             }
-                            Accessible.name: "Background Blur"
+                            Accessible.name: "背景のぼかし"
                             onToggled: {
                                 ConfigStore.setValue("islandBlurEnabled", checked)
                                 ConfigStore.save()
@@ -213,8 +213,8 @@ PagePanel {
                     SplitLine { width: parent.width }
 
                     ConfigRow {
-                        title: "Reserved Top Space"
-                        description: "Screen space reserved for the island (exclusive zone)"
+                        title: "画面上端の予約領域"
+                        description: "Island用にウィンドウの配置から除外する高さ"
                         keyName: "islandExclusiveZone"
                         fallbackText: "45"
                         numeric: true
@@ -225,8 +225,8 @@ PagePanel {
                     SplitLine { width: parent.width }
 
                     ConfigRow {
-                        title: "Top Margin"
-                        description: "Distance between the island and the top of the screen"
+                        title: "上端からの余白"
+                        description: "画面上端からIslandまでの距離"
                         keyName: "islandTopMargin"
                         fallbackText: "4"
                         numeric: true
@@ -237,8 +237,8 @@ PagePanel {
                     SplitLine { width: parent.width }
 
                     ConfigRow {
-                        title: "Island Position"
-                        description: "X position of island"
+                        title: "Islandの横位置"
+                        description: "左端を0、右端を100とした位置"
                         keyName: "islandPositionX"
                         fallbackText: "50"
                         numeric: true
@@ -251,7 +251,7 @@ PagePanel {
 
             Text {
                 id: customPageTitle
-                text: "Swipe page"
+                text: "スワイプで表示する項目"
                 anchors.top: apperance.bottom
                 anchors.topMargin: 34
                 anchors.left: parent.left
@@ -276,7 +276,7 @@ PagePanel {
 
             Text {
                 id: weatherTitle
-                text: "Weather"
+                text: "天気"
                 anchors.top: customPagePanel.bottom
                 anchors.topMargin: 34
                 anchors.left: parent.left
@@ -380,7 +380,7 @@ PagePanel {
 
         Text {
             id: clockTitle
-            text: "Clock Format"
+            text: "時刻の表示形式"
             font.family: Theme.textFontFamily
             font.pixelSize: 18
             color: Theme.textColor
@@ -389,7 +389,7 @@ PagePanel {
         }
 
         Text {
-            text: "Choose 12-hour or 24-hour time"
+            text: "12時間表示または24時間表示"
             font.family: Theme.textFontFamily
             font.pixelSize: 14
             anchors.top: clockTitle.bottom
@@ -424,7 +424,7 @@ PagePanel {
 
                     Text {
                         anchors.centerIn: parent
-                        text: modelData + " hour"
+                        text: modelData + "時間"
                         color: formatButton.selected ? Theme.textColor : Theme.secondaryTextColor
                         font.family: Theme.textFontFamily
                         font.pixelSize: 14
