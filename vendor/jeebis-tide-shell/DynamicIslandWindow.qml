@@ -263,8 +263,8 @@ PanelWindow {
         Region {
             x: Math.floor(root.topGestureInputX)
             y: 0
-            width: Math.ceil(root.topGestureInputWidth)
-            height: Math.ceil(root.topGestureInputHeight)
+            width: Math.ceil(Math.max(root.topGestureInputWidth, root.autoHideRevealHeight > 0 ? root.autoHideRevealWidth : 0))
+            height: Math.ceil(Math.max(root.topGestureInputHeight, root.autoHideRevealHeight))
         }
 
         Region {
@@ -338,7 +338,7 @@ PanelWindow {
         }
     }
     readonly property real capsuleWindowHeight: Math.ceil(
-        root.capsuleTop + mainCapsule.targetHeight + 12
+        root.capsuleTop + (root.centerOpen ? mainCapsule.panelTargetHeight : mainCapsule.targetHeight) + 12
     )
     readonly property real connectivityDetailWindowHeight: root.anyConnectivityDetailMounted
         ? Math.ceil(root.capsuleTop + root.connectivityDetailHeight + 12)
@@ -491,19 +491,15 @@ PanelWindow {
         || (autoHideRevealSource === "edge" && autoHideTargetVisible)
         || islandContainer.notificationLayerVisible
     property real exclusiveZoneProgress: exclusiveZoneTargetActive ? 1 : 0
-    readonly property real autoHideRevealWidth: Math.min(root.width, Math.max(userConfig.islandWidth + 120, 240))
-    readonly property real autoHideRevealHeight: autoHideEnabled ? 10 : 0
-    readonly property real autoHideRevealX: Math.max(
-        0,
-        Math.min(root.width - autoHideRevealWidth, root.width * userConfig.islandPositionX / 100 - autoHideRevealWidth / 2)
-    )
-    readonly property real topGestureInputX: autoHideEnabled ? autoHideRevealX : 0
-    readonly property real topGestureInputWidth: topGestureInputActive
-        ? (autoHideEnabled ? autoHideRevealWidth : root.width)
-        : 0
+    readonly property real autoHideRevealWidth: Math.min(root.width, userConfig.islandWidth)
+    // Only the top-edge pixels directly above the resting capsule can wake it.
+    readonly property real autoHideRevealHeight: autoHideEnabled && !centerOpen && autoHideRestingState ? 1 : 0
+    readonly property real autoHideRevealX: Math.max(0, Math.min(root.width - autoHideRevealWidth,
+        root.width * userConfig.islandPositionX / 100 - autoHideRevealWidth / 2))
+    readonly property real topGestureInputX: autoHideRevealX
+    readonly property real topGestureInputWidth: topGestureInputActive ? autoHideRevealWidth : 0
     readonly property real topGestureInputHeight: topGestureInputActive
-        ? (autoHideEnabled ? autoHideRevealHeight : root.baseExclusiveZone)
-        : 0
+        ? Math.max(autoHideRevealHeight, autoHideTargetVisible ? capsuleTop : 0) : 0
     readonly property real overviewCapsuleWidth: islandContainer.overviewView ? islandContainer.overviewView.width : 760
     readonly property real overviewCapsuleHeight: islandContainer.overviewView ? islandContainer.overviewView.height : 308
     readonly property color overviewCapsuleColor: islandContainer.overviewView
@@ -2419,7 +2415,7 @@ PanelWindow {
             readonly property real baseTargetWidth: {
                 if (root.overviewVisible) return root.overviewCapsuleWidth;
                 if (root.activityLayerOpen) return Math.min(root.width - 24, activities.detailed ? 392 : 246);
-                if (workspaceLayerLoader.item?.showsWorkspaceDots)
+                if (islandContainer.islandState === "long_capsule" && workspaceLayerLoader.item?.showsWorkspaceDots)
                     return Math.min(root.width, workspaceLayerLoader.item.preferredWidth);
                 if (sideTransientRestoreTimer.running) {
                     if (islandContainer.restingState === "lyrics"
@@ -2473,17 +2469,14 @@ PanelWindow {
                     return userConfig.islandWidth;
                 }
             }
+            readonly property real panelTargetHeight: islandContainer.controlCenterLayerVisible
+                ? (controlCenterLoader.item?.powerViewActive ? 150 : 320 + (controlCenterLoader.item?.controlCenterExtraHeight ?? 32))
+                : (notificationCenterLoader.item?.contentHeight ?? 200)
             readonly property real targetHeight: {
                 if (root.overviewVisible) return root.overviewCapsuleHeight;
                 if (root.activityLayerOpen && activities.detailed) return activities.detailHeight;
 
                 switch (islandContainer.islandState) {
-                case "control_center":
-                    return controlCenterLoader.item && controlCenterLoader.item.powerViewActive
-                        ? 150
-                        : 320 + (controlCenterLoader.item ? controlCenterLoader.item.controlCenterExtraHeight : 32);
-                case "notification_center":
-                    return notificationCenterLoader.item ? notificationCenterLoader.item.contentHeight : 200;
                 case "wallpaper_picker":
                 case "application_launcher":
                 case "file_shelf":
@@ -2509,7 +2502,7 @@ PanelWindow {
                 && (["normal", "custom", "lyrics", "split", "long_capsule", "app_queue"].includes(islandContainer.islandState)
                     || (islandContainer.notificationLayerVisible && !islandContainer.notificationExpanded))
             readonly property real targetRadius: Math.min(
-                roundedCapsule ? targetHeight / 2 : root.centerCornerRadius, displayedWidth / 2, targetHeight / 2)
+                roundedCapsule ? targetHeight / 2 : root.centerCornerRadius, width / 2, height / 2)
             function sideSwipeWidthForProgress(progressValue) {
                 if (progressValue < 0)
                     return userConfig.islandWidth + (islandContainer.customCapsuleWidth - userConfig.islandWidth)
@@ -2537,9 +2530,9 @@ PanelWindow {
             width: root.snapToOutputPixel(root.centerOpen ? baseTargetWidth : displayedWidth)
             readonly property bool liquidContact: roundedCapsule && (liquid.clicked || liquid.app || liquid.chip)
             // Central geometry stays independent while this surface is docked at an edge.
-            property real centralHeight: root.centerOpen ? userConfig.islandHeight : targetHeight
+            property real centralHeight: targetHeight
                 + (liquidContact ? Math.min(3, targetHeight * 0.08) * liquid.contact : 0)
-            property real panelHeight: root.centerOpen ? targetHeight : 0
+            property real panelHeight: root.centerOpen ? panelTargetHeight : 0
             Behavior on panelHeight {
                 enabled: root.centerOpen && mainCapsule.panelHeight > 0 && !(controlCenterLoader.item?.batteryDrawerMoving)
                 NumberAnimation { duration: mainCapsule.morphDuration; easing.type: Easing.OutQuint }
@@ -2850,538 +2843,550 @@ PanelWindow {
 
 
 
-            Loader {
-                id: customSwipeLoader
+            IslandContentTransition {
+                id: contentTransition
                 anchors.fill: parent
-                active: islandContainer.customSwipeVisible
-                asynchronous: false
-                visible: active && !root.activityLayerOpen
+                presentation: islandContainer.islandState + "|" + root.overviewContentVisible + "|"
+                    + (root.activityLayerOpen ? (activities.detailed ? "detail:" + activities.selected : handoff.main?.id + ":" + handoff.main?.kind) : "")
+                    + "|" + islandContainer.notificationExpanded
+                edgePanel: root.centerOpen ? islandContainer.islandState : ""
+                edgeExit: islandContainer.centerExitProgress
+                animate: root.autoHideProgress > 0.98 && !capsuleMouseArea.sideSwipeInteractive
+                    && !islandContainer.sideSwipeSettling
 
-                onLoaded: islandContainer.syncCustomCapsuleWidth()
+                Loader {
+                    id: customSwipeLoader
+                    anchors.fill: parent
+                    active: islandContainer.customSwipeVisible
+                    asynchronous: false
+                    visible: active && !root.activityLayerOpen
 
-                sourceComponent: Component {
-                    SwipeCustomInfoLayer {
-                        items: islandContainer.customLeftItems
-                        cavaLevels: islandContainer.cavaLevels
-                        timeText: timeObj.currentTime
-                        iconFontFamily: root.iconFontFamily
-                        textFontFamily: root.heroFontFamily
-                        timeFontFamily: root.heroFontFamily
-                        textPixelSize: root.bodyFontSize
-                        iconPixelSize: root.iconFontSize
-                        minimumWidth: 220
-                        maximumWidth: Math.max(220, root.width - 48)
-                        transitionProgress: islandContainer.swipeTransitionProgress
-                        recordingActive: islandContainer.screenRecordingActive
-                        showSecondaryText: islandContainer.workspaceOriginSide !== "left"
-                            && islandContainer.splitOriginSide !== "left"
-                        showCondition: true
-                        onPreferredWidthChanged: islandContainer.syncCustomCapsuleWidth()
+                    onLoaded: islandContainer.syncCustomCapsuleWidth()
+
+                    sourceComponent: Component {
+                        SwipeCustomInfoLayer {
+                            items: islandContainer.customLeftItems
+                            cavaLevels: islandContainer.cavaLevels
+                            timeText: timeObj.currentTime
+                            iconFontFamily: root.iconFontFamily
+                            textFontFamily: root.heroFontFamily
+                            timeFontFamily: root.heroFontFamily
+                            textPixelSize: root.bodyFontSize
+                            iconPixelSize: root.iconFontSize
+                            minimumWidth: 220
+                            maximumWidth: Math.max(220, root.width - 48)
+                            transitionProgress: islandContainer.swipeTransitionProgress
+                            recordingActive: islandContainer.screenRecordingActive
+                            showSecondaryText: islandContainer.workspaceOriginSide !== "left"
+                                && islandContainer.splitOriginSide !== "left"
+                            showCondition: true
+                            onPreferredWidthChanged: islandContainer.syncCustomCapsuleWidth()
+                        }
                     }
                 }
-            }
 
-            Loader {
-                id: lyricsSwipeLoader
-                anchors.fill: parent
-                active: islandContainer.lyricsSwipeVisible
-                asynchronous: false
-                visible: active && !root.activityLayerOpen
+                Loader {
+                    id: lyricsSwipeLoader
+                    anchors.fill: parent
+                    active: islandContainer.lyricsSwipeVisible
+                    asynchronous: false
+                    visible: active && !root.activityLayerOpen
 
-                onLoaded: islandContainer.syncLyricsCapsuleWidth()
+                    onLoaded: islandContainer.syncLyricsCapsuleWidth()
 
-                sourceComponent: Component {
-                    SwipeLyricsLayer {
-                        lyricText: islandContainer.lyricsDisplayText
-                        currentArtUrl: islandContainer.currentArtUrl
-                        cavaLevels: islandContainer.cavaLevels
-                        timeText: timeObj.currentTime
-                        textFontFamily: root.textFontFamily
-                        timeFontFamily: root.timeFontFamily
-                        textPixelSize: root.bodyFontSize
-                        minimumWidth: 220
-                        maximumWidth: Math.max(220, root.width - 48)
-                        transitionProgress: islandContainer.rightSwipeProgress
-                        recordingActive: islandContainer.screenRecordingActive
-                        showSecondaryText: islandContainer.workspaceOriginSide !== "right"
-                            && islandContainer.splitOriginSide !== "right"
-                        showCondition: true
-                        onPreferredWidthChanged: islandContainer.syncLyricsCapsuleWidth()
+                    sourceComponent: Component {
+                        SwipeLyricsLayer {
+                            lyricText: islandContainer.lyricsDisplayText
+                            currentArtUrl: islandContainer.currentArtUrl
+                            cavaLevels: islandContainer.cavaLevels
+                            timeText: timeObj.currentTime
+                            textFontFamily: root.textFontFamily
+                            timeFontFamily: root.timeFontFamily
+                            textPixelSize: root.bodyFontSize
+                            minimumWidth: 220
+                            maximumWidth: Math.max(220, root.width - 48)
+                            transitionProgress: islandContainer.rightSwipeProgress
+                            recordingActive: islandContainer.screenRecordingActive
+                            showSecondaryText: islandContainer.workspaceOriginSide !== "right"
+                                && islandContainer.splitOriginSide !== "right"
+                            showCondition: true
+                            onPreferredWidthChanged: islandContainer.syncLyricsCapsuleWidth()
+                        }
                     }
                 }
-            }
 
-            Loader {
-                id: splitIconLoader
-                anchors.fill: parent
-                active: !root.overviewVisible && islandContainer.splitShowsIconOnly
-                asynchronous: false
-                visible: active
+                Loader {
+                    id: splitIconLoader
+                    anchors.fill: parent
+                    active: !root.overviewVisible && islandContainer.splitShowsIconOnly
+                    asynchronous: false
+                    visible: active
 
-                sourceComponent: Component {
-                    SplitIconLayer {
-                        iconText: islandContainer.splitIcon
-                        iconFontFamily: root.iconFontFamily
-                        transitionProgress: islandContainer.swipeTransitionProgress
-                        slideDirection: islandContainer.splitOriginSide
-                        showCondition: true
+                    sourceComponent: Component {
+                        SplitIconLayer {
+                            iconText: islandContainer.splitIcon
+                            iconFontFamily: root.iconFontFamily
+                            transitionProgress: islandContainer.swipeTransitionProgress
+                            slideDirection: islandContainer.splitOriginSide
+                            showCondition: true
+                        }
                     }
                 }
-            }
 
-            Loader {
-                id: osdLayerLoader
-                anchors.fill: parent
-                active: !root.overviewVisible && islandContainer.splitUsesExtendedLayout
-                asynchronous: false
-                visible: active
+                Loader {
+                    id: osdLayerLoader
+                    anchors.fill: parent
+                    active: !root.overviewVisible && islandContainer.splitUsesExtendedLayout
+                    asynchronous: false
+                    visible: active
 
-                sourceComponent: Component {
-                    OsdLayer {
-                        iconText: islandContainer.splitIcon
-                        levelKind: islandContainer.levelOsdKind
-                        progress: islandContainer.osdProgress
-                        customText: islandContainer.osdCustomText
-                        iconFontFamily: root.iconFontFamily
-                        textFontFamily: root.textFontFamily
-                        heroFontFamily: root.heroFontFamily
-                        transitionProgress: islandContainer.swipeTransitionProgress
-                        slideDirection: islandContainer.splitOriginSide
-                        showCondition: true
+                    sourceComponent: Component {
+                        OsdLayer {
+                            iconText: islandContainer.splitIcon
+                            levelKind: islandContainer.levelOsdKind
+                            progress: islandContainer.osdProgress
+                            customText: islandContainer.osdCustomText
+                            iconFontFamily: root.iconFontFamily
+                            textFontFamily: root.textFontFamily
+                            heroFontFamily: root.heroFontFamily
+                            transitionProgress: islandContainer.swipeTransitionProgress
+                            slideDirection: islandContainer.splitOriginSide
+                            showCondition: true
+                        }
                     }
                 }
-            }
 
-            Loader {
-                id: workspaceLayerLoader
-                anchors.fill: parent
-                active: !root.overviewVisible
-                    && islandContainer.islandState === "long_capsule"
-                    && (islandContainer.workspaceOriginSide !== "none"
-                        || Math.abs(islandContainer.swipeTransitionProgress) < 0.001)
-                asynchronous: false
-                visible: active
+                Loader {
+                    id: workspaceLayerLoader
+                    anchors.fill: parent
+                    active: !root.overviewVisible && islandContainer.islandState === "long_capsule"
+                        && (islandContainer.workspaceOriginSide !== "none"
+                            || Math.abs(islandContainer.swipeTransitionProgress) < 0.001)
+                    asynchronous: false
+                    visible: active
 
-                sourceComponent: Component {
-                    WorkspaceLayer {
-                        workspaceId: islandContainer.currentWs
-                        displayText: "Workspace " + islandContainer.currentWs
-                        outputName: root.compositorIsNiri ? root.screenOutputName : ""
-                        textFontFamily: root.textFontFamily
-                        textPixelSize: root.bodyFontSize
-                        animateVisibility: islandContainer.restingState === "normal"
-                        transitionProgress: islandContainer.swipeTransitionProgress
-                        showCondition: true
-                        slideDirection: islandContainer.workspaceOriginSide
+                    sourceComponent: Component {
+                        WorkspaceLayer {
+                            workspaceId: islandContainer.currentWs
+                            displayText: "Workspace " + islandContainer.currentWs
+                            outputName: root.compositorIsNiri ? root.screenOutputName : ""
+                            textFontFamily: root.textFontFamily
+                            textPixelSize: root.bodyFontSize
+                            animateVisibility: islandContainer.workspaceOriginSide !== "none"
+                            transitionProgress: islandContainer.swipeTransitionProgress
+                            showCondition: true
+                            slideDirection: islandContainer.workspaceOriginSide
+                        }
                     }
                 }
-            }
 
-            AppIconQueue {
-                id: appIconQueue
-                anchors.fill: parent
-                active: islandContainer.islandState === "app_queue"
-                revealed: root.autoHideProgress >= 0.98
-                onDismissRequested: islandContainer.smartRestoreState()
-            }
 
-            Loader {
-                id: expandedPlayerLoader
-                anchors.fill: parent
-                active: islandContainer.expandedLayerVisible
-                asynchronous: false
-                visible: active
-                onLoaded: {
-                    if (islandContainer.openTimerPageWhenExpanded
-                            && item && item.openTimerPage) {
-                        item.openTimerPage();
-                        islandContainer.openTimerPageWhenExpanded = false;
-                    }
-                    root.focusExpandedPlayer();
+                AppIconQueue {
+                    id: appIconQueue
+                    anchors.fill: parent
+                    active: islandContainer.islandState === "app_queue"
+                    revealed: root.autoHideProgress >= 0.98
+                    onDismissRequested: islandContainer.smartRestoreState()
                 }
 
-                sourceComponent: Component {
-                    ExpandedPlayerLayer {
-                        currentArtUrl: islandContainer.currentArtUrl
-                        currentTrack: islandContainer.currentTrack
-                        currentArtist: islandContainer.currentArtist
-                        timePlayed: islandContainer.timePlayed
-                        timeTotal: islandContainer.timeTotal
-                        trackProgress: islandContainer.trackProgress
-                        activePlayer: islandContainer.activePlayer
-                        spotifyFavorites: mediaController.spotifyFavorites
-                        iconFontFamily: root.iconFontFamily
-                        textFontFamily: root.textFontFamily
-                        timerSelectedHours: islandContainer.timerSelectedHours
-                        timerSelectedMinutes: islandContainer.timerSelectedMinutes
-                        timerTotalSeconds: islandContainer.timerTotalSeconds
-                        timerRemainingSeconds: islandContainer.timerRemainingSeconds
-                        timerRunning: islandContainer.timerRunning
-                        timerActive: islandContainer.timerActive
-                        showCondition: islandContainer.expandedLayerVisible
-                        onControlPressed: {
-                            if (root.sourcePlayerExpanded) {
-                                activities.activatedSourceId = "";
-                                islandContainer.requestExpandedPlayerKeyboardFocus();
+                Loader {
+                    id: expandedPlayerLoader
+                    anchors.fill: parent
+                    active: islandContainer.expandedLayerVisible
+                    asynchronous: false
+                    visible: active
+                    onLoaded: {
+                        if (islandContainer.openTimerPageWhenExpanded
+                                && item && item.openTimerPage) {
+                            item.openTimerPage();
+                            islandContainer.openTimerPageWhenExpanded = false;
+                        }
+                        root.focusExpandedPlayer();
+                    }
+
+                    sourceComponent: Component {
+                        ExpandedPlayerLayer {
+                            currentArtUrl: islandContainer.currentArtUrl
+                            currentTrack: islandContainer.currentTrack
+                            currentArtist: islandContainer.currentArtist
+                            timePlayed: islandContainer.timePlayed
+                            timeTotal: islandContainer.timeTotal
+                            trackProgress: islandContainer.trackProgress
+                            activePlayer: islandContainer.activePlayer
+                            spotifyFavorites: mediaController.spotifyFavorites
+                            iconFontFamily: root.iconFontFamily
+                            textFontFamily: root.textFontFamily
+                            timerSelectedHours: islandContainer.timerSelectedHours
+                            timerSelectedMinutes: islandContainer.timerSelectedMinutes
+                            timerTotalSeconds: islandContainer.timerTotalSeconds
+                            timerRemainingSeconds: islandContainer.timerRemainingSeconds
+                            timerRunning: islandContainer.timerRunning
+                            timerActive: islandContainer.timerActive
+                            showCondition: islandContainer.expandedLayerVisible
+                            onControlPressed: {
+                                if (root.sourcePlayerExpanded) {
+                                    activities.activatedSourceId = "";
+                                    islandContainer.requestExpandedPlayerKeyboardFocus();
+                                }
+                                islandContainer.suppressCapsuleClick();
                             }
-                            islandContainer.suppressCapsuleClick();
-                        }
-                        onBackgroundClicked: {
-                            if (islandContainer.activePlayer) activities.activatePlayerSource();
-                            else islandContainer.smartRestoreState();
-                        }
-                        onCloseRequested: islandContainer.smartRestoreState()
-                        onKeyboardFocusRequested: islandContainer.requestExpandedPlayerKeyboardFocus()
-                        onKeyboardFocusReleased: islandContainer.releaseExpandedPlayerKeyboardFocus()
-                        onPreviousRequested: mediaController.previous()
-                        onTimerToggleRequested: function(hours, minutes) {
-                            islandContainer.toggleTimer(hours, minutes);
-                        }
-                        onTimerResetRequested: islandContainer.resetTimer()
-                        onTimerDurationRequested: function(hours, minutes) {
-                            if (!islandContainer.timerActive)
-                                islandContainer.syncTimerDuration(hours, minutes);
-                        }
-                    }
-                }
-            }
-
-            Loader {
-                id: bluetoothExpandedLoader
-                anchors.fill: parent
-                active: islandContainer.bluetoothExpandedLayerVisible
-                asynchronous: false
-                visible: active
-
-                sourceComponent: Component {
-                    BluetoothExpandedLayer {
-                        device: islandContainer.bluetoothExpandedDevice
-                        volumeLevel: islandContainer.currentVolume
-                        iconText: ""
-                        iconFontFamily: root.iconFontFamily
-                        textFontFamily: root.textFontFamily
-                        showCondition: islandContainer.bluetoothExpandedLayerVisible
-                    }
-                }
-            }
-
-            Loader {
-                id: notificationLoader
-                anchors.fill: parent
-                active: islandContainer.notificationLayerVisible
-                asynchronous: false
-                visible: active
-
-                sourceComponent: Component {
-                    NotificationLayer {
-                        appName: islandContainer.notificationAppName
-                        summary: islandContainer.notificationSummary
-                        body: islandContainer.notificationBody
-                        expanded: islandContainer.notificationExpanded
-                        toggleButton: userConfig.mouseButton(userConfig.dynamicIslandPrimaryButton)
-                        iconText: root.notificationStatusIcon
-                        iconFontFamily: root.iconFontFamily
-                        textFontFamily: root.textFontFamily
-                        heroFontFamily: root.heroFontFamily
-                        showCondition: true
-                        onExpansionToggleRequested: {
-                            islandContainer.suppressCapsuleClick(true);
-                            islandContainer.toggleNotificationExpansionIfNeeded();
+                            onBackgroundClicked: {
+                                if (islandContainer.activePlayer) activities.activatePlayerSource();
+                                else islandContainer.smartRestoreState();
+                            }
+                            onCloseRequested: islandContainer.smartRestoreState()
+                            onKeyboardFocusRequested: islandContainer.requestExpandedPlayerKeyboardFocus()
+                            onKeyboardFocusReleased: islandContainer.releaseExpandedPlayerKeyboardFocus()
+                            onPreviousRequested: mediaController.previous()
+                            onTimerToggleRequested: function(hours, minutes) {
+                                islandContainer.toggleTimer(hours, minutes);
+                            }
+                            onTimerResetRequested: islandContainer.resetTimer()
+                            onTimerDurationRequested: function(hours, minutes) {
+                                if (!islandContainer.timerActive)
+                                    islandContainer.syncTimerDuration(hours, minutes);
+                            }
                         }
                     }
                 }
-            }
 
-            ActivityHandoff {
-                id: handoff
-                foreground: activities.current
-                secondary: activities.chip
-                animate: root.activityPresentationAllowed && !activities.detailed && !clickMerge.source && !clickMerge.returnSource
-                onMerging: (row, finished) => {
-                    if (row && ["done", "notification"].includes(row.kind) && root.activityHub?.send)
-                        root.activityHub.send({op:"presentation", id:row.id, updated:row.updated, finished})
-                }
-            }
-            ActivityCapsule {
-                presented: handoff.main
-                opacity: handoff.mainOpacity
-                enabled: !handoff.moving
-                id: activities
-                anchors.fill: parent
-                z: 8
-                visible: root.activityLayerOpen
-                hub: root.activityHub; player: islandContainer.activePlayer
-                track: islandContainer.currentTrack; artist: islandContainer.currentArtist; art: islandContainer.currentArtUrl
-                timerActive: islandContainer.timerActive; timerSeconds: islandContainer.timerRemainingSeconds
-                onOpenPlayer: islandContainer.showExpandedPlayer(false)
-                onOpenTimer: islandContainer.showExpandedTimerPage()
-                onEditingRequested: {
-                    if (root.sourceActivityExpanded) {
-                        activatedSourceId = "";
-                        if (root.compositorIsNiri && !root.menuWindowActive) {
-                            root.remappingMenu = true;
-                            menuRemapTimer.restart();
+                Loader {
+                    id: bluetoothExpandedLoader
+                    anchors.fill: parent
+                    active: islandContainer.bluetoothExpandedLayerVisible
+                    asynchronous: false
+                    visible: active
+
+                    sourceComponent: Component {
+                        BluetoothExpandedLayer {
+                            device: islandContainer.bluetoothExpandedDevice
+                            volumeLevel: islandContainer.currentVolume
+                            iconText: ""
+                            iconFontFamily: root.iconFontFamily
+                            textFontFamily: root.textFontFamily
+                            showCondition: islandContainer.bluetoothExpandedLayerVisible
                         }
                     }
                 }
-            }
-            Loader {
-                id: controlCenterLoader
-                anchors.fill: parent
-                active: islandContainer.controlCenterLayerVisible || root.anyConnectivityDetailMounted
-                asynchronous: false
-                visible: active
 
-                sourceComponent: Component {
-                    ControlCenterLayer {
-                        activityHub: root.activityHub
-                        onDismissRequested: islandContainer.smartRestoreState()
-                        onTimerRequested: islandContainer.showExpandedTimerPage()
-                        onLockRequested: {
-                            islandContainer.smartRestoreState();
-                            if (root.shellRootController)
-                                root.shellRootController.lockScreen();
+                Loader {
+                    id: notificationLoader
+                    anchors.fill: parent
+                    active: islandContainer.notificationLayerVisible
+                    asynchronous: false
+                    visible: active
+
+                    sourceComponent: Component {
+                        NotificationLayer {
+                            appName: islandContainer.notificationAppName
+                            summary: islandContainer.notificationSummary
+                            body: islandContainer.notificationBody
+                            expanded: islandContainer.notificationExpanded
+                            toggleButton: userConfig.mouseButton(userConfig.dynamicIslandPrimaryButton)
+                            iconText: root.notificationStatusIcon
+                            iconFontFamily: root.iconFontFamily
+                            textFontFamily: root.textFontFamily
+                            heroFontFamily: root.heroFontFamily
+                            showCondition: true
+                            onExpansionToggleRequested: {
+                                islandContainer.suppressCapsuleClick(true);
+                                islandContainer.toggleNotificationExpansionIfNeeded();
+                            }
                         }
-                        iconFontFamily: root.iconFontFamily
-                        textFontFamily: root.textFontFamily
-                        heroFontFamily: root.heroFontFamily
-                        sliderIntroDelay: 0
-                        currentTime: timeObj.currentTime
-                        currentDateLabel: timeObj.currentDateLabel
-                        batteryCapacity: islandContainer.batteryCapacity
-                        isCharging: islandContainer.isCharging
-                        volumeLevel: islandContainer.currentVolume
-                        volumeMuted: islandContainer.isMuted
-                        brightnessLevel: islandContainer.currentBrightness
-                        currentWorkspace: islandContainer.currentWs
-                        currentTrack: islandContainer.currentTrack
-                        currentArtist: islandContainer.currentArtist
-                        nightLightEnabled: root.shellRootController && root.shellRootController.nightLightEnabled !== undefined
-                            ? root.shellRootController.nightLightEnabled
-                            : false
-                        showCondition: islandContainer.controlCenterLayerVisible
-                        onFocusModeChanged: function(enabled) {
-                            if (root.shellRootController && root.shellRootController.focusEnabled !== undefined)
-                                root.shellRootController.focusEnabled = enabled;
+                    }
+                }
+
+                ActivityHandoff {
+                    id: handoff
+                    foreground: activities.current
+                    secondary: activities.chip
+                    animate: root.activityPresentationAllowed && !activities.detailed && !clickMerge.source && !clickMerge.returnSource
+                    onMerging: (row, finished) => {
+                        if (row && ["done", "notification"].includes(row.kind) && root.activityHub?.send)
+                            root.activityHub.send({op:"presentation", id:row.id, updated:row.updated, finished})
+                    }
+                }
+                ActivityCapsule {
+                    presented: handoff.main
+                    opacity: handoff.mainOpacity
+                    enabled: !handoff.moving
+                    id: activities
+                    anchors.fill: parent
+                    z: 8
+                    visible: root.activityLayerOpen
+                    hub: root.activityHub; player: islandContainer.activePlayer
+                    track: islandContainer.currentTrack; artist: islandContainer.currentArtist; art: islandContainer.currentArtUrl
+                    timerActive: islandContainer.timerActive; timerSeconds: islandContainer.timerRemainingSeconds
+                    onOpenPlayer: islandContainer.showExpandedPlayer(false)
+                    onOpenTimer: islandContainer.showExpandedTimerPage()
+                    onEditingRequested: {
+                        if (root.sourceActivityExpanded) {
+                            activatedSourceId = "";
+                            if (root.compositorIsNiri && !root.menuWindowActive) {
+                                root.remappingMenu = true;
+                                menuRemapTimer.restart();
+                            }
                         }
-                        onNightLightModeChanged: function(enabled) {
-                            if (root.shellRootController && root.shellRootController.nightLightEnabled !== undefined)
-                                root.shellRootController.nightLightEnabled = enabled;
+                    }
+                }
+                Loader {
+                    id: controlCenterLoader
+                    anchors.fill: parent
+                    active: islandContainer.controlCenterLayerVisible || root.anyConnectivityDetailMounted
+                    asynchronous: false
+                    visible: active
+
+                    sourceComponent: Component {
+                        ControlCenterLayer {
+                            activityHub: root.activityHub
+                            onDismissRequested: islandContainer.smartRestoreState()
+                            onTimerRequested: islandContainer.showExpandedTimerPage()
+                            onLockRequested: {
+                                islandContainer.smartRestoreState();
+                                if (root.shellRootController)
+                                    root.shellRootController.lockScreen();
+                            }
+                            iconFontFamily: root.iconFontFamily
+                            textFontFamily: root.textFontFamily
+                            heroFontFamily: root.heroFontFamily
+                            sliderIntroDelay: 0
+                            currentTime: timeObj.currentTime
+                            currentDateLabel: timeObj.currentDateLabel
+                            batteryCapacity: islandContainer.batteryCapacity
+                            isCharging: islandContainer.isCharging
+                            volumeLevel: islandContainer.currentVolume
+                            volumeMuted: islandContainer.isMuted
+                            brightnessLevel: islandContainer.currentBrightness
+                            currentWorkspace: islandContainer.currentWs
+                            currentTrack: islandContainer.currentTrack
+                            currentArtist: islandContainer.currentArtist
+                            nightLightEnabled: root.shellRootController && root.shellRootController.nightLightEnabled !== undefined
+                                ? root.shellRootController.nightLightEnabled
+                                : false
+                            showCondition: islandContainer.controlCenterLayerVisible
+                            onFocusModeChanged: function(enabled) {
+                                if (root.shellRootController && root.shellRootController.focusEnabled !== undefined)
+                                    root.shellRootController.focusEnabled = enabled;
+                            }
+                            onNightLightModeChanged: function(enabled) {
+                                if (root.shellRootController && root.shellRootController.nightLightEnabled !== undefined)
+                                    root.shellRootController.nightLightEnabled = enabled;
+                            }
+                            onRequestNotification: function(appName, summary, body) {
+                                islandContainer.showNotificationCapsule(appName, summary, body);
+                            }
+                            onConnectivityPanelRequested: function(kind, open) {
+                                root.setConnectivityDetailVisible(kind, open);
+                            }
+                            weatherService: root.weatherService
+                            onWeatherRequested: islandContainer.showWeather()
+                            onCalendarRequested: islandContainer.showCalendar()
                         }
-                        onRequestNotification: function(appName, summary, body) {
-                            islandContainer.showNotificationCapsule(appName, summary, body);
+                    }
+                }
+
+                Loader {
+                    id: notificationCenterLoader
+                    anchors.fill: parent
+                    active: islandContainer.notificationCenterLayerVisible
+                    asynchronous: false
+                    visible: active
+                    onLoaded: islandContainer.forceActiveFocus()
+
+                    sourceComponent: Component {
+                        ActivityHistory { hub: root.activityHub }
+                    }
+                }
+
+                Loader {
+                    id: wallpaperPickerLoader
+                    anchors.fill: parent
+                    active: islandContainer.wallpaperPickerLayerVisible
+                    asynchronous: false
+                    visible: islandContainer.wallpaperPickerLayerVisible
+                    onLoaded: root.focusWallpaperPicker()
+
+                    sourceComponent: Component {
+                        WallpaperPickerLayer {
+                            iconFontFamily: root.iconFontFamily
+                            textFontFamily: root.textFontFamily
+                            activeWallpaper: root.wallpaperPickerActiveWallpaper
+                            showCondition: islandContainer.wallpaperPickerLayerVisible
+                            onWallpaperApplied: filePath => root.wallpaperPickerActiveWallpaper = filePath
+                            onWallpaperApplySucceeded: filePath => root.handleWallpaperApplySucceeded(filePath)
+                            onCloseRequested: islandContainer.smartRestoreState()
                         }
-                        onConnectivityPanelRequested: function(kind, open) {
-                            root.setConnectivityDetailVisible(kind, open);
+                    }
+                }
+
+                Loader {
+                    id: applicationLauncherLoader
+                    anchors.fill: parent
+                    active: islandContainer.applicationLauncherLayerVisible
+                    asynchronous: false
+                    visible: islandContainer.applicationLauncherLayerVisible
+                    onLoaded: root.focusApplicationLauncher()
+
+                    sourceComponent: Component {
+                        ApplicationLauncherLayer {
+                            iconFontFamily: root.iconFontFamily
+                            textFontFamily: root.textFontFamily
+                            searchMode: root.launcherSearchMode
+                            searchEntries: root.launcherSearchEntries
+                            showCondition: islandContainer.applicationLauncherLayerVisible
+                            onCloseRequested: islandContainer.smartRestoreState()
                         }
-                        weatherService: root.weatherService
-                        onWeatherRequested: islandContainer.showWeather()
-                        onCalendarRequested: islandContainer.showCalendar()
-                    }
-                }
-            }
-
-            Loader {
-                id: notificationCenterLoader
-                anchors.fill: parent
-                active: islandContainer.notificationCenterLayerVisible
-                asynchronous: false
-                visible: active
-                onLoaded: islandContainer.forceActiveFocus()
-
-                sourceComponent: Component {
-                    ActivityHistory { hub: root.activityHub }
-                }
-            }
-
-            Loader {
-                id: wallpaperPickerLoader
-                anchors.fill: parent
-                active: islandContainer.wallpaperPickerLayerVisible
-                asynchronous: false
-                visible: islandContainer.wallpaperPickerLayerVisible
-                onLoaded: root.focusWallpaperPicker()
-
-                sourceComponent: Component {
-                    WallpaperPickerLayer {
-                        iconFontFamily: root.iconFontFamily
-                        textFontFamily: root.textFontFamily
-                        activeWallpaper: root.wallpaperPickerActiveWallpaper
-                        showCondition: islandContainer.wallpaperPickerLayerVisible
-                        onWallpaperApplied: filePath => root.wallpaperPickerActiveWallpaper = filePath
-                        onWallpaperApplySucceeded: filePath => root.handleWallpaperApplySucceeded(filePath)
-                        onCloseRequested: islandContainer.smartRestoreState()
-                    }
-                }
-            }
-
-            Loader {
-                id: applicationLauncherLoader
-                anchors.fill: parent
-                active: islandContainer.applicationLauncherLayerVisible
-                asynchronous: false
-                visible: islandContainer.applicationLauncherLayerVisible
-                onLoaded: root.focusApplicationLauncher()
-
-                sourceComponent: Component {
-                    ApplicationLauncherLayer {
-                        iconFontFamily: root.iconFontFamily
-                        textFontFamily: root.textFontFamily
-                        searchMode: root.launcherSearchMode
-                        searchEntries: root.launcherSearchEntries
-                        showCondition: islandContainer.applicationLauncherLayerVisible
-                        onCloseRequested: islandContainer.smartRestoreState()
-                    }
-                }
-            }
-
-            Loader {
-                id: fileShelfLoader
-                anchors.fill: parent
-                active: islandContainer.fileShelfLayerVisible
-                asynchronous: false
-                visible: islandContainer.fileShelfLayerVisible
-                onLoaded: {
-                    if (islandContainer.fileShelfOpenedManually)
-                        root.focusFileShelf();
-                }
-
-                sourceComponent: Component {
-                    FileShelfLayer {
-                        iconFontFamily: root.iconFontFamily
-                        textFontFamily: root.textFontFamily
-                        showCondition: islandContainer.fileShelfLayerVisible
-                        dropPreviewOnly: !islandContainer.fileShelfOpenedManually
-                        onCloseRequested: islandContainer.smartRestoreState()
-                    }
-                }
-            }
-
-            Loader {
-                id: clipboardLoader
-                anchors.fill: parent
-                active: islandContainer.clipboardLayerVisible
-                asynchronous: false
-                visible: islandContainer.clipboardLayerVisible
-                onLoaded: root.focusClipboard()
-
-                sourceComponent: Component {
-                    ClipboardLayer {
-                        iconFontFamily: root.iconFontFamily
-                        textFontFamily: root.textFontFamily
-                        showCondition: islandContainer.clipboardLayerVisible
-                        onCloseRequested: islandContainer.smartRestoreState()
-                    }
-                }
-            }
-
-            Loader {
-                id: weatherLoader
-                anchors.fill: parent
-                active: islandContainer.weatherLayerVisible
-                asynchronous: false
-                visible: islandContainer.weatherLayerVisible
-                onLoaded: islandContainer.forceActiveFocus()
-
-                sourceComponent: Component {
-                    WeatherLayer {
-                        weatherService: root.weatherService
-                        iconFontFamily: root.iconFontFamily
-                        textFontFamily: root.textFontFamily
-                        heroFontFamily: root.heroFontFamily
-                        showCondition: islandContainer.weatherLayerVisible
-                        onCloseRequested: islandContainer.smartRestoreState()
-                    }
-                }
-            }
-
-            Loader {
-                id: calendarLoader
-                anchors.fill: parent
-                active: islandContainer.calendarLayerVisible
-                asynchronous: false
-                visible: islandContainer.calendarLayerVisible
-                onLoaded: islandContainer.forceActiveFocus()
-
-                sourceComponent: Component {
-                    CalendarLayer {
-                        iconFontFamily: root.iconFontFamily
-                        textFontFamily: root.textFontFamily
-                        heroFontFamily: root.heroFontFamily
-                        showCondition: islandContainer.calendarLayerVisible
-                        onCloseRequested: islandContainer.smartRestoreState()
-                    }
-                }
-            }
-
-            DropArea {
-                id: islandFileDropArea
-                z: 10000
-                anchors.fill: parent
-                enabled: islandContainer.fileShelfLayerVisible
-                    || islandContainer.fileShelfCanAutoOpen
-
-                onEntered: drag => {
-                    if (!root.dragCarriesFiles(drag)) {
-                        drag.accepted = false;
-                        return;
-                    }
-
-                    drag.accept(Qt.CopyAction);
-                    if (!islandContainer.fileShelfLayerVisible)
-                        islandContainer.showFileShelf(false);
-                    root.showAutoHiddenIsland("state");
-                }
-
-                onExited: islandContainer.closeAutoOpenedFileShelf()
-
-                onDropped: drop => {
-                    if (!root.dragCarriesFiles(drop)) {
-                        drop.accepted = false;
-                        return;
-                    }
-
-                    root.addFilesFromDrop(drop);
-                    drop.accept(Qt.CopyAction);
-                    islandContainer.closeAutoOpenedFileShelf();
-                }
-            }
-
-            Rectangle {
-                z: 9999
-                anchors.fill: parent
-                radius: mainCapsule.radius
-                color: StyleTokens.clearBlack
-                border.width: islandFileDropArea.containsDrag ? 2 : 0
-                border.color: StyleTokens.accent
-                visible: islandFileDropArea.containsDrag
-            }
-
-            Loader {
-                id: overviewLoader
-
-                anchors.fill: parent
-                active: root.overviewLoaderActive
-                asynchronous: false
-                visible: root.overviewContentVisible
-
-                onStatusChanged: {
-                    if (status === Loader.Ready && root.overviewPreparing) {
-                        root.beginOverviewOpening();
-                        root.focusOverview();
                     }
                 }
 
-                sourceComponent: Component {
-                    WorkspaceOverviewScene {
-                        screen: root.screen
-                        showCondition: root.overviewVisible
-                        previewsEnabled: root.overviewContentVisible
-                        textFontFamily: root.textFontFamily
-                        heroFontFamily: root.heroFontFamily
-                        wallpaperPath: root.overviewWallpaperSource
-                        windowCornerRadius: root.overviewWindowCornerRadius
-                        onCloseRequested: root.closeOverviewEverywhere()
+                Loader {
+                    id: fileShelfLoader
+                    anchors.fill: parent
+                    active: islandContainer.fileShelfLayerVisible
+                    asynchronous: false
+                    visible: islandContainer.fileShelfLayerVisible
+                    onLoaded: {
+                        if (islandContainer.fileShelfOpenedManually)
+                            root.focusFileShelf();
+                    }
+
+                    sourceComponent: Component {
+                        FileShelfLayer {
+                            iconFontFamily: root.iconFontFamily
+                            textFontFamily: root.textFontFamily
+                            showCondition: islandContainer.fileShelfLayerVisible
+                            dropPreviewOnly: !islandContainer.fileShelfOpenedManually
+                            onCloseRequested: islandContainer.smartRestoreState()
+                        }
+                    }
+                }
+
+                Loader {
+                    id: clipboardLoader
+                    anchors.fill: parent
+                    active: islandContainer.clipboardLayerVisible
+                    asynchronous: false
+                    visible: islandContainer.clipboardLayerVisible
+                    onLoaded: root.focusClipboard()
+
+                    sourceComponent: Component {
+                        ClipboardLayer {
+                            iconFontFamily: root.iconFontFamily
+                            textFontFamily: root.textFontFamily
+                            showCondition: islandContainer.clipboardLayerVisible
+                            onCloseRequested: islandContainer.smartRestoreState()
+                        }
+                    }
+                }
+
+                Loader {
+                    id: weatherLoader
+                    anchors.fill: parent
+                    active: islandContainer.weatherLayerVisible
+                    asynchronous: false
+                    visible: islandContainer.weatherLayerVisible
+                    onLoaded: islandContainer.forceActiveFocus()
+
+                    sourceComponent: Component {
+                        WeatherLayer {
+                            weatherService: root.weatherService
+                            iconFontFamily: root.iconFontFamily
+                            textFontFamily: root.textFontFamily
+                            heroFontFamily: root.heroFontFamily
+                            showCondition: islandContainer.weatherLayerVisible
+                            onCloseRequested: islandContainer.smartRestoreState()
+                        }
+                    }
+                }
+
+                Loader {
+                    id: calendarLoader
+                    anchors.fill: parent
+                    active: islandContainer.calendarLayerVisible
+                    asynchronous: false
+                    visible: islandContainer.calendarLayerVisible
+                    onLoaded: islandContainer.forceActiveFocus()
+
+                    sourceComponent: Component {
+                        CalendarLayer {
+                            iconFontFamily: root.iconFontFamily
+                            textFontFamily: root.textFontFamily
+                            heroFontFamily: root.heroFontFamily
+                            showCondition: islandContainer.calendarLayerVisible
+                            onCloseRequested: islandContainer.smartRestoreState()
+                        }
+                    }
+                }
+
+                DropArea {
+                    id: islandFileDropArea
+                    z: 10000
+                    anchors.fill: parent
+                    enabled: islandContainer.fileShelfLayerVisible
+                        || islandContainer.fileShelfCanAutoOpen
+
+                    onEntered: drag => {
+                        if (!root.dragCarriesFiles(drag)) {
+                            drag.accepted = false;
+                            return;
+                        }
+
+                        drag.accept(Qt.CopyAction);
+                        if (!islandContainer.fileShelfLayerVisible)
+                            islandContainer.showFileShelf(false);
+                        root.showAutoHiddenIsland("state");
+                    }
+
+                    onExited: islandContainer.closeAutoOpenedFileShelf()
+
+                    onDropped: drop => {
+                        if (!root.dragCarriesFiles(drop)) {
+                            drop.accepted = false;
+                            return;
+                        }
+
+                        root.addFilesFromDrop(drop);
+                        drop.accept(Qt.CopyAction);
+                        islandContainer.closeAutoOpenedFileShelf();
+                    }
+                }
+
+                Rectangle {
+                    z: 9999
+                    anchors.fill: parent
+                    radius: mainCapsule.radius
+                    color: StyleTokens.clearBlack
+                    border.width: islandFileDropArea.containsDrag ? 2 : 0
+                    border.color: StyleTokens.accent
+                    visible: islandFileDropArea.containsDrag
+                }
+
+                Loader {
+                    id: overviewLoader
+
+                    anchors.fill: parent
+                    active: root.overviewLoaderActive
+                    asynchronous: false
+                    visible: root.overviewContentVisible
+
+                    onStatusChanged: {
+                        if (status === Loader.Ready && root.overviewPreparing) {
+                            root.beginOverviewOpening();
+                            root.focusOverview();
+                        }
+                    }
+
+                    sourceComponent: Component {
+                        WorkspaceOverviewScene {
+                            screen: root.screen
+                            showCondition: root.overviewVisible
+                            previewsEnabled: root.overviewContentVisible
+                            textFontFamily: root.textFontFamily
+                            heroFontFamily: root.heroFontFamily
+                            wallpaperPath: root.overviewWallpaperSource
+                            windowCornerRadius: root.overviewWindowCornerRadius
+                            onCloseRequested: root.closeOverviewEverywhere()
+                        }
                     }
                 }
             }
@@ -3547,6 +3552,10 @@ PanelWindow {
             y: mainCapsule.y + ((mainCapsule.roundedCapsule ? mainCapsule.height : userConfig.islandHeight) - height) / 2
             x: liquid.chip && !liquid.clicked && !liquid.app && mainCapsule.roundedCapsule ? liquid.satelliteX - activityChip.width / 2 : restX
             z: 8; opacity: root.autoHideProgress
+            transform: Scale {
+                origin.y: activityChips.height / 2
+                yScale: mainCapsule.roundedCapsule ? mainCapsule.revealHeightScale : 1
+            }
             visible: progress > 0 && opacity > 0.01 && (wanted || mainCapsule.roundedCapsule && !liquid.app)
             enabled: wanted && !handoff.moving && !clickMerge.source
             IslandButton {
@@ -3612,7 +3621,7 @@ PanelWindow {
             z: 6
             visible: islandContainer.fileShelfBubbleWanted
             opacity: root.autoHideProgress * (clickMerge.source === fileShelfBubble ? liquid.separation : 1)
-            scale: 0.96 + root.autoHideProgress * 0.04
+            scale: mainCapsule.revealHeightScale
             transformOrigin: Item.Center
 
             Behavior on opacity {
@@ -3641,8 +3650,8 @@ PanelWindow {
                 Rectangle {
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
-                    anchors.rightMargin: -2
-                    anchors.bottomMargin: -2
+                    anchors.rightMargin: 1
+                    anchors.bottomMargin: 1
                     width: Math.max(17, countText.implicitWidth + 8)
                     height: 17
                     radius: height / 2
@@ -3694,7 +3703,7 @@ PanelWindow {
             z: 6
             visible: mounted
             opacity: reveal * root.autoHideProgress * (clickMerge.source === timerBubble ? liquid.separation : 1)
-            scale: (0.55 + reveal * 0.45) * (0.96 + root.autoHideProgress * 0.04) * (1 + islandContainer.timerCompletionPulse * 0.12)
+            scale: (0.55 + reveal * 0.45) * mainCapsule.revealHeightScale * (1 + islandContainer.timerCompletionPulse * 0.12)
             transformOrigin: Item.Center
 
             Connections {
@@ -4008,8 +4017,8 @@ PanelWindow {
         z: 20
         width: root.autoHideRevealWidth
         height: root.autoHideRevealHeight
-        enabled: root.autoHideEnabled
-        hoverEnabled: true
+        enabled: height > 0
+        hoverEnabled: enabled
         acceptedButtons: Qt.NoButton
 
         onEntered: {
@@ -4024,7 +4033,9 @@ PanelWindow {
     }
 
     IslandRootGestureArea {
-        anchors.fill: parent
+        x: Math.min(root.topGestureInputX, mainCapsule.x)
+        width: Math.max(root.topGestureInputX + root.topGestureInputWidth, mainCapsule.x + mainCapsule.width) - x
+        height: root.autoHideTargetVisible ? mainCapsule.y + mainCapsule.height : root.topGestureInputHeight
         enabled: root.topGestureInputActive
         islandController: islandContainer
         capsule: mainCapsule
